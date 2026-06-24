@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forum-engine"
+version = "0.1.0"
+description = "Accountable orchestration for multi-agent systems: a zero-dependency core with a tamper-evident ledger"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Zain Dana Harper" }]
+keywords = ["agents", "orchestration", "ledger", "accountability", "multi-agent", "audit", "zero-dependency"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/HarperZ9/forum"
+Repository = "https://github.com/HarperZ9/forum"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
