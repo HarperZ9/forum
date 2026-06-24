@@ -1,6 +1,6 @@
 # Contributing
 
-Forum's core is pure standard library, and the goal is to keep it that way — no
+Forum's core is pure standard library, and the goal is to keep it that way, with no
 third-party runtime dependencies. Contributions that hold that line are welcome.
 
 ## Setup
@@ -20,7 +20,7 @@ pytest
 - **Deterministic tests.** Inject clocks; never rely on the wall clock or randomness
   in an assertion.
 - **Behavior comes with a test.** Every new behavior ships with a test that asserts
-  it — the suite is the contract.
+  it. The suite is the contract.
 
 ## Pull requests
 

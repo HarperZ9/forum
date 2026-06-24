@@ -1,33 +1,33 @@
 # Forum
 
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
-![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none](https://img.shields.io/badge/deps-none-success.svg)
 
-Every few months a new framework offers to orchestrate your AI agents. You wire one
-up, hand it a task, and it works — right up until the question that decides whether
-you can run it in production: *what actually happened, and can you prove it?* Usually
-the answer is a scroll of logs you have to take on faith.
+Every few months there's a new framework for orchestrating AI agents. You wire one
+up, hand it a task, and it works. Then you try to run it for real, and you hit the
+question that actually matters: what happened on that run, and can you prove it?
+Usually all you've got is a pile of model output and a log you're supposed to trust.
 
-Forum begins at that question instead of arriving at it. It is an orchestration
-engine for fleets of AI agents, built on a single discipline: the account of what
-happened is not a byproduct of the work — it *is* the work. Every routing decision,
-every task, every result is written to a ledger you can verify, replay, and trace,
-the way a bank reconciles its books instead of trusting a teller's memory.
+Forum starts from that question. It's an orchestration engine for fleets of agents,
+and the idea underneath it is simple. The record of what happened isn't a side effect
+of the work. It is the work. Every routing decision, every task, every result goes
+into a ledger you can verify, replay, and trace. Think of how a bank reconciles its
+books instead of trusting the teller's memory.
 
-There is a deeper reason it's built this way. A language model keeps no memory of its
-own; each call starts from nothing. To build something dependable on a forgetful
-mind, you have to give it two things it lacks — durable contact with state that
-outlives any single conversation, and a way to *check* that state rather than trust
-it — along with the reach to act across many agents at once. That is the whole
-project. The small zero-dependency pieces you'll find in here are not the point. They
-are the bricks.
+Here's why it's built this way. A language model has no memory of its own. Each call
+starts from nothing. If you want to build something dependable on top of that, you
+have to give a forgetful mind two things it can't supply for itself: a record that
+outlives the conversation, and a way to check that record instead of trusting it. You
+also need reach, the ability to act across a lot of agents at once. That's the real
+project. The small zero-dependency pieces in this repo aren't the goal. They're the
+bricks.
 
-This is the first course of them. What's laid so far is the foundation — the ledger,
-the router, the planner — and it runs today: you can watch it catch a tampered record
-in about twenty lines. The walls go up next (see the [roadmap](#the-roadmap)): a live
-actor runtime, the executors that drive real models, and a daemon to keep it standing.
+This is the first layer of them. What's here is the foundation: the ledger, the
+router, the planner. It runs today, and you can watch it catch a tampered record in
+about twenty lines. The rest goes up next (see the [roadmap](#roadmap)): a live
+runtime, the executors that drive real models, and a daemon to hold it together.
 
 ## Watch it work
 
@@ -37,9 +37,9 @@ cd forum
 python examples/demo.py        # no install, nothing to download
 ```
 
-The demo routes a handful of requests, plans a small dependency graph, records every
-step — and then, the part worth watching, quietly corrupts a stored result to see
-whether the ledger notices:
+The demo routes a few requests, plans a small dependency graph, records every step,
+and then does the interesting part. It quietly corrupts a stored result and checks
+whether the ledger notices.
 
 ```
 1. Routing (deterministic Tier-0; decides a lane or escalates)
@@ -63,54 +63,57 @@ whether the ledger notices:
   verify(deep=True)     : False  <- body tamper caught
 ```
 
-Those last two lines are the whole idea in miniature. The chain of hashes still
-links, so a shallow check passes — but the *contents* of one record no longer match
-what was promised, and a deeper check says so out loud. Trust, but verify; and here,
-you can actually verify.
+Look at those last two lines. The chain of hashes still links, so a quick check
+passes. But the contents of one record no longer match what was promised, and the
+deeper check says so. You don't have to trust the record. You can check it.
 
-## How the ledger earns its keep
+## How the ledger works
 
-A log tells you what a program claims it did. A ledger lets you prove it. The
-difference is in two old ideas, borrowed from cryptography and bookkeeping.
+A log tells you what a program says it did. A ledger lets you prove it. Two old ideas
+do most of the work.
 
-First, every entry carries the fingerprint of the one before it — a hash chain. Change
-any past entry, drop one, or shuffle the order, and the fingerprints stop matching.
-`verify()` walks the chain and notices.
+The first is a hash chain. Every entry carries a fingerprint of the one before it.
+Edit a past entry, drop one, or shuffle the order, and the fingerprints stop lining
+up. `verify()` walks the chain and tells you where.
 
-Second, the bulky contents — a prompt, a result — are stored by the fingerprint of
-their own bytes, not inline. This keeps the chain light, and it lets you do something
-useful: redact a sensitive body to its fingerprint alone, and the chain still
-verifies. When the bodies *are* present, `verify(deep=True)` re-checks each one
-against its fingerprint, which is how the demo catches a swapped result.
+The second is content addressing. The bulky parts, the prompts and the outputs, are
+stored under a fingerprint of their own bytes rather than inline. That keeps the chain
+small, and it has a useful side effect: you can redact a sensitive body down to its
+fingerprint and the chain still checks out. When the bodies are there,
+`verify(deep=True)` re-hashes each one to make sure it still matches. That's what
+catches the swapped result in the demo.
 
-From there the rest follows. `replay(until=...)` reconstructs the exact state at any
-past moment, because the core is pure and entries never change. `causal_chain(seq)`
-walks the parent links to answer the question every incident review eventually asks:
-*why did this happen?* And `checkpoint()` folds the whole history into one Merkle
-root — domain-separated and odd-node-promoted, so it sidesteps the classic
-second-preimage collision (CVE-2012-2459) that bites naive Merkle code.
+Everything else falls out of those two. `replay(until=...)` rebuilds the exact state
+at any past point, which works because the core is pure and entries never change.
+`causal_chain(seq)` follows the parent links to answer the question every postmortem
+comes back to: why did this happen? And `checkpoint()` folds the whole history into
+one Merkle root. The leaves and the internal nodes are tagged differently, and odd
+nodes get carried up rather than duplicated, so it avoids the second-preimage
+collision (CVE-2012-2459) that naive Merkle code runs into.
 
-## What's standing today
+## What's here
 
-- **`forum.ledger`** — the witnessed record: hash chain, content-addressed bodies, `verify` / `verify(deep=True)`, `replay`, `causal_chain`, Merkle `checkpoint`.
-- **`forum.routing`** — a deterministic router that reads a request, picks a lane, and only escalates to a model when the keywords genuinely can't decide.
-- **`forum.plan`** — a task graph compiled into ordered parallel waves, with cycles and missing dependencies caught up front.
-- **`forum.roster`** — the cast of specialists, written as plain data in a TOML file, validated on load.
-- **`forum.policy`** — the rules of the room: which kinds of work may run, and how much at once.
+- `forum.ledger`: the record. Hash chain, content-addressed bodies, `verify` / `verify(deep=True)`, `replay`, `causal_chain`, Merkle `checkpoint`.
+- `forum.routing`: a router that reads a request, picks a lane, and only falls back to a model when the keywords genuinely can't decide.
+- `forum.plan`: a task graph compiled into parallel waves, with cycles and missing dependencies caught up front.
+- `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load.
+- `forum.policy`: the rules of the room. Which work can run, and how much at once.
 
 Pure standard library. No third-party runtime dependencies. The tests run the
-primitives directly, tamper detection and Merkle collision-resistance included.
+primitives directly, tamper detection and the Merkle property included.
 
-## The roadmap
+## Roadmap
 
-- **Today — the foundation.** The ledger, router, roster, planner, and policy. It runs and it's tested.
-- **Next — the runtime.** An `asyncio` actor and supervision layer, and the control loop that turns a request into a plan: classify → coordinate → validate → synthesize.
-- **Then — reach.** Executors that drive real models (Claude Code subagents, a raw API, a CLI) behind one interface, and an HTTP + MCP daemon, so a whole fleet can run against a surface larger than any single conversation — every step still written down, still checkable.
+- **Today, the foundation.** Ledger, router, roster, planner, policy. It runs and it's tested.
+- **Next, the runtime.** An asyncio actor and supervision layer, and the control loop that turns a request into a plan: classify, coordinate, validate, synthesize.
+- **Then, reach.** Executors that drive real models (Claude Code subagents, a raw API, a CLI) behind one interface, and an HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
 
 ## Design
 
-[ARCHITECTURE.md](ARCHITECTURE.md) walks through the layers and the ledger in more depth.
+[ARCHITECTURE.md](ARCHITECTURE.md) goes deeper on the layers and the ledger.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Forum is fair-source: the code is open to read, run, and build on, with commercial
+use reserved so the project can fund its own development. Copyright stays with the
+author. See [LICENSE](LICENSE) for the exact terms.

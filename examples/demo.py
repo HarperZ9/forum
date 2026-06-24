@@ -1,4 +1,4 @@
-"""Forum — a tour of the accountable core (v0.1).
+"""Forum: a tour of the accountable core (v0.1).
 
 Walks the primitives on a small example:
   route work to capability lanes -> plan a dependency DAG ->
@@ -64,7 +64,7 @@ def main() -> None:
 
     request = ledger.append(actor="client", kind="request", payload={"batch": "incoming work"})
 
-    # 1. Route requests to capability lanes — deterministic, no model call.
+    # 1. Route requests to capability lanes: deterministic, no model call.
     rule("1. Routing (deterministic Tier-0; decides a lane or escalates)")
     for text in [
         "build the database schema and the auth endpoint",

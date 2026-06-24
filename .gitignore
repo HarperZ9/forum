@@ -41,3 +41,7 @@ Thumbs.db
 
 # SDD scratch
 .superpowers/
+
+# internal design + SDD process artifacts (local only)
+docs/superpowers/
+.superpowers/

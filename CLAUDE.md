@@ -1,4 +1,4 @@
-# Forum — CLAUDE.md
+# Forum: CLAUDE.md
 
 Guidance for AI coding agents working in this repository.
 
@@ -16,9 +16,9 @@ Guidance for AI coding agents working in this repository.
 
 ## Layout
 
-- `src/forum/` — the pure core (hashing, message, ledger, roster, routing, plan, policy).
-- `tests/` — one test module per source module.
-- `examples/demo.py` — a runnable tour of the primitives.
+- `src/forum/`: the pure core (hashing, message, ledger, roster, routing, plan, policy).
+- `tests/`: one test module per source module.
+- `examples/demo.py`: a runnable tour of the primitives.
 
 ## Working here
 
