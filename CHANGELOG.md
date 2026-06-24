@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0: the runtime
+
+The engine runs. A plan now executes end to end, with every step witnessed.
+
+- **Executor**: an `Executor` protocol and a deterministic `EchoExecutor` stand-in, the single async seam where a real model-driven executor will drop in.
+- **Actor and Supervisor**: a minimal async mailbox actor (observable let-it-crash) and a restart supervisor.
+- **Dispatcher**: `dispatch_plan` schedules a plan into waves and runs each task through the executor, bounded by a semaphore under `asyncio.TaskGroup`, appending plan, task, and result entries to the ledger with causal links. Independent tasks run concurrently and the run stays deep-verifiable.
+- **Orchestrator**: ties routing, planning, and witnessed dispatch into `submit_plan`.
+
+39 tests. End-to-end run in `examples/run.py`.
+
 ## 0.1.0: core foundation
 
 The accountable core, pure standard library, zero runtime dependencies.

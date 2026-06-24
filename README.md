@@ -24,10 +24,12 @@ also need reach, the ability to act across a lot of agents at once. That's the r
 project. The small zero-dependency pieces in this repo aren't the goal. They're the
 bricks.
 
-This is the first layer of them. What's here is the foundation: the ledger, the
-router, the planner. It runs today, and you can watch it catch a tampered record in
-about twenty lines. The rest goes up next (see the [roadmap](#roadmap)): a live
-runtime, the executors that drive real models, and a daemon to hold it together.
+This is the first layer of them, and there's enough now to run. The foundation is
+here (the ledger, the router, the planner), and so is the runtime on top of it. Forum
+can take a multi-step plan, run it across agents, and witness every step, so you can
+verify the whole thing afterward. The two examples below show each half. What's still
+ahead (see the [roadmap](#roadmap)): executors that drive real models in place of the
+stub, and a daemon to keep a fleet running.
 
 ## Watch it work
 
@@ -67,6 +69,16 @@ Look at those last two lines. The chain of hashes still links, so a quick check
 passes. But the contents of one record no longer match what was promised, and the
 deeper check says so. You don't have to trust the record. You can check it.
 
+To see the engine run a whole plan instead of just the ledger, there's a second
+example:
+
+```bash
+python examples/run.py
+```
+
+It routes a request, runs a three-step plan across agents (with a stub standing in for
+a real model), and verifies the entire run from the ledger at the end.
+
 ## How the ledger works
 
 A log tells you what a program says it did. A ledger lets you prove it. Two old ideas
@@ -104,9 +116,9 @@ primitives directly, tamper detection and the Merkle property included.
 
 ## Roadmap
 
-- **Today, the foundation.** Ledger, router, roster, planner, policy. It runs and it's tested.
-- **Next, the runtime.** An asyncio actor and supervision layer, and the control loop that turns a request into a plan: classify, coordinate, validate, synthesize.
-- **Then, reach.** Executors that drive real models (Claude Code subagents, a raw API, a CLI) behind one interface, and an HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
+- **Done, the foundation.** Ledger, router, roster, planner, policy. Tested and runnable.
+- **Done, the runtime.** An asyncio dispatcher that runs a plan's waves with bounded concurrency, a mailbox actor and a restart supervisor, and an Orchestrator that ties routing, planning, and witnessed dispatch into one call. The engine runs end to end against a stub executor today.
+- **Next, real reach.** Executors that drive actual models (Claude Code subagents, a raw API, a CLI) in place of the stub, the model-backed control loop (classify, coordinate, validate, synthesize), and an HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
 
 ## Design
 
