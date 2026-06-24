@@ -126,6 +126,10 @@ class Ledger:
         payload: Any,
         causal_parent: int | None = None,
     ) -> LedgerEntry:
+        # INVARIANT: append must stay await-free. Concurrent async callers (for
+        # example dispatch_plan's TaskGroup) rely on this method being atomic
+        # under cooperative scheduling; an await between reading head() and the
+        # append would corrupt seq/prev_hash linkage. Do not introduce awaits here.
         head = self._s.head()
         seq = 0 if head is None else head.seq + 1
         prev = GENESIS if head is None else head.entry_hash
