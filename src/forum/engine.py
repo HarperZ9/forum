@@ -6,7 +6,7 @@ from forum.ledger import Ledger
 from forum.plan import Plan
 from forum.policy import Policy
 from forum.roster import Roster
-from forum.routing import LexicalRouter, RouteResult
+from forum.routing import LexicalRouter, RouteResult, RoutingProvider
 
 
 class Orchestrator:
@@ -18,7 +18,7 @@ class Orchestrator:
         ledger: Ledger,
         executor: Executor,
         policy: Policy,
-        router: LexicalRouter | None = None,
+        router: RoutingProvider | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
@@ -30,6 +30,11 @@ class Orchestrator:
         return self.router.score(text, self.roster)
 
     async def submit_plan(self, plan: Plan) -> dict[str, Result]:
+        """Witness the request and run the plan through the witnessed dispatcher.
+
+        Note: plan-level agent/category authorization (policy.permits) is a later
+        concern; today only policy.max_parallel is applied, at dispatch.
+        """
         request = self.ledger.append(
             actor="client", kind="request", payload={"tasks": [t.id for t in plan.tasks]}
         )

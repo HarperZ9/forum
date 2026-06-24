@@ -4,7 +4,7 @@ import asyncio
 
 from forum.executor import Assignment, Executor, Result
 from forum.ledger import Ledger
-from forum.plan import Plan
+from forum.plan import Plan, Task
 
 
 async def dispatch_plan(
@@ -30,7 +30,7 @@ async def dispatch_plan(
         actor="dispatch", kind="plan", payload={"waves": waves}, causal_parent=parent_seq
     )
 
-    async def run_task(task) -> None:
+    async def run_task(task: Task) -> None:
         async with sem:
             assigned = ledger.append(
                 actor="dispatch",
