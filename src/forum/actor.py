@@ -11,8 +11,9 @@ class Actor:
 
     def __init__(self, name: str) -> None:
         self.name = name
-        self.inbox: asyncio.Queue = asyncio.Queue()
+        self.inbox: asyncio.Queue[Any] = asyncio.Queue()
         self._task: asyncio.Task | None = None
+        self.error: BaseException | None = None
 
     async def on_message(self, message: Any) -> None:
         raise NotImplementedError
@@ -22,7 +23,11 @@ class Actor:
             message = await self.inbox.get()
             if message is _STOP:
                 break
-            await self.on_message(message)
+            try:
+                await self.on_message(message)
+            except Exception as exc:  # let-it-crash, but observable
+                self.error = exc
+                break
 
     def start(self) -> "Actor":
         self._task = asyncio.create_task(self._loop())
@@ -32,6 +37,7 @@ class Actor:
         await self.inbox.put(message)
 
     async def stop(self) -> None:
+        if self._task is None:
+            return
         await self.inbox.put(_STOP)
-        if self._task is not None:
-            await self._task
+        await self._task
