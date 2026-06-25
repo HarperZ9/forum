@@ -16,3 +16,11 @@ def test_subprocess_executor_reports_failure():
     ex = SubprocessExecutor([sys.executable, "-c", "import sys; sys.exit(3)"])
     r = asyncio.run(ex.run(Assignment("T2", "worker", "x")))
     assert r.ok is False
+
+
+def test_subprocess_executor_times_out():
+    # a command that sleeps past the timeout is killed and witnessed as not ok
+    ex = SubprocessExecutor([sys.executable, "-c", "import time; time.sleep(5)"], timeout=0.3)
+    r = asyncio.run(ex.run(Assignment("T3", "worker", "x")))
+    assert r.ok is False
+    assert "timeout" in r.output

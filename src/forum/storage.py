@@ -6,7 +6,6 @@ from typing import Any
 
 from forum.ledger import LedgerEntry
 
-
 _ENTRY_FIELDS = (
     "seq", "ts", "actor", "kind",
     "causal_parent", "payload_hash", "prev_hash", "entry_hash",

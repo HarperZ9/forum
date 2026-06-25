@@ -120,7 +120,7 @@ class McpSurface:
 
     async def _call_tool(self, mid: Any, params: dict) -> dict:
         name = params.get("name")
-        route = _TOOL_ROUTES.get(name)
+        route = _TOOL_ROUTES.get(name) if isinstance(name, str) else None
         if route is None:
             return _err(mid, -32602, f"unknown tool: {name!r}")
         http_method, path, body = route(params.get("arguments") or {})
