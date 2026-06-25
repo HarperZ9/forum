@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import dataclasses
 import time
+from collections.abc import Callable
 
 from forum.budget import RunBudget
 from forum.context import ContextProvider, NullContextProvider
-from forum.control import Classifier, Coordinator, Synthesizer, Validator
+from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Validator
 from forum.dispatch import dispatch_plan
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.intent import DEFAULT_THRESHOLD, coverage
@@ -56,12 +57,15 @@ class Orchestrator:
         context_provider: ContextProvider | None = None,
         escalation_executors: list[Executor] | None = None,
         intent_threshold: float = DEFAULT_THRESHOLD,
+        intent_judge: IntentJudge | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
         self.executor = executor
         self.policy = policy
         self.intent_threshold = intent_threshold
+        # opt-in: when set, a flagged run escalates from the lexical floor to a model judge
+        self.intent_judge = intent_judge
         self.context_provider = context_provider or NullContextProvider()
         # ordered ladder of stronger executors; a failed task escalates up it (witnessed)
         self.escalation_executors = list(escalation_executors or [])
@@ -189,7 +193,7 @@ class Orchestrator:
         answer_entry = self.ledger.append(
             actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq
         )
-        self._witness_intent(request, answer, answer_entry.seq)
+        await self._witness_intent(request, answer, answer_entry.seq, counter, over_budget)
         return answer
 
     async def _witness_verdict(
@@ -215,17 +219,24 @@ class Orchestrator:
         )
         return verdict.ok
 
-    def _witness_intent(self, request: str, answer: str, parent_seq: int) -> None:
-        """Witness how much of the request's vocabulary the final answer reflects.
+    async def _witness_intent(
+        self, request: str, answer: str, parent_seq: int, executor: Executor,
+        over_budget: Callable[[], bool],
+    ) -> None:
+        """Witness whether the run answered the request, and escalate when it looks off.
 
-        A reproducible lexical coverage signal (forum.intent), recorded as its own
-        entry chained to the answer, so a completed run carries an auditable hint of
-        whether it drifted from what was asked. Each task can pass its own verdict
+        First a reproducible lexical coverage signal (forum.intent), recorded as its
+        own entry chained to the answer, so a completed run carries an auditable hint
+        of whether it drifted from what was asked. Each task can pass its own verdict
         while the run as a whole misses the request; this is the check at that level.
-        It is a floor, not a verdict: it records the signal and never blocks the run.
+        The floor never blocks; it records the signal. Then, only when the floor flags
+        drift and an intent judge is configured, a model resolves whether the answer
+        truly drifted or merely paraphrased, witnessed and budget-bounded.
         """
         score, missing = coverage(request, answer)
-        self.ledger.append(
+        flagged = score < self.intent_threshold
+        missing_sorted = sorted(missing)
+        check = self.ledger.append(
             actor="intent",
             kind="intent_check",
             payload={
@@ -233,11 +244,22 @@ class Orchestrator:
                 # a lexical-overlap signal, not a semantic judgment, without external docs
                 "method": "lexical_coverage",
                 "coverage": round(score, 4),
-                "flagged": score < self.intent_threshold,
-                "missing": sorted(missing),
+                "flagged": flagged,
+                "missing": missing_sorted,
             },
             causal_parent=parent_seq,
         )
+        # the rung above the floor: a model decides whether a flagged answer truly
+        # drifted or just paraphrased. Chained to the flag it resolves, witnessed with
+        # its reasoning, and skipped once the budget is spent.
+        if flagged and self.intent_judge is not None and not over_budget():
+            verdict = await self.intent_judge.judge(request, answer, missing_sorted, executor)
+            self.ledger.append(
+                actor="intent-judge",
+                kind="intent_judgment",
+                payload={"ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
+                causal_parent=check.seq,
+            )
 
     async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
         """Resolve one task's agent through the routing ladder, witnessed.
