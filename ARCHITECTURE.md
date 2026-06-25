@@ -91,7 +91,7 @@ Cheap and certain first, expensive and clever only when it's earned.
 ## Roster, plan, policy
 
 - Roster is a cast list, not code. Each specialist is a row in a TOML file (name, domain, keywords, model tier, executor), validated when it loads.
-- Plan compiles a task graph into ordered waves you can run in parallel (Kahn's layering), and refuses anything with a cycle or a missing dependency up front.
+- Plan compiles a task graph into ordered waves you can run in parallel (Kahn's layering), and refuses anything with a cycle or a missing dependency up front. Its edges are typed: a data edge feeds the upstream's witnessed output into the downstream task so it builds on real work, while an order edge only sequences. Both constrain scheduling; the dispatcher records per task which upstreams it consumed (`data_from`), and the plan entry records every typed edge, so the data flow is in the ledger, not just the wiring.
 - Policy is the rule of the room: which categories of work may run, and how many at a time.
 
 ## Surfaces
