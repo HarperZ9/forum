@@ -4,7 +4,7 @@
 
 Forum is a complete, accountable orchestration engine: durable, verifiable, daemonized, installable, and documented.
 
-- The full stack is here and tested: the witnessed causal ledger (verify, deep-verify, replay, causal chains, Merkle checkpoints), durable file-backed storage, deterministic routing with a model-backed classifier on escalation, the DAG planner and bounded-concurrency dispatcher, the control loop (coordinate, validate, synthesize), real executors (subprocess and the Anthropic API), an HTTP daemon and an MCP surface over one long-lived ledger, and a `forum` CLI.
+- The full stack is here and tested: the witnessed causal ledger (verify, deep-verify, replay, causal chains, Merkle checkpoints), durable file-backed storage, deterministic routing with a model-backed classifier on escalation, the DAG planner and bounded-concurrency dispatcher, the control loop (coordinate, validate, synthesize), model-agnostic executors (any command, any OpenAI-compatible endpoint including local servers that need no account, and the Anthropic API), an HTTP daemon and an MCP surface over one long-lived ledger, and a `forum` CLI.
 - A built-in roster of 24 plain capability lanes ships in the box.
 - Quality gates in CI: ruff, mypy, and coverage. 144 tests, plus 2 gated real-model tests.
 - Docs: README, ARCHITECTURE, RUNNING, SECURITY, RELEASING.
