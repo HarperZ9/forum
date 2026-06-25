@@ -66,3 +66,27 @@ class Classifier:
         if agent not in names:
             raise ValueError(f"classifier chose unknown agent: {agent!r}")
         return Classification(agent, float(data.get("confidence", 0.0)), str(data.get("reason", "")))
+
+
+@dataclass(frozen=True, slots=True)
+class Verdict:
+    ok: bool
+    score: float
+    reason: str
+
+
+_VALIDATOR_PROMPT = """Judge whether the output satisfies the instruction.
+Return ONLY JSON of the form:
+{{"ok": true, "score": 0.0, "reason": "..."}}
+
+Instruction: {instruction}
+Output: {output}"""
+
+
+class Validator:
+    """Judge an output against its instruction, using a model."""
+
+    async def validate(self, instruction: str, output: str, executor: Executor) -> Verdict:
+        prompt = _VALIDATOR_PROMPT.format(instruction=instruction, output=output)
+        data = await ask_json(executor, "validator", prompt)
+        return Verdict(bool(data["ok"]), float(data.get("score", 0.0)), str(data.get("reason", "")))
