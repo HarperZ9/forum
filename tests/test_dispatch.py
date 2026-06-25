@@ -344,6 +344,34 @@ def test_per_task_context_is_capped():
     assert len(results["T1"].output) < 500
 
 
+def test_each_task_in_a_wave_gets_its_own_context():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "alpha", ()), Task("T2", "x", "beta", ())))  # one concurrent wave
+    asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), context_provider=_PerTaskContext(), max_parallel=2))
+    bodies = {b["task"]: b["context"] for b in (ledger.get_payload(e.payload_hash) for e in ledger.query(kind="context"))}
+    assert bodies == {"T1": "ctx for: alpha", "T2": "ctx for: beta"}  # each agent got its own
+    assert ledger.get(_task_entry(ledger, "T1").causal_parent).kind == "context"
+    assert ledger.get(_task_entry(ledger, "T2").causal_parent).kind == "context"
+    assert ledger.verify(deep=True) is True  # both context+task append pairs survive concurrency
+
+
+def test_empty_context_for_a_task_falls_back_to_the_plan_parent():
+    ledger = make_ledger()
+
+    class _SelectiveCtx:
+        def context(self, text):
+            return "ctx for go" if text == "go" else ""  # "" for the other task
+
+    plan = Plan((Task("T1", "x", "go", ()), Task("T2", "x", "skip", ())))
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), context_provider=_SelectiveCtx(), max_parallel=2))
+    assert ledger.get(_task_entry(ledger, "T1").causal_parent).kind == "context"  # T1 got context
+    assert ledger.get(_task_entry(ledger, "T2").causal_parent).kind == "plan"     # "" -> chained straight to plan
+    assert "Context for this task" not in results["T2"].output                    # nothing injected for T2
+    bodies = [b["task"] for b in (ledger.get_payload(e.payload_hash) for e in ledger.query(kind="context"))]
+    assert bodies == ["T1"]  # only T1 produced a context entry
+    assert ledger.verify(deep=True) is True
+
+
 def test_resume_and_checkpoint_together():
     ledger = make_ledger()
     plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))
