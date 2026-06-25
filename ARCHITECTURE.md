@@ -148,6 +148,17 @@ paraphrase: a correct answer that reuses few of the request's words flags anyway
 the judge is what clears it. Cheap and certain first, the model only when the floor
 earns it, the same discipline as routing and escalation.
 
+The run's last word can come from outside. A VerifierProvider is the peer of the
+ContextProvider: where context feeds organized knowledge in before the run, a verifier
+checks the answer after it. A peer flagship, a proof-checker, or a test runner implements
+the one-method seam, and Forum witnesses the verdict (verified, refuted, or
+could-not-decide) as its own entry chained to the answer. The default abstains, so Forum
+stands alone. Like the intent check it records the signal and does not block, leaving what
+to do about a refuted answer to policy. The seam is synchronous, so a verifier that does
+heavy work should keep it brief or offload it; a verifier that crashes is witnessed as
+could-not-decide, never fatal, so external code can never sink an answer the run already
+produced.
+
 ## Reading the record
 
 A record you cannot read is only half of accountability. `forum.report` closes
