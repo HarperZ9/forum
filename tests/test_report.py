@@ -77,6 +77,8 @@ def test_summarize_counts_a_witnessed_run():
     assert s["failed_results"] == 0
     assert s["verdicts_pass"] == 1 and s["verdicts_fail"] == 0
     assert s["answers"] == 1
+    assert s["intent_checks"] == 1
+    assert s["intent_flagged"] == 1   # the scripted answer "final" misses "build"/"api"
     assert s["escalations"] == 0
     assert s["model_calls"] == {"_Exec": 1}   # the executor's identity, seen through the counter
     assert s["model_calls_total"] == 1
