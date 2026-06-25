@@ -208,6 +208,7 @@ def test_resume_reuses_completed_results_and_reruns_the_rest():
     assert results["T1"].output == "done: a"          # reused, not re-executed (Echo would say "done: a" too,
     assert results["T1"].witnessed_seq is not None      #  but it points at the ORIGINAL result entry)
     assert results["T2"].ok is True and results["T2"].output.startswith("done: b")  # re-run (was failed)
+    assert "T1: done: a" in results["T2"].output       # the reused upstream's output flowed into the re-run
     reused = ledger.query(kind="resume")
     assert len(reused) == 1
     assert ledger.get_payload(reused[0].payload_hash)["reused"] == ["T1"]
@@ -229,4 +230,29 @@ def test_checkpoint_each_wave_witnesses_a_checkpoint_per_wave():
     cps = ledger.query(kind="checkpoint")
     assert [ledger.get_payload(e.payload_hash)["wave"] for e in cps] == [0, 1]
     assert all(len(ledger.get_payload(e.payload_hash)["root"]) == 64 for e in cps)
+    assert ledger.verify(deep=True) is True
+
+
+def test_fully_completed_plan_resumed_reuses_everything():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))
+    asyncio.run(dispatch_plan(plan, ledger, EchoExecutor(), max_parallel=2))  # all succeed
+    tasks_before = len(ledger.query(kind="task"))
+    results = asyncio.run(dispatch_plan(plan, ledger, EchoExecutor(), max_parallel=2, resume=True))
+    assert set(results) == {"T1", "T2"}
+    assert len(ledger.query(kind="task")) == tasks_before  # nothing re-run, no new task entries
+    reused = ledger.get_payload(ledger.query(kind="resume")[0].payload_hash)["reused"]
+    assert reused == ["T1", "T2"]
+    assert ledger.verify(deep=True) is True
+
+
+def test_resume_and_checkpoint_together():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))
+    asyncio.run(dispatch_plan(plan, ledger, _FailT2(), max_parallel=2))  # T2 fails
+    asyncio.run(
+        dispatch_plan(plan, ledger, EchoExecutor(), max_parallel=2, resume=True, checkpoint_each_wave=True)
+    )
+    assert len(ledger.query(kind="resume")) == 1
+    assert len(ledger.query(kind="checkpoint")) == 2  # both waves of the resume run checkpointed
     assert ledger.verify(deep=True) is True

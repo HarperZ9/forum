@@ -48,6 +48,10 @@ def _completed_results(ledger: Ledger, ids: set[str]) -> dict[str, tuple[str, in
     ok=True result per id wins (seq order). Only successful results are reused; a task
     with no result, or only a failed one, is left to run again. No model is involved:
     resume reuses the verified record, it does not regenerate it.
+
+    Resume assumes one ledger directory holds a single run lineage: task ids are matched
+    across all prior entries, so do not resume a plan over a ledger populated by an
+    unrelated plan that reuses the same ids.
     """
     done: dict[str, tuple[str, int]] = {}
     for e in ledger.query(kind="result"):
@@ -78,7 +82,9 @@ async def dispatch_plan(
     With ``resume=True`` a task that already has a witnessed successful result in
     the ledger is reused, not re-run, and a ``resume`` entry records which were
     reused; the ledger is the resume state, so no work and no model call is spent
-    twice. With ``checkpoint_each_wave=True`` a ``checkpoint`` entry (the Merkle
+    twice (a reused result reflects the current plan's agent, while its witnessed_seq
+    points at the original entry that produced it). With
+    ``checkpoint_each_wave=True`` a ``checkpoint`` entry (the Merkle
     root so far) is witnessed and the ledger synced after each wave, a re-checkable
     savepoint and the durability point for batched storage.
     """

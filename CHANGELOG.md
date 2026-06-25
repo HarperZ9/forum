@@ -8,7 +8,7 @@ A long run that crashes, hits a budget, or is stopped should not start over. Bec
 - **Phased checkpoints**: `checkpoint_each_wave=True` witnesses a `checkpoint` entry (the Merkle root so far) and syncs the ledger after each wave, a re-checkable savepoint and the durability point for batched storage (v1.8).
 - The summary and `forum bench` report checkpoints and resumes.
 
-Pure standard library, deterministic. 221 tests, plus 2 gated real-model tests. Run in `examples/run_resume.py`.
+Pure standard library, deterministic. 223 tests, plus 2 gated real-model tests. Run in `examples/run_resume.py`.
 
 ## 1.8.0: opt-in batched fsync
 
