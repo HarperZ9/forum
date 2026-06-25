@@ -41,6 +41,23 @@ def augment_with_upstream(task: Task, results: dict[str, Result]) -> tuple[str, 
     return task.instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from
 
 
+def _completed_results(ledger: Ledger, ids: set[str]) -> dict[str, tuple[str, int]]:
+    """Map each task id with a witnessed successful result to (output, that result's seq).
+
+    Reads the durable ledger so a resumed run can reuse work already done. The latest
+    ok=True result per id wins (seq order). Only successful results are reused; a task
+    with no result, or only a failed one, is left to run again. No model is involved:
+    resume reuses the verified record, it does not regenerate it.
+    """
+    done: dict[str, tuple[str, int]] = {}
+    for e in ledger.query(kind="result"):
+        body = ledger.get_payload(e.payload_hash)
+        tid = body.get("id")
+        if tid in ids and body.get("ok") is True:
+            done[tid] = (body["output"], e.seq)
+    return done
+
+
 async def dispatch_plan(
     plan: Plan,
     ledger: Ledger,
@@ -49,17 +66,27 @@ async def dispatch_plan(
     max_parallel: int = 6,
     parent_seq: int | None = None,
     over_budget: Callable[[], bool] | None = None,
+    resume: bool = False,
+    checkpoint_each_wave: bool = False,
 ) -> dict[str, Result]:
     """Run a plan's waves through the executor, witnessing every step.
 
     Appends a ``plan`` entry, then a ``task`` + ``result`` entry per task with
     causal links. Each wave runs concurrently (bounded by ``max_parallel``);
     waves run in dependency order.
+
+    With ``resume=True`` a task that already has a witnessed successful result in
+    the ledger is reused, not re-run, and a ``resume`` entry records which were
+    reused; the ledger is the resume state, so no work and no model call is spent
+    twice. With ``checkpoint_each_wave=True`` a ``checkpoint`` entry (the Merkle
+    root so far) is witnessed and the ledger synced after each wave, a re-checkable
+    savepoint and the durability point for batched storage.
     """
     results: dict[str, Result] = {}
     sem = asyncio.Semaphore(max_parallel)
     by_id = {t.id: t for t in plan.tasks}
     waves = plan.schedule()
+    completed = _completed_results(ledger, set(by_id)) if resume else {}
 
     edges = [
         {"from": dep, "to": t.id, "type": "order" if dep in t.order_deps else "data"}
@@ -69,9 +96,19 @@ async def dispatch_plan(
     plan_entry = ledger.append(
         actor="dispatch", kind="plan", payload={"waves": waves, "edges": edges}, causal_parent=parent_seq
     )
+    if completed:
+        ledger.append(
+            actor="dispatch", kind="resume",
+            payload={"reused": sorted(completed)}, causal_parent=plan_entry.seq,
+        )
 
     async def run_task(task: Task) -> None:
         async with sem:
+            if task.id in completed:
+                # reuse the verified result already in the ledger; do not re-run or re-witness
+                output, seq = completed[task.id]
+                results[task.id] = Result(task.id, task.agent, output, ok=True, witnessed_seq=seq)
+                return
             # a data edge feeds its upstream's output into this task; an order edge does not
             instruction, data_from = augment_with_upstream(task, results)
             assigned = ledger.append(
@@ -96,9 +133,16 @@ async def dispatch_plan(
             )
             results[task.id] = dataclasses.replace(result, witnessed_seq=entry.seq)
 
-    for wave in waves:
+    for i, wave in enumerate(waves):
         async with asyncio.TaskGroup() as tg:
             for tid in wave:
                 tg.create_task(run_task(by_id[tid]))
+        if checkpoint_each_wave:
+            # a re-checkable savepoint after each wave, and the durability point for batched storage
+            ledger.append(
+                actor="dispatch", kind="checkpoint",
+                payload={"wave": i, "root": ledger.checkpoint()}, causal_parent=plan_entry.seq,
+            )
+            ledger.sync()
 
     return results

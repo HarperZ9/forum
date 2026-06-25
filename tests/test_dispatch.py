@@ -186,3 +186,47 @@ def test_plan_entry_witnesses_typed_edges():
     edges = ledger.get_payload(ledger.query(kind="plan")[0].payload_hash)["edges"]
     assert {"from": "T1", "to": "T2", "type": "data"} in edges
     assert {"from": "T1", "to": "T3", "type": "order"} in edges
+
+
+class _FailT2:
+    """T1 succeeds; T2 fails. (Used to leave a run half-done for resume.)"""
+
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        if assignment.task_id == "T2":
+            return Result("T2", assignment.agent, "boom", ok=False)
+        return Result(assignment.task_id, assignment.agent, f"done: {assignment.instruction}")
+
+
+def test_resume_reuses_completed_results_and_reruns_the_rest():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))
+    asyncio.run(dispatch_plan(plan, ledger, _FailT2(), max_parallel=2))  # T1 ok, T2 failed
+
+    results = asyncio.run(dispatch_plan(plan, ledger, EchoExecutor(), max_parallel=2, resume=True))
+    assert results["T1"].output == "done: a"          # reused, not re-executed (Echo would say "done: a" too,
+    assert results["T1"].witnessed_seq is not None      #  but it points at the ORIGINAL result entry)
+    assert results["T2"].ok is True and results["T2"].output.startswith("done: b")  # re-run (was failed)
+    reused = ledger.query(kind="resume")
+    assert len(reused) == 1
+    assert ledger.get_payload(reused[0].payload_hash)["reused"] == ["T1"]
+    assert ledger.verify(deep=True) is True
+
+
+def test_resume_with_no_prior_results_runs_everything():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()),))
+    results = asyncio.run(dispatch_plan(plan, ledger, EchoExecutor(), resume=True))
+    assert results["T1"].output == "done: a"
+    assert ledger.query(kind="resume") == []  # nothing to reuse, no resume entry
+
+
+def test_checkpoint_each_wave_witnesses_a_checkpoint_per_wave():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))  # two waves
+    asyncio.run(dispatch_plan(plan, ledger, EchoExecutor(), max_parallel=2, checkpoint_each_wave=True))
+    cps = ledger.query(kind="checkpoint")
+    assert [ledger.get_payload(e.payload_hash)["wave"] for e in cps] == [0, 1]
+    assert all(len(ledger.get_payload(e.payload_hash)["root"]) == 64 for e in cps)
+    assert ledger.verify(deep=True) is True
