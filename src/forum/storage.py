@@ -95,6 +95,10 @@ class FileStorage:
     disk, so a fresh FileStorage over the same directory recovers the exact
     ledger after a restart. Payload bodies must be JSON-serializable; the
     ledger's payloads (plain dicts) already are.
+
+    Corruption is surfaced, not hidden: an interior line that is unparseable,
+    blank, or missing a required field raises StorageCorruption; only a single
+    torn trailing line (a crash-cut final append) is tolerated and dropped.
     """
 
     def __init__(self, directory: str) -> None:
