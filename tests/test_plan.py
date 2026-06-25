@@ -33,3 +33,19 @@ def test_unknown_dependency_rejected():
     plan = Plan((Task("A", "backend", "x", ("ghost",)),))
     with pytest.raises(ValueError, match="ghost"):
         plan.schedule()
+
+
+def test_data_deps_excludes_order_only():
+    t = Task("T3", "x", "go", ("T1", "T2"), frozenset({"T2"}))
+    assert t.data_deps == ("T1",)              # T2 is order-only, so it carries no data
+    assert set(t.depends_on) == {"T1", "T2"}   # both still constrain scheduling
+
+
+def test_order_edge_still_constrains_scheduling():
+    plan = Plan(
+        (
+            Task("T1", "x", "a", ()),
+            Task("T2", "x", "b", ("T1",), frozenset({"T1"})),  # order-only dep
+        )
+    )
+    assert plan.schedule() == [["T1"], ["T2"]]  # an order edge sequences like any dep

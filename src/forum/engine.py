@@ -7,7 +7,7 @@ from collections.abc import Callable
 from forum.budget import RunBudget
 from forum.context import ContextProvider, NullContextProvider
 from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Validator
-from forum.dispatch import dispatch_plan
+from forum.dispatch import augment_with_upstream, dispatch_plan
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.intent import DEFAULT_THRESHOLD, coverage
 from forum.ledger import Ledger
@@ -165,8 +165,10 @@ class Orchestrator:
                     payload={"id": task.id, "to": stronger.model_id, "reason": "validation failed"},
                     causal_parent=cur_seq,
                 )
+                # the stronger model gets the same upstream data context the first attempt had
+                instruction, _ = augment_with_upstream(task, results)
                 try:
-                    retry = await stronger.run(Assignment(task.id, task.agent, task.instruction))
+                    retry = await stronger.run(Assignment(task.id, task.agent, instruction))
                 except Exception as exc:
                     retry = Result(task.id, task.agent, f"error: {exc}", ok=False)
                 entry = self.ledger.append(
