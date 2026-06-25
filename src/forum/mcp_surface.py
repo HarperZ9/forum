@@ -98,12 +98,12 @@ class McpSurface:
         self._surface = HttpSurface(orchestrator)
 
     async def handle(self, message: dict) -> dict | None:
-        method = message.get("method")
         mid = message.get("id")
-        if method is None:
-            return None
         if "id" not in message:
             return None  # a JSON-RPC notification: nothing to run, no response
+        method = message.get("method")
+        if method is None:
+            return _err(mid, -32600, "invalid request: method is required")
         if method == "initialize":
             return _ok(mid, {
                 "protocolVersion": MCP_PROTOCOL_VERSION,

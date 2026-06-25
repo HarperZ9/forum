@@ -124,6 +124,20 @@ def test_ping_returns_empty_result():
     assert resp["result"] == {}
 
 
+def test_request_with_id_zero_is_not_treated_as_a_notification():
+    # id 0 is a valid request id; presence of the key, not its truthiness,
+    # distinguishes a request from a notification.
+    resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 0, "method": "ping"})
+    assert resp is not None
+    assert resp["id"] == 0
+    assert resp["result"] == {}
+
+
+def test_request_missing_method_is_invalid_request():
+    resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 5})
+    assert resp["error"]["code"] == -32600
+
+
 def test_process_line_reports_parse_error():
     out = asyncio.run(_mcp().process_line("not json"))
     assert json.loads(out)["error"]["code"] == -32700
