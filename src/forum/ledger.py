@@ -175,6 +175,10 @@ class Ledger:
                 return False
         return True
 
+    def get(self, seq: int) -> LedgerEntry:
+        """Return the entry at seq, or raise KeyError if absent."""
+        return self._s.get(seq)
+
     def replay(self, until: int | None = None) -> list[LedgerEntry]:
         entries = self._s.all()
         if until is None:
