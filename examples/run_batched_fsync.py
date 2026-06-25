@@ -28,8 +28,8 @@ def main() -> None:
             led.append(actor="client", kind="request", payload={"i": i})
         print("appended 5 entries in batched mode (no per-append fsync)")
 
-        led.sync()  # force the logs to disk at a point of our choosing
-        print("called ledger.sync() -> the logs are now durable on disk")
+        led.sync()  # fsync the logs at a point of our choosing
+        print("called ledger.sync() -> the logs are fsynced to disk")
 
         reopened = Ledger(FileStorage(directory))  # recover from disk
         print("reopened entries :", reopened.count())

@@ -81,10 +81,11 @@ what `checkpoint()` and an external witness are for.
 Durability is a dial, not a fixed cost. By default every append is fsynced before it
 returns. When throughput matters more than the last few writes, `FileStorage(fsync_each=False)`
 writes and flushes each append to the OS (so a process crash loses nothing) but defers
-the fsync, and `ledger.sync()` forces the logs to disk on demand, at a phase boundary or
-the run's end. The guarantee weakens by exactly the un-fsynced window and nothing else:
-the log is still append-only, a crash still only ever tears the final line, and whatever
-survived still verifies and replays.
+the fsync, and `ledger.sync()` fsyncs the logs on demand, at a phase boundary or the
+run's end. Persistence past a power loss then rests on the OS honoring fsync (and the
+parent directory entry is not separately synced), so the guarantee is scoped to that;
+the process-crash guarantee is unconditional. Either way the log is still append-only, a
+crash still only ever tears the final line, and whatever survived still verifies and replays.
 
 ## Routing
 

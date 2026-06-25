@@ -111,8 +111,8 @@ class FileStorage:
     Durability is tunable. By default (``fsync_each=True``) every append is
     fsynced before it returns, the strongest guarantee. With ``fsync_each=False``
     appends are written and flushed to the OS but not fsynced per call, trading a
-    durability window for throughput; call ``sync()`` to force the logs to disk at
-    a point of your choosing. Either way the log stays append-only and the
+    durability window for throughput; call ``sync()`` to fsync the logs at a point
+    of your choosing. Either way the log stays append-only and the
     torn-trailing-line tolerance applies on reload.
     """
 
@@ -164,10 +164,13 @@ class FileStorage:
         """Force buffered appends to disk (fsync both logs).
 
         In the default mode every append is already fsynced, so this only adds a
-        redundant flush. In batched mode (fsync_each=False) it is how you make the
-        log durable to disk at a chosen point, for example a phase boundary or run
-        end. A crash before sync() can lose the un-fsynced tail; the log stays
-        append-only and the torn-trailing-line tolerance applies on reload.
+        redundant flush. In batched mode (fsync_each=False) it is how you fsync the
+        logs at a chosen point, for example a phase boundary or run end. Persistence
+        then rests on the OS honoring fsync, and the parent directory entry is not
+        separately synced, so a freshly created log's name may not be power-loss
+        durable; the process-crash guarantee is unconditional, since flushed appends
+        are already in the OS cache. A crash before sync() can lose the un-fsynced
+        tail; the log stays append-only and the torn-trailing-line tolerance applies.
         """
+        _fsync_file(self._payloads_path)  # payload before the entry that references it
         _fsync_file(self._entries_path)
-        _fsync_file(self._payloads_path)
