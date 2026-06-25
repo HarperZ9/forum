@@ -4,10 +4,10 @@
 
 Efficiency is a verifiable quality, because waste is measurable. Forum is already cheap-first (route before a model, judge only when flagged, resume reuses work, budgets cap runs, the content store dedups identical bodies). This release closes the one waste path the engine introduced and makes efficiency visible.
 
-- **Bounded upstream injection**: a data edge no longer injects an unbounded upstream output into the downstream prompt. Each injected upstream is capped (`augment_with_upstream(max_chars=...)`, default 8192) with a witnessed truncation marker; the full output stays in the upstream's result entry, so the record loses nothing and only the prompt shrinks. This bounds the growth that otherwise compounds down a deep plan.
+- **Bounded upstream injection**: a data edge no longer injects an unbounded upstream output into the downstream prompt. Each injected upstream is capped (`dispatch_plan(max_upstream_chars=...)` or `augment_with_upstream(max_chars=...)`, default 8192) with a witnessed truncation marker; the full output stays in the upstream's result entry, so the record loses nothing. For an upstream over the cap the prompt shrinks (the record never does); under the cap nothing changes. This bounds the growth that otherwise compounds down a deep plan.
 - **A weighed record**: `summarize` reports `payload_bytes`, the byte weight of the witnessed payloads (an efficiency signal comparable across runs, not a token count). `forum bench` shows whether a change made a run leaner, and the CLI summary now surfaces checkpoints, resumes, and payload weight.
 
-Pure standard library, deterministic, no model in the loop. 227 tests, plus 2 gated real-model tests. Run in `examples/run_efficiency.py`.
+Pure standard library, deterministic, no model in the loop. 230 tests, plus 2 gated real-model tests. Run in `examples/run_efficiency.py`.
 
 ## 1.9.0: phased checkpoints and resumable runs
 

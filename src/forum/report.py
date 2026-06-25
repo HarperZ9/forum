@@ -57,10 +57,11 @@ def summarize(ledger: Ledger) -> dict:
         1 for e in verifications if ledger.get_payload(e.payload_hash).get("ok") is False
     )
 
-    # The byte weight of the witnessed content (distinct payloads; the content store
-    # already dedups identical bodies). An efficiency signal, not a token count: a
-    # leaner run carries a lighter record, and forum bench shows whether a change
-    # reduced it.
+    # The UTF-8 byte weight of the witnessed content (distinct payloads; the content
+    # store already dedups identical bodies). An efficiency signal, not a token count:
+    # a leaner run carries a lighter record, and forum bench shows whether a change
+    # reduced it. Encoded to bytes (like canonical_hash) so the count is true bytes,
+    # not codepoints, for non-ascii content.
     seen: set[str] = set()
     payload_bytes = 0
     for e in entries:
@@ -71,7 +72,7 @@ def summarize(ledger: Ledger) -> dict:
             body = ledger.get_payload(e.payload_hash)
         except KeyError:
             continue
-        payload_bytes += len(json.dumps(body, sort_keys=True, ensure_ascii=False))
+        payload_bytes += len(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8"))
 
     return {
         "entries": len(entries),

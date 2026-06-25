@@ -102,6 +102,13 @@ def test_payload_weight_grows_with_content():
     assert summarize(big)["payload_bytes"] > summarize(small)["payload_bytes"]
 
 
+def test_payload_bytes_counts_utf8_bytes_not_codepoints():
+    led = _led()
+    led.append(actor="x", kind="result", payload={"id": "T", "output": "字" * 100, "model": "m"})
+    # the output is 100 codepoints but 300 UTF-8 bytes; payload_bytes must reflect bytes
+    assert summarize(led)["payload_bytes"] >= 300
+
+
 def test_compare_two_runs_reports_deltas():
     a_led, b_led = _led(), _led()
     _run(a_led)
