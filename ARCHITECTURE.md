@@ -127,6 +127,15 @@ the default provider returns nothing, so Forum stands alone. When context is sup
 witnessed as its own entry and the plan is chained to it, so the record shows the exact
 context that shaped the work: request, then context, then plan.
 
+The same seam reaches every task. At dispatch each task pulls fresh, task-specific context
+from the provider, capped like upstream data and witnessed as its own entry that the task is
+chained to, so a parallel or looped agent gets up-to-date context routed to it and the record
+shows what shaped each step. This is the Forum-native half of context management, and it keeps
+the seam honest: Forum times, routes, and witnesses the context, but it never generates it.
+The brain supplies it, the injection is verified (witnessed) and fresh (pulled per task), and
+neither side is clever about timing. A context budget and compaction on a limit are the next
+rung, composing with the brain the same way.
+
 A `RunBudget` bounds the run. It caps model calls (deterministic, the cost-relevant
 dimension) and, best-effort, wall-clock seconds. The call cap is checked as each task
 starts, so a concurrent wave can overshoot it by at most the parallelism width. When the budget is spent the run stops
