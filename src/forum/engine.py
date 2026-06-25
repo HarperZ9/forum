@@ -124,7 +124,7 @@ class Orchestrator:
                     causal_parent=vparent,
                 )
             else:
-                await self._witness_verdict(task.id, task.instruction, result, vparent)
+                await self._witness_verdict(task.id, task.instruction, result, vparent, counter)
 
         if over_budget():
             self.ledger.append(
@@ -140,7 +140,9 @@ class Orchestrator:
         self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
         return answer
 
-    async def _witness_verdict(self, task_id: str, instruction: str, result: Result, parent_seq: int) -> None:
+    async def _witness_verdict(
+        self, task_id: str, instruction: str, result: Result, parent_seq: int, executor: Executor
+    ) -> None:
         if not result.ok:
             # the task itself failed; witness the failure rather than ask the judge to bless it
             self.ledger.append(
@@ -150,7 +152,8 @@ class Orchestrator:
                 causal_parent=parent_seq,
             )
             return
-        verdict = await self.validator.validate(instruction, result.output, self.executor)
+        # validate through the passed executor so the call counts against the run budget
+        verdict = await self.validator.validate(instruction, result.output, executor)
         self.ledger.append(
             actor="validator",
             kind="verdict",
@@ -215,5 +218,5 @@ class Orchestrator:
             payload={"id": "T1", "output": result.output, "ok": result.ok},
             causal_parent=assigned.seq,
         )
-        await self._witness_verdict("T1", task, result, result_entry.seq)
+        await self._witness_verdict("T1", task, result, result_entry.seq, self.executor)
         return result

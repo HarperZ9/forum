@@ -119,7 +119,8 @@ witnessed as its own entry and the plan is chained to it, so the record shows th
 context that shaped the work: request, then context, then plan.
 
 A `RunBudget` bounds the run. It caps model calls (deterministic, the cost-relevant
-dimension) and, best-effort, wall-clock seconds. When the budget is spent the run stops
+dimension) and, best-effort, wall-clock seconds. The call cap is checked as each task
+starts, so a concurrent wave can overshoot it by at most the parallelism width. When the budget is spent the run stops
 where it is, witnesses a `budget` entry, and still verifies and replays cleanly. A loop that
 cannot run away, on context you can audit, is the difference between a demo and something you
 would leave running.
