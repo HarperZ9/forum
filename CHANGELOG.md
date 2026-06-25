@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7.0: the verification seam
+
+Forum already plans on context from an external brain (the ContextProvider seam, v1.1). This release adds its peer on the other end of the run: a seam for an external verifier to check the answer Forum produced, witnessed like everything else.
+
+- **VerifierProvider**: a one-method seam (`verify(request, answer) -> Verification | None`). A peer flagship (the index brain), a proof-checker, or a test runner can implement it; Forum witnesses the verdict as a `verification` entry chained to the answer. The verdict carries `ok` (True verified, False refuted, None could-not-decide), a `detail`, and the verifier's `source`. The default `NullVerifier` abstains, so Forum stands alone, zero-dependency.
+- **Witnessed, not blocking**: a refuted answer is recorded for the operator to see; what to do about it is policy, consistent with the rest of the engine. The summary and `forum bench` report verifications and refutations.
+- This completes the provider pair: context flows in before the run, verification comes back after it, both witnessed, both clean seams to peer flagships that Forum never imports.
+
+Pure standard library. 211 tests, plus 2 gated real-model tests. Run in `examples/run_verification.py`.
+
 ## 1.6.0: the DAG flows data (typed edges)
 
 A plan is a DAG, but until now a dependency only meant "runs after." A downstream task could not see what it was building on. This release makes the edges carry data and gives them a type, so the plan expresses not just order but what flows.
