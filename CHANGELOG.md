@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0: the intent-judge, a grounded rung above the floor
+
+v1.4 added a deterministic lexical floor that flags when a run's answer drifts from the request. A lexical signal has a known blind spot: a correct but paraphrased answer reuses few of the request's words and flags anyway. This release adds the rung that resolves those cases, on the same cheap-first ladder Forum already uses for routing and escalation.
+
+- **Witnessed model intent-judge**: opt in with `Orchestrator(intent_judge=IntentJudge())` or `forum submit --judge-intent`. When, and only when, the lexical floor flags a run, a model reads the request and the answer, is told which request terms the floor found missing, and judges whether the answer truly drifted or merely paraphrased. The verdict (ok, score, reason) is witnessed as an `intent_judgment` entry chained to the flag it resolves, so it is auditable, not trusted. It runs through the run's executor and counts against the RunBudget, skipped once the budget is spent.
+- **Cheap-first**: the free deterministic floor runs every time; the model judge fires only on a flag, so the common covered case spends nothing. A flagged-but-paraphrased answer is cleared (ok true); a genuinely off-target answer is judged off-target (ok false). The judge is one model's opinion, witnessed with its reasoning, not a confirmation.
+- **In the summary and A/B**: `forum ledger summary` and `forum bench` now report judgments and confirmed drift, so you can measure real drift (the judge's verdict), not just lexical flags.
+
+Pure standard library core; the judge is a model call behind the one executor seam. 195 tests, plus 2 gated real-model tests. Run in `examples/run_intent_judge.py`.
+
 ## 1.4.0: did the run answer the question?
 
 Forum validates each task against its own instruction, but a run can pass every task and still drift from the original request. This release witnesses that gap. After a run synthesizes its answer, Forum records how much of the request the answer actually reflects, a reproducible signal you can read, compare, and act on.

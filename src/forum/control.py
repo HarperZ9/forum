@@ -102,6 +102,40 @@ class Validator:
         return Verdict(ok, float(data.get("score", 0.0)), str(data.get("reason", "")))
 
 
+_INTENT_JUDGE_PROMPT = """Judge whether the answer actually addresses the request.
+A lexical check flagged possible drift: these request terms do not appear in the answer: <<MISSING>>.
+They may be absent because the answer paraphrased them (still fine) or because it ignored part of the request (real drift). Decide which.
+Return ONLY JSON of the form:
+{"ok": true, "score": 0.0, "reason": "..."}
+
+Request: <<REQUEST>>
+Answer: <<ANSWER>>"""
+
+
+class IntentJudge:
+    """Judge whether an answer addresses the request, using a model.
+
+    The rung above the lexical coverage floor: when the floor flags a run, a model
+    reads the request and the answer (told which request terms the floor found
+    missing) and decides whether the answer truly drifted or merely paraphrased. Its
+    verdict is witnessed with its reasoning, so it is auditable, not trusted.
+    """
+
+    async def judge(self, request: str, answer: str, missing: list[str], executor: Executor) -> Verdict:
+        prompt = (
+            _INTENT_JUDGE_PROMPT
+            .replace("<<MISSING>>", ", ".join(missing) or "(none)")
+            .replace("<<REQUEST>>", request)
+            .replace("<<ANSWER>>", answer)
+        )
+        data = await ask_json(executor, "intent-judge", prompt)
+        if "ok" not in data:
+            raise ValueError(f"intent judge response missing 'ok'; got keys {list(data)}")
+        raw_ok = data["ok"]
+        ok = raw_ok if isinstance(raw_ok, bool) else str(raw_ok).strip().lower() not in ("false", "0", "no", "")
+        return Verdict(ok, float(data.get("score", 0.0)), str(data.get("reason", "")))
+
+
 _SYNTHESIZER_PROMPT = """Combine the task results into one clear answer to the request.
 
 Request: <<REQUEST>>

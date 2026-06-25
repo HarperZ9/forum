@@ -77,7 +77,12 @@ def _cmd_submit(args) -> int:
     budget = None
     if args.max_model_calls is not None or args.max_seconds is not None:
         budget = RunBudget(max_model_calls=args.max_model_calls, max_seconds=args.max_seconds)
-    orch = build_orchestrator(args.ledger, executor=executor)
+    intent_judge = None
+    if getattr(args, "judge_intent", False):
+        from forum.control import IntentJudge
+
+        intent_judge = IntentJudge()
+    orch = build_orchestrator(args.ledger, executor=executor, intent_judge=intent_judge)
     try:
         answer = asyncio.run(orch.submit(args.request, budget=budget))
     except ValueError as exc:
@@ -150,7 +155,7 @@ def _cmd_ledger_summary(args) -> int:
     print(f"entries: {s['entries']}")
     print(f"requests: {s['requests']} | plans: {s['plans']} | tasks: {s['tasks']}")
     print(f"task results: {s['task_results']} (failed {s['failed_results']}) | verdicts: pass {s['verdicts_pass']} / fail {s['verdicts_fail']}")
-    print(f"intent checks: {s['intent_checks']} (flagged {s['intent_flagged']})")
+    print(f"intent checks: {s['intent_checks']} (flagged {s['intent_flagged']}, judged {s['intent_judgments']}, drift judged {s['intent_drift_judged']})")
     print(f"escalations: {s['escalations']} | budget stops: {s['budget_stops']} | contexts: {s['contexts']} | answers: {s['answers']}")
     print(f"model calls: {s['model_calls']}")
     print(f"checkpoint: {s['checkpoint'][:16]}... | verified: {s['verified']}")
@@ -202,6 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("request")
     submit.add_argument("--max-model-calls", type=int, default=None, help="bound the run to N model calls (witnessed budget)")
     submit.add_argument("--max-seconds", type=float, default=None, help="bound the run to S seconds (best-effort)")
+    submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
     _add_ledger(submit)
     _add_executor(submit)
     submit.set_defaults(func=_cmd_submit)
