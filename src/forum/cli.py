@@ -131,6 +131,11 @@ def _add_executor(sp) -> None:
     sp.add_argument("--cmd", default=None, help='run a model CLI via subprocess, e.g. --cmd "claude -p"')
 
 
+def _print_help_rc(parser: argparse.ArgumentParser) -> int:
+    parser.print_help()
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="forum", description="Forum: accountable multi-agent orchestration.")
     parser.add_argument("--version", action="version", version=f"forum {__version__}")
@@ -175,6 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ledger(get)
     get.add_argument("seq", type=int)
     get.set_defaults(func=_cmd_ledger_get)
+    ledger.set_defaults(func=lambda a: _print_help_rc(ledger))
 
     return parser
 

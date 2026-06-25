@@ -77,8 +77,10 @@ def test_ledger_get_missing_returns_1(capsys, tmp_path):
     assert "no ledger entry" in capsys.readouterr().err
 
 
-def test_ledger_without_subcommand_returns_1(capsys, tmp_path):
+def test_ledger_without_subcommand_shows_ledger_help(capsys, tmp_path):
     assert main(["ledger"]) == 1
+    out = capsys.readouterr().out
+    assert "verify" in out and "replay" in out  # the ledger subcommands, not top-level help
 
 
 def test_serve_and_mcp_wire_to_their_handlers():
