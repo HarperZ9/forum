@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0: harden and prove
+
+The accountability gets sharper and the routing ladder is complete.
+
+- **Witnessing-hardening**: each `verdict` now causal-parents the specific `result` entry it judged, so `causal_chain(verdict)` reconstructs the full path (request to plan to task to result to verdict). Control roles get role-specific ids (`control:coordinator` and so on) instead of a shared sentinel. `ApiExecutor` reports an unexpected response shape clearly. Empty-plan submit is covered.
+- **The routing ladder is wired**: `Orchestrator.assign` does Tier-0 lexical routing and escalates to the Tier-2 Classifier when keywords cannot decide, witnessing the route and any classification. `submit_one` runs a single task end to end through that ladder.
+- **Real-model proof**: a gated integration test (`tests/test_real_model.py`, skipped unless `FORUM_RUN_REAL=1` and `ANTHROPIC_API_KEY` are set) runs a full `submit` and `submit_one` against a live model and asserts the ledger stays deep-verifiable. See `RUNNING.md`.
+
+145 tests (2 gated real-model tests skipped by default).
+
 ## 0.9.0: a command line
 
 Forum is something you run now, not just import.
