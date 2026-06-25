@@ -4,6 +4,7 @@ import asyncio
 
 from forum.context import ContextProvider
 from forum.control import IntentJudge
+from forum.delivery import Reviser
 from forum.engine import Orchestrator
 from forum.executor import EchoExecutor, Executor
 from forum.http_surface import MAX_BODY, HttpSurface, Response, error
@@ -156,6 +157,7 @@ def build_orchestrator(
     context_provider: ContextProvider | None = None,
     intent_judge: IntentJudge | None = None,
     verifier: VerifierProvider | None = None,
+    reviser: Reviser | None = None,
     fsync_each: bool = True,
 ) -> Orchestrator:
     """Build an Orchestrator backed by a durable file ledger and the default roster.
@@ -174,6 +176,7 @@ def build_orchestrator(
         context_provider=context_provider,
         intent_judge=intent_judge,
         verifier=verifier,
+        reviser=reviser,
     )
 
 
