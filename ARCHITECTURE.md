@@ -109,6 +109,21 @@ loop and need a model executor. `forum.mcp_surface` is the same tools over MCP
 the very same HttpSurface, so the two surfaces can never drift: its handle()
 seam is sockets-free and tested directly, and serve_stdio() wires real streams.
 
+## The run contract
+
+A run is not just a loop; it carries a contract, witnessed like everything else. Before
+planning, the Orchestrator asks a `ContextProvider` for organized context relevant to the
+request. This is the seam to the "brain" (a peer like the index flagship can implement it);
+the default provider returns nothing, so Forum stands alone. When context is supplied it is
+witnessed as its own entry and the plan is chained to it, so the record shows the exact
+context that shaped the work: request, then context, then plan.
+
+A `RunBudget` bounds the run. It caps model calls (deterministic, the cost-relevant
+dimension) and, best-effort, wall-clock seconds. When the budget is spent the run stops
+where it is, witnesses a `budget` entry, and still verifies and replays cleanly. A loop that
+cannot run away, on context you can audit, is the difference between a demo and something you
+would leave running.
+
 ## Determinism
 
 Nothing in the core reads the wall clock or rolls dice in a way that changes its
