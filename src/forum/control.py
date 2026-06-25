@@ -11,9 +11,36 @@ _COORDINATOR_PROMPT = """You are a planner. Break the request into a minimal tas
 Available agents: <<AGENTS>>.
 Return ONLY JSON of the form:
 {"tasks": [{"id": "T1", "agent": "<one of the agents>", "instruction": "...", "depends_on": []}]}
-Use depends_on to order tasks. Keep the plan small.
+Use depends_on to order tasks. A dep may be a task id (the downstream task uses that
+task's output) or {"id": "T1", "type": "order"} for run-after without using its output.
+Keep the plan small.
 
 Request: <<REQUEST>>"""
+
+
+def _parse_deps(raw: object) -> tuple[tuple[str, ...], frozenset[str]]:
+    """Parse a task's depends_on into (all dep ids, the order-only subset).
+
+    Each entry is a task id string (a data edge) or {"id": "T1", "type": "order"}
+    for an ordering-only edge. Unknown types default to a data edge. Raises a
+    descriptive ValueError on malformed model output (not a list, or a dict dep
+    missing its id), like the rest of this module.
+    """
+    if not isinstance(raw, list):
+        raise ValueError(f"depends_on must be a list; got {type(raw).__name__}")
+    deps: list[str] = []
+    order: list[str] = []
+    for d in raw:
+        if isinstance(d, dict):
+            if "id" not in d:
+                raise ValueError(f"dependency object missing 'id': {d!r}")
+            did = str(d["id"])
+            if str(d.get("type", "data")) == "order":
+                order.append(did)
+        else:
+            did = str(d)
+        deps.append(did)
+    return tuple(deps), frozenset(order)
 
 
 class Coordinator:
@@ -28,12 +55,7 @@ class Coordinator:
         if "tasks" not in data:
             raise ValueError(f"coordinator response missing 'tasks'; got keys {list(data)}")
         tasks = tuple(
-            Task(
-                str(t["id"]),
-                str(t["agent"]),
-                str(t["instruction"]),
-                tuple(str(d) for d in t.get("depends_on", [])),
-            )
+            Task(str(t["id"]), str(t["agent"]), str(t["instruction"]), *_parse_deps(t.get("depends_on", [])))
             for t in data["tasks"]
         )
         for t in tasks:

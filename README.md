@@ -137,7 +137,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.ledger`: the record. Hash chain, content-addressed bodies, `verify` / `verify(deep=True)`, `replay`, `causal_chain`, Merkle `checkpoint`.
 - `forum.storage`: where the record lives. An in-memory store for tests and short runs, and a durable `FileStorage` (append-only JSONL) so a ledger survives a restart and stays verifiable.
 - `forum.routing`: a router that reads a request, picks a lane, and only falls back to a model when the keywords genuinely can't decide.
-- `forum.plan`: a task graph compiled into parallel waves, with cycles and missing dependencies caught up front.
+- `forum.plan` and `forum.dispatch`: a task graph compiled into parallel waves (cycles and missing dependencies caught up front), with typed edges. A data edge feeds its upstream's witnessed output into the downstream task so it builds on real work; an order edge only sequences. Every edge and every data hand-off is witnessed.
 - `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 24 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
@@ -169,7 +169,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.3, reading the record.** A run summary aggregated purely from the witnessed ledger (`forum ledger summary`), and a ledger A/B (`forum bench`) so an improvement is measured from the record, not claimed.
 - **1.4, did the run answer?** A witnessed intent check: how much of the request the final answer covers, recorded and surfaced in the summary and A/B. A reproducible lexical floor; a grounded model intent-judge is the next rung.
 - **1.5, the intent-judge.** The rung above the floor: when the lexical check flags drift, an opt-in model judge resolves whether the answer truly drifted or just paraphrased, witnessed and budget-bounded. Cheap-first, like routing and escalation.
-- **Beyond.** Typed DAG edges, the verification seam, and a ledger-reading dashboard.
+- **1.6, the DAG flows data.** Typed edges: a data edge feeds its upstream's witnessed output into the downstream task, an order edge only sequences. Existing plans now flow data downstream instead of dropping it, and every edge and hand-off is witnessed.
+- **Beyond.** The verification seam, phased checkpoints and resume, opt-in batched fsync, and a ledger-reading dashboard.
 
 ## Docs
 

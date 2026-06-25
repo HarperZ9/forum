@@ -113,6 +113,50 @@ def test_escalation_walks_a_two_rung_ladder():
     assert led.verify(deep=True) is True
 
 
+class _TwoTaskBase:
+    """Plans T1 (passes) and T2 (a data edge on T1, fails). T2 escalates."""
+
+    async def run(self, a):
+        agent = a.agent
+        if agent == "coordinator":
+            return Result(a.task_id, agent, '{"tasks": [{"id":"T1","agent":"backend","instruction":"design","depends_on":[]},{"id":"T2","agent":"backend","instruction":"build","depends_on":["T1"]}]}')
+        if agent == "validator":
+            ok = "good" in a.instruction
+            return Result(a.task_id, agent, '{"ok": %s, "score": 0.5, "reason": "x"}' % ("true" if ok else "false"))
+        if agent == "synthesizer":
+            return Result(a.task_id, agent, "final")
+        if a.task_id == "T1":
+            return Result(a.task_id, agent, "good schema")  # passes validation
+        return Result(a.task_id, agent, "bad")              # T2 fails -> escalates
+
+
+class _Recording:
+    model_id = "strong-model"
+
+    def __init__(self):
+        self.seen: dict[str, str] = {}
+
+    async def run(self, a):
+        self.seen[a.task_id] = a.instruction
+        return Result(a.task_id, a.agent, "good")  # the strong model passes validation
+
+
+def test_escalation_retry_gets_upstream_data_context():
+    led = _led()
+    rec = _Recording()
+    orch = Orchestrator(
+        ROSTER, led, _TwoTaskBase(),
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+        escalation_executors=[rec],
+    )
+    asyncio.run(orch.submit("build the api"))
+    # T2 escalated; the stronger model saw T1's output injected (the data edge held on retry)
+    assert "T2" in rec.seen
+    assert "Upstream results you build on:" in rec.seen["T2"]
+    assert "T1: good schema" in rec.seen["T2"]
+    assert led.verify(deep=True) is True
+
+
 def test_budget_stops_escalation_before_it_runs():
     # plan(1) + task(2) + validate-fail(3) spends a 3-call budget; the failed task
     # must NOT escalate (a model call past the ceiling), so no tier_escalation is witnessed.
