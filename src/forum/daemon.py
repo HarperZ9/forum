@@ -81,7 +81,7 @@ class Daemon:
         self._host = host
         self._port = port
         self._read_timeout = read_timeout
-        self._server: asyncio.AbstractServer | None = None
+        self._server: asyncio.Server | None = None
         self._inflight: set[asyncio.Task] = set()
 
     @property
@@ -128,6 +128,7 @@ class Daemon:
     async def serve_forever(self) -> None:
         if self._server is None:
             await self.start()
+        assert self._server is not None  # start() set it
         async with self._server:
             await self._server.serve_forever()
 

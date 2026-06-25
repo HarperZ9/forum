@@ -18,7 +18,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install (dev extras only; no runtime deps)
         run: pip install -e ".[dev]"
-      - name: Run tests
-        run: pytest -q
+      - name: Lint (ruff)
+        run: ruff check src tests
+      - name: Type check (mypy)
+        run: mypy src/forum
+      - name: Run tests with coverage
+        run: pytest -q --cov=forum --cov-report=term-missing --cov-fail-under=85
       - name: Run the demo (smoke check)
         run: python examples/demo.py

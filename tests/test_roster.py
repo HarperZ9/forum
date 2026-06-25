@@ -1,6 +1,6 @@
 import pytest
 
-from forum.roster import AgentSpec, Roster, loads
+from forum.roster import AgentSpec, loads
 
 SAMPLE = """
 [[agent]]
