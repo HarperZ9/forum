@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0: the MCP surface
+
+The lone optional edge: Forum speaks MCP now.
+
+- **MCP surface**: an MCP (JSON-RPC 2.0 over stdio) server, `forum.mcp_surface`, exposing `submit`, `route`, `plan`, `status`, `verify`, and `ledger_get` as tools. Serve it with `python -m forum.mcp_surface`.
+- It is a thin adapter over the HTTP surface: each tool maps to an HTTP method and path and is served by the same `HttpSurface`, so the MCP and HTTP surfaces cannot drift. A tool-layer failure reports via `isError`; a protocol error uses a JSON-RPC error code.
+- The `handle()` and `process_line()` seams are sockets-free and unit-tested directly; `serve_stdio()` wires real streams.
+
+121 tests. MCP run in `examples/run_mcp.py`.
+
 ## 0.7.0: the daemon (HTTP)
 
 Forum runs as an always-on service now.
