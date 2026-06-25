@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0: the daemon (HTTP)
+
+Forum runs as an always-on service now.
+
+- **HTTP daemon**: a stdlib-asyncio HTTP/1.1 server (no web framework), `forum.daemon.Daemon`, serving `GET /health`, `GET /status`, `GET /verify`, `GET /checkpoint`, `GET /ledger/{seq}`, `GET /replay/{seq}`, `POST /route`, `POST /plan`, and `POST /submit`. One daemon owns one long-lived, durable (`FileStorage`) ledger, so every request witnesses into the same verifiable record.
+- **HttpSurface**: the request-to-Orchestrator mapping is a sockets-free coroutine, so every endpoint and error path is unit-tested directly.
+- **Lifecycle**: start, stop, graceful drain, ephemeral-port binding; `build_orchestrator(dir)` wires the durable ledger and the default roster. `/submit` and `/plan` need a model executor and return a clear 502 under the default EchoExecutor.
+- A new `Ledger.get(seq)` accessor backs the ledger endpoint.
+
+100 tests. Daemon run in `examples/run_daemon.py`.
+
 ## 0.6.0: a roster in the box
 
 A fresh install has a real roster now, not just an example in the demo.

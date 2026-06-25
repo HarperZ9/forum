@@ -123,6 +123,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.api_executor`: how work actually runs. A stub for tests, a `SubprocessExecutor` that runs any command (point it at a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API. A failing task is witnessed, not fatal.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed.
+- `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, and verify or replay the record over HTTP.
 
 Pure standard library. No third-party runtime dependencies. The tests run the
 primitives directly, tamper detection and the Merkle property included.
@@ -135,7 +136,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **Done, the control loop.** A Coordinator that turns a plain request into a plan, a Classifier, a Validator that judges each result (a failed task is witnessed, not blessed), and a Synthesizer that writes one answer. `Orchestrator.submit` runs the whole loop, witnessed.
 - **Done, durable storage.** A file-backed `FileStorage` (append-only JSONL) so a ledger outlives the process: it recovers exactly on restart, tolerates a crash-torn final write, and stays tamper-evident.
 - **Done, the default roster.** 24 domain-neutral capability lanes (engineering, graphics, support, research) shipped in the box and loaded with `roster.load_default()`. Plain capability names, every lane keyword-routable.
-- **Next.** An HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
+- **Done, the daemon (HTTP).** A stdlib-asyncio HTTP service over one durable ledger: route, plan, submit, and verify or replay the record over HTTP. Every request witnessed into the same record.
+- **Next.** An MCP surface (the lone optional edge), then a `forum` CLI and a published package.
 
 ## Design
 
