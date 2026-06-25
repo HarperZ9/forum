@@ -123,6 +123,7 @@ def test_durable_ledger_survives_a_daemon_restart(tmp_path):
             assert status == 200
             assert data["entries"] > 0          # the prior run persisted
             assert data["verified"] is True
+            assert data["checkpoint"]           # a non-empty Merkle root over them
         finally:
             await daemon.stop()
 
