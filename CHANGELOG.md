@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0: a command line
+
+Forum is something you run now, not just import.
+
+- **`forum` CLI**: a console entry point. `forum route "..."` (no model needed), `forum submit "..." --api|--cmd` (witnessed), `forum serve` (HTTP daemon), `forum mcp` (MCP stdio server), and `forum ledger verify | show | replay <seq> | get <seq>` to inspect the record.
+- Executor selection by flag: `--api` (Anthropic API, reads `ANTHROPIC_API_KEY`) or `--cmd "<model cli>"` (any command, run once per task). Routing and the ledger commands need no model.
+- Pure stdlib `argparse`; no new dependencies.
+
+135 tests.
+
 ## 0.8.0: the MCP surface
 
 The lone optional edge: Forum speaks MCP now.
