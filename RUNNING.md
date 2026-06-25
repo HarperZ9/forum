@@ -1,46 +1,67 @@
 # Running Forum for real
 
-Everything ships with a deterministic stub so the tests and examples run offline.
-To drive a real model, give Forum an executor with credentials.
+Forum is model-agnostic. It talks to whatever you point it at and never requires a
+specific vendor account. Everything ships with a deterministic stub so the tests and
+examples run offline; to drive a real model, give Forum an executor. There are three
+ways, listed most account-free first.
 
-## With the Anthropic API
+## A local model, no account needed
 
-Set your key and use the API executor:
+Point Forum at any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, vLLM):
+
+```bash
+forum submit "ship a login API with docs" --chat-url http://localhost:11434/v1/chat/completions --model llama3
+```
+
+Or run any model command directly, one invocation per task:
+
+```bash
+forum submit "ship a login API with docs" --cmd "ollama run llama3"
+```
+
+Neither needs a key. `--cmd` is the most agnostic option: any program that takes a
+prompt as its last argument is a valid executor, so Forum stays independent of any one
+provider and its updates.
+
+## A hosted model
+
+Any OpenAI-compatible cloud works through the same `--chat-url`, with a key:
+
+```bash
+export OPENAI_API_KEY=sk-...
+forum submit "ship a login API with docs" --chat-url https://api.openai.com/v1/chat/completions --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+```
+
+The Anthropic API has a dedicated executor:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-forum submit "ship a login API with docs" --api
+forum submit "ship a login API with docs" --api --model claude-sonnet-4-6
 ```
-
-`--api` uses the Anthropic Messages API (model defaults to `claude-sonnet-4-6`;
-override with `--model`). The whole run is witnessed; inspect it afterward with
-`forum ledger verify` and `forum ledger show`.
-
-## With a model CLI
-
-Any command that takes a prompt as its last argument works:
-
-```bash
-forum submit "ship a login API with docs" --cmd "claude -p"
-```
-
-Forum runs the command once per task in a subprocess (no shell, so no injection
-surface) and witnesses each result.
 
 ## The daemon and MCP
 
+The same executor flags apply to the daemon and the MCP server:
+
 ```bash
-forum serve --api                 # HTTP daemon, durable ledger, on 127.0.0.1:8080
-forum mcp --api                   # MCP server over stdio
+forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
+forum mcp --cmd "ollama run llama3"
 ```
 
-Without `--api` or `--cmd`, routing and the ledger commands still work; planning
-and submitting return a clear error asking for a model.
+Without an executor flag, routing and the ledger commands still work; planning and
+submitting return a clear message asking for a model.
+
+## Inspect the record
+
+```bash
+forum ledger verify
+forum ledger show --limit 20
+```
 
 ## The real-model proof (gated test)
 
-A gated integration test makes live API calls (it costs money) and is skipped by
-default. To run it:
+A gated integration test makes live Anthropic API calls (it costs money) and is
+skipped by default. To run it:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -48,5 +69,6 @@ export FORUM_RUN_REAL=1
 pytest tests/test_real_model.py -v
 ```
 
-It runs a full `submit` and a `submit_one` through `ApiExecutor` and asserts the
-ledger is witnessed and deep-verifiable end to end.
+It runs a full `submit` and a `submit_one` through `ApiExecutor` and asserts the ledger
+is witnessed and deep-verifiable end to end. The same loop runs against any of the
+executors above.

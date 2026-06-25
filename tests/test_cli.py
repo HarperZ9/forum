@@ -96,3 +96,11 @@ def test_serve_and_mcp_wire_to_their_handlers():
 def test_submit_flags_parse():
     args = build_parser().parse_args(["submit", "do x", "--api", "--model", "claude-opus-4-8"])
     assert args.api is True and args.model == "claude-opus-4-8"
+
+
+def test_chat_url_flag_parses_for_a_local_model():
+    args = build_parser().parse_args(
+        ["submit", "do x", "--chat-url", "http://localhost:11434/v1/chat/completions", "--model", "llama3"]
+    )
+    assert args.chat_url.endswith("/v1/chat/completions")
+    assert args.model == "llama3"
