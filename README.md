@@ -24,14 +24,14 @@ also need reach, the ability to act across a lot of agents at once. That's the r
 project. The small zero-dependency pieces in this repo aren't the goal. They're the
 bricks.
 
-This is the first layer of them, and there's enough now to run. The foundation is
-here (the ledger, the router, the planner), and so is the runtime on top of it. Forum
-can take a multi-step plan, run it across agents, and witness every step, so you can
-verify the whole thing afterward. The examples below show it. Real executors
-are here too: a task can shell out to any command (including a model CLI) or call a
-model over the API. And it plans for you now: hand it a plain request and the control
-loop turns it into a plan, runs it, checks each result, and writes a single answer.
-What's still ahead (see the [roadmap](#roadmap)): a daemon to keep a fleet running.
+Everything here is built and runs. The foundation (the ledger, the router, the
+planner), the runtime that executes a plan across agents and witnesses every step,
+real executors (a task can shell out to any command, including a model CLI, or call a
+model over the API), the control loop that turns a plain request into a plan and a
+single verified answer, a durable ledger that survives a restart, an always-on daemon
+over HTTP and MCP, and a `forum` command to drive it all. Every routing decision,
+plan, task, result, and verdict goes into a ledger you can verify, replay, and trace.
+The examples below show it, and the small zero-dependency pieces are still the bricks.
 
 ## Watch it work
 
@@ -157,11 +157,15 @@ primitives directly, tamper detection and the Merkle property included.
 - **Done, the MCP surface.** The same tools over MCP (JSON-RPC on stdio), a thin adapter over the HTTP surface so the two cannot drift. The lone optional edge.
 - **Done, the CLI.** A `forum` command: route, submit, serve, mcp, and ledger verify / show / replay / get. Pick a model with `--api` or `--cmd`.
 - **Done, hardened and proven.** Each verdict chains to the result it judged, the routing ladder reaches the Classifier on escalation (`assign` / `submit_one`), and a gated test proves the whole loop against a real model. See [RUNNING.md](RUNNING.md).
-- **Next.** A published `pip install forum-engine` package and the 1.0 release.
+- **1.0.** Durable, verifiable, daemonized, installable, documented. The functional engine is complete.
+- **Beyond.** Streaming results over the daemon, the optional peer-flagship seams (context and verification), and a ledger-reading dashboard.
 
-## Design
+## Docs
 
-[ARCHITECTURE.md](ARCHITECTURE.md) goes deeper on the layers and the ledger.
+- [ARCHITECTURE.md](ARCHITECTURE.md): the layers, the ledger, and the surfaces.
+- [RUNNING.md](RUNNING.md): run it against a real model, over the API or a model CLI.
+- [SECURITY.md](SECURITY.md): the trust model, the no-shell guarantee, and sandboxing.
+- [RELEASING.md](RELEASING.md): how a release is built and published.
 
 ## License
 
