@@ -13,7 +13,8 @@ def summarize(ledger: Ledger) -> dict:
     intent-coverage checks (and how many were flagged, judged, and judged as
     drift), external verifications (and how many were refuted), delivery checks (and
     how many were flagged) with revisions (and how many were accepted), escalations,
-    budget stops, contexts, synthesized answers, model calls per model with a scalar total
+    budget stops, contexts (request-level and per-task, every kind="context" entry),
+    synthesized answers, model calls per model with a scalar total
     (read from each task result's recorded model), and the byte weight of the
     witnessed payloads (an efficiency signal, comparable across runs). Pure and
     read-only: everything comes from what was witnessed, so the summary is as
