@@ -65,3 +65,18 @@ def loads(text: str) -> Roster:
 def load(path: str) -> Roster:
     with open(path, "rb") as f:
         return _roster_from_data(tomllib.load(f))
+
+
+def load_default() -> Roster:
+    """Load the built-in default roster shipped inside the package.
+
+    Returns the domain-neutral capability lanes so a fresh install has a real
+    roster out of the box. Works from a source checkout and from an installed
+    wheel, because the manifest ships as package data.
+    """
+    from importlib.resources import files
+
+    text = (files("forum") / "manifests" / "default-roster.toml").read_text(
+        encoding="utf-8"
+    )
+    return loads(text)

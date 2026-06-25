@@ -1,0 +1,208 @@
+# Forum default roster: domain-neutral, plainly named capability lanes.
+#
+# Capabilities are data, not code: one WorkerActor implementation serves every
+# lane. model_tier is abstract (cheap, capable, frontier); an executor maps a
+# tier to a concrete model. executor names which Executor plug-in runs the lane
+# ("cli" runs a model CLI through the SubprocessExecutor). Keywords are single
+# lowercase tokens, because the lexical router matches them against individual
+# request words; a multi-word or hyphenated keyword would never match.
+
+# --- engineering ---
+
+[[agent]]
+name = "backend"
+category = "engineering"
+domain = "Full-stack backend and application services"
+keywords = ["api", "database", "server", "endpoint", "auth"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "frontend"
+category = "engineering"
+domain = "User interfaces, components, and styling"
+keywords = ["frontend", "ui", "css", "component", "react"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "sdk-platform"
+category = "engineering"
+domain = "SDKs, client libraries, and developer toolkits"
+keywords = ["sdk", "library", "package", "toolkit", "developer"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "compiler-systems"
+category = "engineering"
+domain = "Compilers, parsers, and language tooling"
+keywords = ["compiler", "parser", "lexer", "codegen", "bytecode"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
+name = "python-apps"
+category = "engineering"
+domain = "Python applications, scripts, and automation"
+keywords = ["python", "script", "scripting", "pandas", "module"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "native-cpp"
+category = "engineering"
+domain = "Native C++ and systems programming"
+keywords = ["cpp", "native", "memory", "pointer", "systems"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
+name = "data-ml"
+category = "engineering"
+domain = "Data and machine learning pipelines"
+keywords = ["ml", "model", "train", "dataset", "neural"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
+name = "sre-ops"
+category = "engineering"
+domain = "Site reliability and operations"
+keywords = ["sre", "monitoring", "incident", "reliability", "alerting"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "cloud-infra"
+category = "engineering"
+domain = "Cloud infrastructure and provisioning"
+keywords = ["cloud", "infrastructure", "terraform", "kubernetes", "provisioning"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "mobile"
+category = "engineering"
+domain = "Mobile applications for iOS and Android"
+keywords = ["mobile", "ios", "android", "swift", "kotlin"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "ci-cd"
+category = "engineering"
+domain = "Continuous integration and delivery"
+keywords = ["cicd", "build", "deploy", "release", "workflow"]
+model_tier = "cheap"
+executor = "cli"
+
+# --- graphics ---
+
+[[agent]]
+name = "render-pipeline"
+category = "graphics"
+domain = "Rendering pipelines and rasterization"
+keywords = ["rendering", "rasterization", "framebuffer", "raster", "viewport"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
+name = "shader-effects"
+category = "graphics"
+domain = "Shaders and screen-space effects"
+keywords = ["shader", "hlsl", "glsl", "postprocessing", "effect"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "gpu-compute"
+category = "graphics"
+domain = "GPU compute and parallel kernels"
+keywords = ["gpu", "compute", "cuda", "parallel", "kernel"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
+name = "materials-pbr"
+category = "graphics"
+domain = "Physically based materials and shading"
+keywords = ["material", "pbr", "texture", "brdf", "shading"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "scene-environment"
+category = "graphics"
+domain = "Scenes, environments, and lighting"
+keywords = ["scene", "environment", "lighting", "terrain", "sky"]
+model_tier = "capable"
+executor = "cli"
+
+# --- support ---
+
+[[agent]]
+name = "technical-writing"
+category = "support"
+domain = "Documentation, guides, and tutorials"
+keywords = ["documentation", "docs", "readme", "guide", "tutorial"]
+model_tier = "cheap"
+executor = "cli"
+
+[[agent]]
+name = "code-review"
+category = "support"
+domain = "Code review, refactoring, and quality"
+keywords = ["review", "refactor", "lint", "quality", "audit"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "data-pipeline"
+category = "support"
+domain = "ETL and data pipelines"
+keywords = ["etl", "ingest", "warehouse", "batch", "pipeline"]
+model_tier = "capable"
+executor = "cli"
+
+# --- research ---
+
+[[agent]]
+name = "deep-research"
+category = "research"
+domain = "Multi-source research and synthesis"
+keywords = ["research", "investigate", "sources", "evidence", "survey"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "web-intel"
+category = "research"
+domain = "Web search and open-source intelligence"
+keywords = ["web", "search", "scrape", "crawl", "osint"]
+model_tier = "cheap"
+executor = "cli"
+
+[[agent]]
+name = "knowledge-mgmt"
+category = "research"
+domain = "Knowledge management and structured notes"
+keywords = ["notes", "capture", "organize", "tag", "knowledge"]
+model_tier = "cheap"
+executor = "cli"
+
+[[agent]]
+name = "teaching"
+category = "research"
+domain = "Teaching and explanation"
+keywords = ["teach", "explain", "tutor", "learn", "lesson"]
+model_tier = "cheap"
+executor = "cli"
+
+[[agent]]
+name = "synthesis"
+category = "research"
+domain = "Synthesis and summarization"
+keywords = ["synthesize", "summarize", "combine", "integrate", "distill"]
+model_tier = "capable"
+executor = "cli"

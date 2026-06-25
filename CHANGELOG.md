@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0: a roster in the box
+
+A fresh install has a real roster now, not just an example in the demo.
+
+- **Default roster**: 24 domain-neutral capability lanes (engineering, graphics, support, research) shipped as `manifests/default-roster.toml` inside the package, loaded with `roster.load_default()`. Plain capability names, no personas.
+- Every lane is keyword-routable: a request built from a lane's keywords routes to that lane, verified across all 24.
+- The manifest ships as package data, so `load_default()` works from a source checkout and from an installed wheel.
+
+76 tests.
+
 ## 0.5.0: a durable ledger
 
 The ledger can outlive the process now.
