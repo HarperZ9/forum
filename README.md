@@ -135,7 +135,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 ## What's here
 
 - `forum.ledger`: the record. Hash chain, content-addressed bodies, `verify` / `verify(deep=True)`, `replay`, `causal_chain`, Merkle `checkpoint`.
-- `forum.storage`: where the record lives. An in-memory store for tests and short runs, and a durable `FileStorage` (append-only JSONL) so a ledger survives a restart and stays verifiable.
+- `forum.storage`: where the record lives. An in-memory store for tests and short runs, and a durable `FileStorage` (append-only JSONL) so a ledger survives a restart and stays verifiable. It fsyncs every append by default; `fsync_each=False` plus `ledger.sync()` batches that for throughput, with the durability window stated plainly.
 - `forum.routing`: a router that reads a request, picks a lane, and only falls back to a model when the keywords genuinely can't decide.
 - `forum.plan` and `forum.dispatch`: a task graph compiled into parallel waves (cycles and missing dependencies caught up front), with typed edges. A data edge feeds its upstream's witnessed output into the downstream task so it builds on real work; an order edge only sequences. Every edge and every data hand-off is witnessed.
 - `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 24 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
@@ -172,7 +172,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.5, the intent-judge.** The rung above the floor: when the lexical check flags drift, an opt-in model judge resolves whether the answer truly drifted or just paraphrased, witnessed and budget-bounded. Cheap-first, like routing and escalation.
 - **1.6, the DAG flows data.** Typed edges: a data edge feeds its upstream's witnessed output into the downstream task, an order edge only sequences. Existing plans now flow data downstream instead of dropping it, and every edge and hand-off is witnessed.
 - **1.7, the verification seam.** A VerifierProvider seam, the peer of the context seam, so an external verifier checks the answer after the run, witnessed. The default abstains; Forum stands alone.
-- **Beyond.** Phased checkpoints and resume, opt-in batched fsync, and a ledger-reading dashboard.
+- **1.8, opt-in batched fsync.** A throughput option for the durable ledger: defer the per-append fsync and force it on demand with `ledger.sync()`. The default stays fsync-every-append; the tradeoff is stated plainly.
+- **Beyond.** Phased checkpoints and resume, and a ledger-reading dashboard.
 
 ## Docs
 
