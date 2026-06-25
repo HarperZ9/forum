@@ -134,7 +134,7 @@ so the cheapest model that passes is chosen in the open rather than in a black b
 ## Reading the record
 
 A record you cannot read is only half of accountability. `forum.report` closes
-that half without adding any trust. `summarize(ledger)` walks the ledger once and
+that half without adding any trust. `summarize(ledger)` reads the ledger and
 aggregates it into a run summary: counts by kind (requests, plans, tasks, results,
 verdicts), task failures and verdict pass and fail, escalations, budget stops, the
 model calls broken out per model, the Merkle checkpoint, and the verify result. It
