@@ -136,6 +136,9 @@ class Orchestrator:
         """
         req = self.ledger.append(actor="client", kind="request", payload={"text": task})
         agent = await self.assign(task, parent_seq=req.seq)
+        # assign() witnessed the route (and any classification) as children of the
+        # request; the task is parented to the request too, so the routing decision
+        # and the work it produced are sibling consequences of the same request.
         assigned = self.ledger.append(
             actor="dispatch",
             kind="task",

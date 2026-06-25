@@ -8,7 +8,7 @@ The accountability gets sharper and the routing ladder is complete.
 - **The routing ladder is wired**: `Orchestrator.assign` does Tier-0 lexical routing and escalates to the Tier-2 Classifier when keywords cannot decide, witnessing the route and any classification. `submit_one` runs a single task end to end through that ladder.
 - **Real-model proof**: a gated integration test (`tests/test_real_model.py`, skipped unless `FORUM_RUN_REAL=1` and `ANTHROPIC_API_KEY` are set) runs a full `submit` and `submit_one` against a live model and asserts the ledger stays deep-verifiable. See `RUNNING.md`.
 
-145 tests (2 gated real-model tests skipped by default).
+143 tests, plus 2 gated real-model tests skipped by default.
 
 ## 0.9.0: a command line
 
