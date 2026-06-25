@@ -148,6 +148,7 @@ class Orchestrator:
         results = await dispatch_plan(
             plan, self.ledger, counter,
             max_parallel=self.policy.max_parallel, parent_seq=parent, over_budget=over_budget,
+            context_provider=self.context_provider,
         )
         failed: list[Task] = []
         for task in plan.tasks:
@@ -155,7 +156,8 @@ class Orchestrator:
             if result is None:
                 continue
             # Link the verdict to the specific result entry it judges, so
-            # causal_chain(verdict) reconstructs request -> plan -> task -> result -> verdict.
+            # causal_chain(verdict) reconstructs request -> plan -> task -> result -> verdict
+            # (with a per-task context entry between plan and task when a provider supplies one).
             vparent = result.witnessed_seq if result.witnessed_seq is not None else req.seq
             if result.ok and over_budget():
                 # do not spend a model call validating once the budget is gone

@@ -76,7 +76,7 @@ def main() -> None:
     led, orch = _orch(provider=DemoContext())
     answer = asyncio.run(orch.submit("build the api"))
     print("answer         :", answer)
-    print("context witnessed:", len(led.query(kind="context")) == 1)
+    print("context witnessed:", len(led.query(kind="context")) >= 1)  # request-level + per-task
     print("verify(deep)   :", led.verify(deep=True))
 
     rule("2. submit() under a RunBudget (stops gracefully, witnessed)")
