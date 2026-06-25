@@ -18,4 +18,8 @@ async def ask_json(executor: Executor, agent: str, prompt: str) -> dict:
     end = text.rfind("}")
     if start == -1 or end == -1 or end < start:
         raise ValueError(f"no JSON object in output: {text[:200]!r}")
-    return json.loads(text[start : end + 1])
+    snippet = text[start : end + 1]
+    try:
+        return json.loads(snippet)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"could not parse JSON from output: {exc}") from exc

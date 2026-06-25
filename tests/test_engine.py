@@ -47,6 +47,39 @@ def _orchestrator(ledger):
     )
 
 
+class _ScriptedWithFailure:
+    """The backend task fails; coordinator and synthesizer behave normally."""
+
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        agent = assignment.agent
+        if agent == "coordinator":
+            out = '{"tasks": [{"id": "T1", "agent": "backend", "instruction": "build", "depends_on": []}]}'
+        elif agent == "synthesizer":
+            out = "answer"
+        elif agent == "backend":
+            return Result(assignment.task_id, agent, "error: boom", ok=False)
+        else:
+            out = '{"ok": true, "score": 1.0, "reason": "x"}'
+        return Result(assignment.task_id, assignment.agent, out)
+
+
+def test_submit_witnesses_a_failed_task_as_not_ok():
+    ledger = make_ledger()
+    orch = Orchestrator(
+        ROSTER, ledger, _ScriptedWithFailure(),
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+    )
+    asyncio.run(orch.submit("build the backend"))
+
+    verdicts = ledger.query(kind="verdict")
+    assert len(verdicts) == 1
+    body = ledger._s.get_payload(verdicts[0].payload_hash)
+    assert body["ok"] is False  # the failed task is witnessed as not ok, not blessed by the judge
+    assert ledger.verify(deep=True) is True
+
+
 class _ScriptedExecutor:
     """Returns a different canned reply depending on which control role calls it."""
 
