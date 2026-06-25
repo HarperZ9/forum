@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0: reading the record
+
+A witnessed run is only worth as much as what you can learn from it. This release turns the raw ledger into something you can read at a glance and compare across runs, while trusting nothing but the record itself. It is what lets the project measure its own improvement instead of asserting it.
+
+- **Run summary**: `forum.report.summarize(ledger)` aggregates a witnessed run into counts (requests, plans, tasks, task results and failures, verdict pass and fail, escalations, budget stops, contexts, answers), model calls per model, the Merkle checkpoint, and the verify result. It reads only what was witnessed, so the summary is exactly as trustworthy as the ledger beneath it. On the CLI: `forum ledger summary [--json]`.
+- **Ledger A/B**: `forum.report.compare(a, b)` reports the delta between two summaries, and `forum bench A B [--json]` compares two ledgers side by side. This is how you prove a change actually helped: fewer model calls, fewer failures, fewer escalations, read from the record rather than claimed.
+
+167 tests, plus 2 gated real-model tests. Summary and A/B run in `examples/run_summary.py`.
+
 ## 1.2.0: witnessed model-tier escalation
 
 Research-informed (arXiv 2026-06): FairTutor's selective escalation cut cost 71.6% at near-premium quality; "Forced Deferral" showed confidence-based cascades are adversarially gameable; "Reliability without Validity" showed single LLM judges are biased. So Forum escalates on a verifiable, witnessed signal, not opaque model confidence.

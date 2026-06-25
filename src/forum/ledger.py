@@ -183,6 +183,10 @@ class Ledger:
         """Return the entry at seq, or raise KeyError if absent."""
         return self._s.get(seq)
 
+    def get_payload(self, payload_hash: str) -> Any:
+        """Return the stored body for a payload hash, or raise KeyError if absent."""
+        return self._s.get_payload(payload_hash)
+
     def count(self) -> int:
         """Number of entries in the ledger."""
         return self._s.count()
