@@ -7,7 +7,7 @@ Forum validates each task against its own instruction, but a run can pass every 
 - **Witnessed intent check**: a completed `submit()` appends an `intent_check` entry, chained to the answer, with a deterministic coverage score (the fraction of the request's content words the answer carries), the terms it missed, and whether that falls below a configurable threshold (`Orchestrator(intent_threshold=...)`). It is a lexical floor, not a semantic verdict: low coverage flags a run for a closer look, it does not block the run or declare the answer wrong. A grounded model intent-judge is the next rung above this floor.
 - **In the summary and A/B**: `forum ledger summary` and `forum bench` now report intent checks and how many were flagged, so a prompt or model change that makes runs drift more or less is measured from the record, not guessed at.
 
-Pure standard library, deterministic and reproducible. 181 tests, plus 2 gated real-model tests. Intent run in `examples/run_intent.py`.
+Pure standard library, deterministic and reproducible. 186 tests, plus 2 gated real-model tests. Intent run in `examples/run_intent.py`.
 
 ## 1.3.0: reading the record
 

@@ -1,5 +1,6 @@
 import asyncio
 
+from forum.budget import RunBudget
 from forum.engine import Orchestrator
 from forum.executor import Result
 from forum.intent import coverage, salient_terms
@@ -17,6 +18,15 @@ def test_salient_terms_drops_stopwords_and_short_tokens():
 
 def test_salient_terms_is_case_and_punctuation_insensitive():
     assert salient_terms("Login, API!") == salient_terms("login api")
+
+
+def test_salient_terms_keeps_non_ascii_words():
+    # Unicode-aware: non-Latin scripts and accented words are kept, not silently dropped
+    assert salient_terms("café Москва") == {"café", "москва"}
+
+
+def test_salient_terms_splits_snake_case():
+    assert salient_terms("build_login_api") == {"build", "login", "api"}
 
 
 def test_coverage_full_when_answer_carries_all_terms():
@@ -128,3 +138,28 @@ def test_run_stays_deep_verifiable_with_the_intent_check():
     led = _led()
     asyncio.run(_orch(led, "done").submit("build the api"))
     assert led.verify(deep=True) is True
+
+
+def test_intent_coverage_is_rounded_and_marked_lexical_in_the_payload():
+    led = _led()
+    asyncio.run(_orch(led, "the api").submit("build the login api"))
+    body = led.get_payload(led.query(kind="intent_check")[0].payload_hash)
+    assert body["coverage"] == 0.3333          # 1 of {build, login, api}, rounded to 4 dp
+    assert body["method"] == "lexical_coverage"
+
+
+def test_intent_run_is_reproducible_across_runs():
+    # identical witnessed runs hash identically, the rounded intent payload included;
+    # this is what makes the new entry replay-stable
+    a, b = _led(), _led()
+    asyncio.run(_orch(a, "the api").submit("build the login api"))
+    asyncio.run(_orch(b, "the api").submit("build the login api"))
+    assert a.checkpoint() == b.checkpoint()
+
+
+def test_no_intent_check_on_a_budget_stopped_run():
+    # the budget-stop path returns a canned answer; intent-checking it would manufacture
+    # a meaningless flag, so the run carries no intent_check
+    led = _led()
+    asyncio.run(_orch(led, "done").submit("build the api", budget=RunBudget(max_model_calls=0)))
+    assert led.query(kind="intent_check") == []

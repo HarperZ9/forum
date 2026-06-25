@@ -82,10 +82,14 @@ def main() -> None:
     print()
     a = "build the login api and the database schema, with migrations"
     b = "done, see the attached notes"
-    _show("answer A (on point)", a, _run(a))
-    _show("answer B (drifted) ", b, _run(b))
-    print("Both runs passed their task verdicts; only the witnessed intent check")
-    print("separates the answer that addressed the request from the one that did not.")
+    c = "implemented user authentication and the relational data model for the api"
+    _show("answer A (on point, reuses the words)", a, _run(a))
+    _show("answer B (drifted, says nothing)     ", b, _run(b))
+    _show("answer C (correct but paraphrased)   ", c, _run(c))
+    print("A and B behave as you would hope. C is the floor's known blind spot: a")
+    print("correct answer that reuses few of the request's words still flags. That is")
+    print("why this is a lexical floor, not a verdict, and why a grounded model")
+    print("intent-judge is the next rung above it.")
 
 
 if __name__ == "__main__":
