@@ -59,6 +59,25 @@ The rest follows.
 - `replay(until=seq)` rebuilds exact past state, which is only possible because the core is pure and entries are immutable.
 - `checkpoint()` folds the history into one Merkle root. Leaves are tagged 0x00 and internal nodes 0x01, and a lone odd node is carried up rather than duplicated. That's the standard defense against the second-preimage collision (CVE-2012-2459) that naive Merkle code walks into.
 
+## Storage
+
+The ledger keeps its logic and its persistence apart. A `Storage` is a small
+protocol (append an entry, read them back, fetch or stash a payload by its hash),
+and the core only ever talks to that protocol, never to a file. `InMemoryStorage`
+is the default, right for tests and a single run. `FileStorage` is the durable
+adapter: two append-only JSONL logs in a directory, one for entries and one for
+content-addressed payloads, read back into memory on construction. Every append is
+flushed and fsynced before the in-memory mirror is updated, so disk is the source
+of truth and a restart recovers the exact ledger.
+
+Durability and tamper-evidence do not fight here. A crash can only ever cut the
+final line short, so on reload a torn trailing line is dropped and the rest of the
+record stands; interior corruption, a structurally broken row, raises rather than
+limps on. Tampering is left visible on purpose: a reordered or edited file still
+loads, and `verify()` reports it false, exactly as it would in memory. Whole-tail
+truncation is the one thing a lone append-only log cannot self-detect, which is
+what `checkpoint()` and an external witness are for.
+
 ## Routing
 
 The router earns its place by not calling a model when it doesn't have to. It scores a
