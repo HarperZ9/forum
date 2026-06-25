@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
 from forum.executor import Assignment, Executor, Result
 from forum.ledger import Ledger
@@ -42,13 +43,13 @@ async def dispatch_plan(
                 result = await executor.run(Assignment(task.id, task.agent, task.instruction))
             except Exception as exc:
                 result = Result(task.id, task.agent, f"error: {exc}", ok=False)
-            ledger.append(
+            entry = ledger.append(
                 actor=task.agent,
                 kind="result",
                 payload={"id": task.id, "output": result.output, "ok": result.ok},
                 causal_parent=assigned.seq,
             )
-            results[task.id] = result
+            results[task.id] = dataclasses.replace(result, witnessed_seq=entry.seq)
 
     for wave in waves:
         async with asyncio.TaskGroup() as tg:

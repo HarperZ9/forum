@@ -72,13 +72,16 @@ class Orchestrator:
             result = results.get(task.id)
             if result is None:
                 continue
+            # Link the verdict to the specific result entry it judges, so
+            # causal_chain(verdict) reconstructs request -> plan -> task -> result -> verdict.
+            parent = result.witnessed_seq if result.witnessed_seq is not None else req.seq
             if not result.ok:
                 # the task itself failed; witness the failure rather than ask the judge to bless it
                 self.ledger.append(
                     actor="validator",
                     kind="verdict",
                     payload={"id": task.id, "ok": False, "score": 0.0, "reason": "task failed"},
-                    causal_parent=req.seq,
+                    causal_parent=parent,
                 )
                 continue
             verdict = await self.validator.validate(task.instruction, result.output, self.executor)
@@ -86,7 +89,7 @@ class Orchestrator:
                 actor="validator",
                 kind="verdict",
                 payload={"id": task.id, "ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
-                causal_parent=req.seq,
+                causal_parent=parent,
             )
         answer = await self.synthesizer.synthesize(request, results, self.executor)
         self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
