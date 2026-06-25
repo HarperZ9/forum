@@ -18,6 +18,7 @@ class Result:
     agent: str
     output: str
     ok: bool = True
+    witnessed_seq: int | None = None  # ledger seq of this result's entry, set by the dispatcher
 
 
 class Executor(Protocol):
