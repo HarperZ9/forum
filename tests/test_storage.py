@@ -122,3 +122,14 @@ def test_non_serializable_payload_is_rejected_at_store_time(tmp_path):
         led.append(actor="client", kind="request", payload={"bad": {1, 2, 3}})
     # Nothing was half-written: the directory is still a valid empty ledger.
     assert Ledger(FileStorage(str(tmp_path))).replay() == []
+
+
+def test_interior_blank_line_raises_storage_corruption(tmp_path):
+    led = _ledger(FileStorage(str(tmp_path)))
+    _populate(led)
+    entries_file = tmp_path / "entries.jsonl"
+    lines = entries_file.read_text(encoding="utf-8").splitlines()
+    lines.insert(1, "")  # inject a blank interior line
+    entries_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(StorageCorruption):
+        FileStorage(str(tmp_path))
