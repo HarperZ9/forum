@@ -220,10 +220,41 @@ def test_judge_skipped_when_budget_is_spent_by_synthesis():
     assert led.query(kind="intent_judgment") == []
 
 
-def test_summary_reports_judgments_and_confirmed_drift():
+def test_summary_reports_judgments_and_judged_drift():
     led = _led()
     asyncio.run(_orch(led, "done", judge_ok=False, intent_judge=IntentJudge()).submit("build the api"))
     s = summarize(led)
     assert s["intent_judgments"] == 1
-    assert s["intent_drift_confirmed"] == 1
+    assert s["intent_drift_judged"] == 1
+    assert led.verify(deep=True) is True
+
+
+def test_judge_runs_when_budget_has_one_call_of_headroom():
+    # plan, task, validate, synthesize spend 4 calls; max 5 leaves exactly one for the judge
+    led = _led()
+    asyncio.run(
+        _orch(led, "done", intent_judge=IntentJudge()).submit("build the api", budget=RunBudget(max_model_calls=5))
+    )
+    assert len(led.query(kind="intent_judgment")) == 1
+
+
+def test_judge_failure_is_witnessed_not_fatal_and_keeps_the_answer():
+    led = _led()
+
+    class _BadJudge(_Exec):
+        async def run(self, a):
+            if a.agent == "intent-judge":
+                return Result(a.task_id, a.agent, "I cannot answer in JSON")  # ask_json will raise
+            return await super().run(a)
+
+    orch = Orchestrator(
+        ROSTER, led, _BadJudge("done"),
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+        intent_judge=IntentJudge(),
+    )
+    answer = asyncio.run(orch.submit("build the api"))
+    assert answer == "done"                                   # the answer survives the judge failure
+    body = led.get_payload(led.query(kind="intent_judgment")[0].payload_hash)
+    assert body["ok"] is None and "judge failed" in body["reason"]
+    assert summarize(led)["intent_drift_judged"] == 0         # a judge error is not drift
     assert led.verify(deep=True) is True

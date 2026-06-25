@@ -83,7 +83,7 @@ def _show(label: str, answer: str, check: dict, judgment: dict | None) -> None:
     if judgment is None:
         print("  judge: not run (the floor did not flag)")
     else:
-        verdict = "addresses the request" if judgment["ok"] else "real drift confirmed"
+        verdict = "addresses the request" if judgment["ok"] else "judged real drift"
         print(f"  judge: ok={judgment['ok']} ({verdict})")
     print()
 

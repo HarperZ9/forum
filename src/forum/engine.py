@@ -253,11 +253,18 @@ class Orchestrator:
         # drifted or just paraphrased. Chained to the flag it resolves, witnessed with
         # its reasoning, and skipped once the budget is spent.
         if flagged and self.intent_judge is not None and not over_budget():
-            verdict = await self.intent_judge.judge(request, answer, missing_sorted, executor)
+            try:
+                verdict = await self.intent_judge.judge(request, answer, missing_sorted, executor)
+                payload = {"ok": verdict.ok, "score": verdict.score, "reason": verdict.reason}
+            except Exception as exc:
+                # the judge is an advisory rung over an already-witnessed answer; a judge
+                # that cannot produce a verdict is recorded, not fatal, so the run keeps
+                # its answer (the same witnessed-not-fatal contract as a failed task)
+                payload = {"ok": None, "score": 0.0, "reason": f"judge failed: {type(exc).__name__}: {exc}"}
             self.ledger.append(
                 actor="intent-judge",
                 kind="intent_judgment",
-                payload={"ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
+                payload=payload,
                 causal_parent=check.seq,
             )
 
