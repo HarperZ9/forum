@@ -13,6 +13,15 @@ class Task:
     agent: str
     instruction: str
     depends_on: tuple[str, ...] = ()
+    # deps that are ordering-only (run-after, no data flow); every other dep is a
+    # data edge whose upstream output is fed into this task. Both kinds constrain
+    # scheduling; only data edges carry output downstream.
+    order_deps: frozenset[str] = frozenset()
+
+    @property
+    def data_deps(self) -> tuple[str, ...]:
+        """Dependencies whose output flows into this task: depends_on minus order-only."""
+        return tuple(d for d in self.depends_on if d not in self.order_deps)
 
 
 @dataclass(frozen=True, slots=True)

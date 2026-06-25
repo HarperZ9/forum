@@ -92,3 +92,65 @@ def test_failing_task_is_witnessed_and_siblings_survive():
     assert results["C"].ok is True
     assert len(ledger.query(kind="result")) == 3  # every task got a witnessed result
     assert ledger.verify(deep=True) is True
+
+
+class _EchoSawExecutor:
+    """Echoes the exact instruction it received, so injected upstream output is visible."""
+
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        return Result(assignment.task_id, assignment.agent, assignment.instruction)
+
+
+def _task_entry(ledger, tid):
+    return next(
+        e for e in ledger.query(kind="task") if ledger.get_payload(e.payload_hash)["id"] == tid
+    )
+
+
+def test_data_edge_feeds_upstream_output_downstream():
+    ledger = make_ledger()
+    plan = Plan(
+        (
+            Task("T1", "backend", "schema", ()),
+            Task("T2", "backend", "endpoint", ("T1",)),  # data edge (the default)
+        )
+    )
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), max_parallel=2))
+
+    assert "Upstream results you build on:" in results["T2"].output
+    assert "T1: schema" in results["T2"].output            # T2 saw T1's output
+    body = ledger.get_payload(_task_entry(ledger, "T2").payload_hash)
+    assert body["data_from"] == ["T1"]                     # witnessed: T2 consumed T1
+    assert body["instruction"] == "endpoint"              # the witnessed instruction stays original
+    assert ledger.verify(deep=True) is True
+
+
+def test_order_edge_does_not_feed_output():
+    ledger = make_ledger()
+    plan = Plan(
+        (
+            Task("T1", "backend", "schema", ()),
+            Task("T2", "ops", "notify", ("T1",), frozenset({"T1"})),  # order edge
+        )
+    )
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), max_parallel=2))
+
+    assert results["T2"].output == "notify"                # nothing injected
+    assert ledger.get_payload(_task_entry(ledger, "T2").payload_hash)["data_from"] == []
+
+
+def test_plan_entry_witnesses_typed_edges():
+    ledger = make_ledger()
+    plan = Plan(
+        (
+            Task("T1", "x", "a", ()),
+            Task("T2", "x", "b", ("T1",)),                     # data
+            Task("T3", "x", "c", ("T1",), frozenset({"T1"})),  # order
+        )
+    )
+    asyncio.run(dispatch_plan(plan, ledger, EchoExecutor(), max_parallel=2))
+    edges = ledger.get_payload(ledger.query(kind="plan")[0].payload_hash)["edges"]
+    assert {"from": "T1", "to": "T2", "type": "data"} in edges
+    assert {"from": "T1", "to": "T3", "type": "order"} in edges
