@@ -7,7 +7,7 @@ A run already plans on context from a brain (the ContextProvider seam, v1.1). Th
 - **Per-task context**: with a `ContextProvider`, the dispatcher pulls `context(task.instruction)` for each task before it runs, caps it (like upstream data), injects it into the task's prompt, witnesses it as a `context` entry, and chains the task to it, so the record shows exactly what context shaped each task. The default `NullContextProvider` returns nothing, so this is a no-op until a brain is plugged in, and Forum stands alone.
 - The peer-composition holds: Forum times, routes, and witnesses (its lane); the brain assesses and supplies (its lane); the injected context is verified (witnessed) and fresh (pulled per task), neither tool clever about timing.
 
-Pure standard library; the context comes from a brain behind the seam, capped and witnessed. 247 tests, plus 2 gated real-model tests. Run in `examples/run_task_context.py`.
+Pure standard library; the context comes from a brain behind the seam, capped and witnessed. 249 tests, plus 2 gated real-model tests. Run in `examples/run_task_context.py`.
 
 ## 1.11.0: the delivery ladder, verified tightening
 

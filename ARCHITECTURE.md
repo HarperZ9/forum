@@ -133,8 +133,9 @@ chained to, so a parallel or looped agent gets up-to-date context routed to it a
 shows what shaped each step. This is the Forum-native half of context management, and it keeps
 the seam honest: Forum times, routes, and witnesses the context, but it never generates it.
 The brain supplies it, the injection is verified (witnessed) and fresh (pulled per task), and
-neither side is clever about timing. A context budget and compaction on a limit are the next
-rung, composing with the brain the same way.
+neither side is clever about timing. The pull is synchronous and runs once per task, so a brain
+that does heavy I/O serializes the wave; it is meant to be fast and offline. A context budget
+and compaction on a limit are the next rung, composing with the brain the same way.
 
 A `RunBudget` bounds the run. It caps model calls (deterministic, the cost-relevant
 dimension) and, best-effort, wall-clock seconds. The call cap is checked as each task

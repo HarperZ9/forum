@@ -97,7 +97,9 @@ async def dispatch_plan(
     upstream data), witnessed as its own entry, and the task is chained to it, so a
     parallel or looped agent gets up-to-date context routed to it and the record
     shows exactly what shaped each task. Forum pulls and witnesses the context; it
-    never generates it.
+    never generates it. The pull is synchronous and runs once per task inside the
+    wave, so a provider that blocks (does I/O) serializes the wave; keep context()
+    fast and offline, as the Protocol advises.
 
     With ``resume=True`` a task that already has a witnessed successful result in
     the ledger is reused, not re-run, and a ``resume`` entry records which were
@@ -142,9 +144,15 @@ async def dispatch_plan(
             # context to the agent, it never generates it)
             task_parent = plan_entry.seq
             if context_provider is not None:
+                # INVARIANT: no await between here and the task append below. context() is
+                # sync by contract (the ContextProvider Protocol), so the context pull and
+                # the two appends stay one atomic, no-yield window; an await here would let
+                # concurrent run_tasks interleave and corrupt seq/prev_hash.
                 ctx = context_provider.context(task.instruction)
                 if ctx:
                     if len(ctx) > max_upstream_chars:
+                        # a barer marker than upstream's on purpose: the full context is NOT
+                        # witnessed (only this capped slice is), so do not claim it is
                         ctx = ctx[:max_upstream_chars] + "\n... [truncated for prompt efficiency]"
                     task_parent = ledger.append(
                         actor="context", kind="context",
