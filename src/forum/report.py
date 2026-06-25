@@ -9,7 +9,7 @@ def summarize(ledger: Ledger) -> dict:
     """Aggregate a witnessed ledger into a run summary, from the record itself.
 
     Counts entries by kind, task results (and failures), verdict pass/fail,
-    intent-coverage checks (and how many were flagged, judged, and confirmed as
+    intent-coverage checks (and how many were flagged, judged, and judged as
     drift), escalations, budget stops, contexts, synthesized answers, and model calls per
     model with a scalar total (read from each task result's recorded model). Pure
     and read-only: everything comes from what was witnessed, so the summary is as
@@ -46,7 +46,7 @@ def summarize(ledger: Ledger) -> dict:
     intent_checks = ledger.query(kind="intent_check")
     intent_flagged = sum(1 for e in intent_checks if ledger.get_payload(e.payload_hash).get("flagged"))
     intent_judgments = ledger.query(kind="intent_judgment")
-    intent_drift_confirmed = sum(
+    intent_drift_judged = sum(
         1 for e in intent_judgments if ledger.get_payload(e.payload_hash).get("ok") is False
     )
 
@@ -62,7 +62,7 @@ def summarize(ledger: Ledger) -> dict:
         "intent_checks": len(intent_checks),
         "intent_flagged": intent_flagged,
         "intent_judgments": len(intent_judgments),
-        "intent_drift_confirmed": intent_drift_confirmed,
+        "intent_drift_judged": intent_drift_judged,
         "escalations": kinds.get("tier_escalation", 0),
         "budget_stops": kinds.get("budget", 0),
         "contexts": kinds.get("context", 0),
@@ -79,7 +79,7 @@ def summarize(ledger: Ledger) -> dict:
 _NUMERIC = (
     "entries", "requests", "plans", "tasks", "task_results", "failed_results",
     "verdicts_pass", "verdicts_fail", "intent_checks", "intent_flagged",
-    "intent_judgments", "intent_drift_confirmed",
+    "intent_judgments", "intent_drift_judged",
     "escalations", "budget_stops", "contexts", "answers", "model_calls_total",
 )
 
