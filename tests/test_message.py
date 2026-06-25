@@ -1,5 +1,5 @@
 from forum.hashing import canonical_hash
-from forum.message import Message, new_message
+from forum.message import new_message
 
 
 def test_new_message_computes_payload_hash():

@@ -38,6 +38,7 @@ def test_merkle_root_is_stable_and_order_sensitive():
 
 def test_causal_chain_detects_cycle():
     import dataclasses
+
     import pytest
     led, (_e0, _e1, _e2) = build()
     storage = led._s
