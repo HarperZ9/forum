@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from forum.context import ContextProvider
 from forum.engine import Orchestrator
 from forum.executor import EchoExecutor, Executor
 from forum.http_surface import MAX_BODY, HttpSurface, Response, error
@@ -150,6 +151,7 @@ def build_orchestrator(
     executor: Executor | None = None,
     roster: Roster | None = None,
     policy: Policy | None = None,
+    context_provider: ContextProvider | None = None,
 ) -> Orchestrator:
     """Build an Orchestrator backed by a durable file ledger and the default roster.
 
@@ -164,6 +166,7 @@ def build_orchestrator(
         ledger,
         executor or EchoExecutor(),
         policy or Policy(allowed_categories=_ALL_CATEGORIES, max_parallel=6),
+        context_provider=context_provider,
     )
 
 

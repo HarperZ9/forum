@@ -71,11 +71,15 @@ def _cmd_submit(args) -> int:
             file=sys.stderr,
         )
         return 2
+    from forum.budget import RunBudget
     from forum.daemon import build_orchestrator
 
+    budget = None
+    if args.max_model_calls is not None or args.max_seconds is not None:
+        budget = RunBudget(max_model_calls=args.max_model_calls, max_seconds=args.max_seconds)
     orch = build_orchestrator(args.ledger, executor=executor)
     try:
-        answer = asyncio.run(orch.submit(args.request))
+        answer = asyncio.run(orch.submit(args.request, budget=budget))
     except ValueError as exc:
         print(f"submit failed: {exc}", file=sys.stderr)
         return 1
@@ -164,6 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     submit = sub.add_parser("submit", help="plan and answer a request, witnessed")
     submit.add_argument("request")
+    submit.add_argument("--max-model-calls", type=int, default=None, help="bound the run to N model calls (witnessed budget)")
+    submit.add_argument("--max-seconds", type=float, default=None, help="bound the run to S seconds (best-effort)")
     _add_ledger(submit)
     _add_executor(submit)
     submit.set_defaults(func=_cmd_submit)
