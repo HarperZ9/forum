@@ -229,6 +229,9 @@ class Orchestrator:
             actor="intent",
             kind="intent_check",
             payload={
+                # name the method in the record itself, so a ledger reader sees this is
+                # a lexical-overlap signal, not a semantic judgment, without external docs
+                "method": "lexical_coverage",
                 "coverage": round(score, 4),
                 "flagged": score < self.intent_threshold,
                 "missing": sorted(missing),

@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import re
 
-_TOKEN = re.compile(r"[a-z0-9]+")
+# Unicode-aware word tokens (letters and digits, any script), excluding underscore
+# so snake_case splits into words. Deterministic: a pure function of the input text.
+_TOKEN = re.compile(r"[^\W_]+")
 
 # Function words only: articles, conjunctions, prepositions, pronouns, auxiliaries.
 # Deliberately minimal and frozen so the score is reproducible across versions.
@@ -39,8 +41,9 @@ DEFAULT_THRESHOLD = 0.5
 
 
 def salient_terms(text: str) -> set[str]:
-    """The content tokens in text: lowercased alphanumeric runs, minus a fixed
-    function-word stoplist and single characters. Pure and deterministic."""
+    """The content tokens in text: lowercased letter and digit runs (Unicode-aware,
+    so non-Latin scripts are kept and underscores split), minus a fixed function-word
+    stoplist and single characters. Pure and deterministic."""
     return {t for t in _TOKEN.findall(text.lower()) if len(t) >= _MIN_LEN and t not in _STOPWORDS}
 
 
