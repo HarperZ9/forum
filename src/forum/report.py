@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 
 from forum.ledger import Ledger
@@ -11,9 +12,10 @@ def summarize(ledger: Ledger) -> dict:
     Counts entries by kind, task results (and failures), verdict pass/fail,
     intent-coverage checks (and how many were flagged, judged, and judged as
     drift), external verifications (and how many were refuted), escalations, budget
-    stops, contexts, synthesized answers, and model calls per
-    model with a scalar total (read from each task result's recorded model). Pure
-    and read-only: everything comes from what was witnessed, so the summary is as
+    stops, contexts, synthesized answers, model calls per model with a scalar total
+    (read from each task result's recorded model), and the byte weight of the
+    witnessed payloads (an efficiency signal, comparable across runs). Pure and
+    read-only: everything comes from what was witnessed, so the summary is as
     trustworthy as the ledger it reads.
     """
     entries = ledger.replay()
@@ -55,6 +57,22 @@ def summarize(ledger: Ledger) -> dict:
         1 for e in verifications if ledger.get_payload(e.payload_hash).get("ok") is False
     )
 
+    # The byte weight of the witnessed content (distinct payloads; the content store
+    # already dedups identical bodies). An efficiency signal, not a token count: a
+    # leaner run carries a lighter record, and forum bench shows whether a change
+    # reduced it.
+    seen: set[str] = set()
+    payload_bytes = 0
+    for e in entries:
+        if e.payload_hash in seen:
+            continue
+        seen.add(e.payload_hash)
+        try:
+            body = ledger.get_payload(e.payload_hash)
+        except KeyError:
+            continue
+        payload_bytes += len(json.dumps(body, sort_keys=True, ensure_ascii=False))
+
     return {
         "entries": len(entries),
         "requests": kinds.get("request", 0),
@@ -80,6 +98,7 @@ def summarize(ledger: Ledger) -> dict:
         # scalar total so a model-call change flows through compare()/bench; equals
         # task_results in a normal run (every task result records its model).
         "model_calls_total": sum(model_calls.values()),
+        "payload_bytes": payload_bytes,
         "checkpoint": ledger.checkpoint(),
         "verified": ledger.verify(),
     }
@@ -91,6 +110,7 @@ _NUMERIC = (
     "intent_judgments", "intent_drift_judged", "verifications", "verifications_refuted",
     "checkpoints", "resumes",
     "escalations", "budget_stops", "contexts", "answers", "model_calls_total",
+    "payload_bytes",
 )
 
 
