@@ -86,16 +86,19 @@ a real model), and verifies the entire run from the ledger at the end.
 Installed, Forum gives you a `forum` command:
 
 ```bash
-forum route "build the auth endpoint and the database schema"   # which lane, no model needed
-forum submit "ship a login API with docs" --api                 # plan, run, answer (needs ANTHROPIC_API_KEY)
-forum serve --port 8080                                          # the HTTP daemon
-forum mcp                                                        # the MCP stdio server
-forum ledger verify                                              # check the record
-forum ledger show --limit 20                                     # the last 20 entries
+forum route "build the auth endpoint and the database schema"        # which lane, no model needed
+forum submit "ship a login API" --cmd "ollama run llama3"            # plan, run, answer with a local model, no account
+forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3   # the HTTP daemon
+forum mcp --cmd "ollama run llama3"                                  # the MCP stdio server
+forum ledger verify                                                  # check the record
+forum ledger show --limit 20                                         # the last 20 entries
 ```
 
-`submit`, `serve`, and `mcp` reach a model: pass `--api` (Anthropic API) or `--cmd "<model cli>"`
-(any command, run once per task). Routing and the ledger commands need no model at all.
+`submit`, `serve`, and `mcp` reach a model, and Forum is model-agnostic about which.
+`--cmd "<any command>"` runs any model (a local CLI needs no account), `--chat-url`
+talks to any OpenAI-compatible server (local or cloud), and `--api` is one specific
+provider (Anthropic). Routing and the ledger commands need no model at all. See
+[RUNNING.md](RUNNING.md).
 
 ## How the ledger works
 
@@ -137,7 +140,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.plan`: a task graph compiled into parallel waves, with cycles and missing dependencies caught up front.
 - `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 24 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
-- `forum.executor` / `forum.api_executor`: how work actually runs. A stub for tests, a `SubprocessExecutor` that runs any command (point it at a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API. A failing task is witnessed, not fatal.
+- `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed.
 - `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, and verify or replay the record over HTTP.
 - `forum.mcp_surface`: the same tools over MCP (JSON-RPC on stdio), the lone optional edge. It is a thin adapter over the HTTP surface, so the two can never drift.

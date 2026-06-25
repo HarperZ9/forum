@@ -13,7 +13,21 @@ DEFAULT_LEDGER = "forum-ledger"
 
 
 def _make_executor(args):
-    """Pick an executor from flags: --api or --cmd, else None (no model)."""
+    """Pick an executor from flags: --chat-url, --api, or --cmd, else None.
+
+    Forum is model-agnostic: --cmd runs any command (a local model CLI needs no
+    account), --chat-url talks to any OpenAI-compatible server (local or cloud),
+    and --api is one specific provider (Anthropic).
+    """
+    chat_url = getattr(args, "chat_url", None)
+    if chat_url:
+        from forum.chat_executor import ChatExecutor
+
+        return ChatExecutor(
+            getattr(args, "model", None) or "default",
+            base_url=chat_url,
+            api_key_env=getattr(args, "api_key_env", None),
+        )
     if getattr(args, "api", False):
         from forum.api_executor import ApiExecutor
 
@@ -51,8 +65,9 @@ def _cmd_submit(args) -> int:
     executor = _make_executor(args)
     if executor is None:
         print(
-            "submit needs a model executor; pass --api (ANTHROPIC_API_KEY) "
-            'or --cmd "<model cli>"',
+            "submit needs a model executor. Forum is model-agnostic: pass --cmd "
+            '"<model cli>" (any command, local models need no account), --chat-url '
+            "<openai-compatible url> (e.g. a local Ollama server), or --api (Anthropic).",
             file=sys.stderr,
         )
         return 2
@@ -126,9 +141,11 @@ def _add_ledger(sp) -> None:
 
 
 def _add_executor(sp) -> None:
+    sp.add_argument("--cmd", default=None, help='run any model command per task, e.g. --cmd "ollama run llama3" (no account needed)')
+    sp.add_argument("--chat-url", default=None, help="an OpenAI-compatible chat-completions URL, e.g. a local Ollama or LM Studio server (no account needed)")
     sp.add_argument("--api", action="store_true", help="use the Anthropic API executor (reads ANTHROPIC_API_KEY)")
-    sp.add_argument("--model", default=None, help="model id for --api")
-    sp.add_argument("--cmd", default=None, help='run a model CLI via subprocess, e.g. --cmd "claude -p"')
+    sp.add_argument("--model", default=None, help="model id for --chat-url or --api")
+    sp.add_argument("--api-key-env", default=None, help="env var holding a Bearer key for --chat-url (optional; local servers need none)")
 
 
 def _print_help_rc(parser: argparse.ArgumentParser) -> int:

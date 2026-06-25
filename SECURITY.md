@@ -51,6 +51,8 @@ document states what Forum does, what it guarantees, and how to run it safely.
 
 ## Reporting a vulnerability
 
-Please report security issues privately to the author rather than opening a public
-issue. See [LICENSE](LICENSE) for contact. We will acknowledge and work a fix before
-any public disclosure.
+Please report security issues privately rather than opening a public issue: open a
+GitHub private security advisory at
+https://github.com/HarperZ9/forum/security/advisories/new (or reach the author via
+https://github.com/HarperZ9). We will acknowledge it and work a fix before any public
+disclosure.
