@@ -14,15 +14,26 @@ def augment_with_upstream(task: Task, results: dict[str, Result]) -> tuple[str, 
 
     Returns ``(instruction_for_the_executor, the upstream ids actually injected)``. A
     data edge feeds the upstream's witnessed output into the downstream task so it can
-    build on real work; an order edge only sequences and injects nothing. Deterministic:
-    upstreams are injected in depends_on order, reading already-witnessed results, with
-    no await, so it is safe to call on concurrent tasks within a wave.
+    build on real work; an order edge only sequences and injects nothing. A failed
+    upstream (ok=False) is not injected: the engine never treats a failure as usable
+    work, so a downstream is not handed an error as build-on material, and the returned
+    data_from lists only upstreams actually consumed. A data edge whose upstream failed
+    thus appears in the plan's edges but not in the downstream's data_from; that
+    divergence is a witnessed signal, not a bug.
+
+    Safe to call on concurrent tasks within a wave: it has no await (so it runs
+    atomically between scheduling points) and reads only the results of strictly
+    earlier waves, which the wave barrier in dispatch_plan guarantees are complete.
+    Deterministic: upstreams are injected in depends_on order, deduplicated. The
+    upstream output is injected verbatim and uncapped, so a very large or deeply
+    chained upstream can grow the prompt; the ledger records the original instruction
+    plus data_from, from which the sent prompt is reconstructable at this version.
     """
     parts: list[str] = []
     data_from: list[str] = []
     for dep in task.data_deps:
         up = results.get(dep)
-        if up is not None:
+        if up is not None and up.ok and dep not in data_from:
             parts.append(f"- {dep}: {up.output}")
             data_from.append(dep)
     if not parts:

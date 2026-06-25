@@ -141,6 +141,38 @@ def test_order_edge_does_not_feed_output():
     assert ledger.get_payload(_task_entry(ledger, "T2").payload_hash)["data_from"] == []
 
 
+class _FailFirstExecutor:
+    """T1 fails (ok=False); everyone else echoes the instruction they received."""
+
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        if assignment.task_id == "T1":
+            return Result("T1", assignment.agent, "boom", ok=False)
+        return Result(assignment.task_id, assignment.agent, assignment.instruction)
+
+
+def test_failed_upstream_is_not_fed_downstream():
+    ledger = make_ledger()
+    plan = Plan(
+        (
+            Task("T1", "backend", "schema", ()),
+            Task("T2", "backend", "endpoint", ("T1",)),  # data edge on a FAILING upstream
+        )
+    )
+    results = asyncio.run(dispatch_plan(plan, ledger, _FailFirstExecutor(), max_parallel=2))
+
+    assert results["T1"].ok is False
+    assert results["T2"].output == "endpoint"   # no error injected; T2 ran on its own instruction
+    assert "boom" not in results["T2"].output
+    body = ledger.get_payload(_task_entry(ledger, "T2").payload_hash)
+    assert body["data_from"] == []              # a failed upstream is not "consumed"
+    # the edge is still declared in the plan, so edges-minus-data_from is a witnessed signal
+    edges = ledger.get_payload(ledger.query(kind="plan")[0].payload_hash)["edges"]
+    assert {"from": "T1", "to": "T2", "type": "data"} in edges
+    assert ledger.verify(deep=True) is True
+
+
 def test_plan_entry_witnesses_typed_edges():
     ledger = make_ledger()
     plan = Plan(

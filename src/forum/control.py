@@ -18,16 +18,22 @@ Keep the plan small.
 Request: <<REQUEST>>"""
 
 
-def _parse_deps(raw: list) -> tuple[tuple[str, ...], frozenset[str]]:
+def _parse_deps(raw: object) -> tuple[tuple[str, ...], frozenset[str]]:
     """Parse a task's depends_on into (all dep ids, the order-only subset).
 
     Each entry is a task id string (a data edge) or {"id": "T1", "type": "order"}
-    for an ordering-only edge. Unknown types default to a data edge.
+    for an ordering-only edge. Unknown types default to a data edge. Raises a
+    descriptive ValueError on malformed model output (not a list, or a dict dep
+    missing its id), like the rest of this module.
     """
+    if not isinstance(raw, list):
+        raise ValueError(f"depends_on must be a list; got {type(raw).__name__}")
     deps: list[str] = []
     order: list[str] = []
     for d in raw:
         if isinstance(d, dict):
+            if "id" not in d:
+                raise ValueError(f"dependency object missing 'id': {d!r}")
             did = str(d["id"])
             if str(d.get("type", "data")) == "order":
                 order.append(did)

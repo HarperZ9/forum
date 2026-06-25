@@ -6,9 +6,9 @@ A plan is a DAG, but until now a dependency only meant "runs after." A downstrea
 
 - **Typed edges**: a dependency is a `data` edge by default (the downstream task receives the upstream's witnessed output) or an `order` edge (run-after, no data flow), declared as `{"id": "T1", "type": "order"}` in a plan or `Task(..., order_deps=frozenset({"T1"}))` in code. Both kinds constrain scheduling; only data edges carry output.
 - **Witnessed data flow**: when a task runs, its data-upstream outputs are fed into its instruction, and the task entry records `data_from` (which upstreams it consumed). The plan entry records every edge with its type, so the typed DAG is in the record. The witnessed instruction stays the original; the injected prompt is reconstructable from the original plus the referenced upstream results. Escalation retries get the same upstream context, so a stronger model is not handicapped.
-- Backward compatible: a plain dependency id is a data edge, so existing plans now flow data downstream instead of dropping it.
+- API-compatible, with a deliberate behavior change: old plans and plain-string `depends_on` still construct, and because a plain id is a data edge, existing multi-task plans now feed upstream output into downstream instructions instead of dropping it. The witnessed instruction stays the original; only the executor sees the augmented prompt.
 
-Pure standard library, deterministic. 202 tests, plus 2 gated real-model tests. Run in `examples/run_data_flow.py`.
+Pure standard library, deterministic. 205 tests, plus 2 gated real-model tests. Run in `examples/run_data_flow.py`.
 
 ## 1.5.0: the intent-judge, a grounded rung above the floor
 

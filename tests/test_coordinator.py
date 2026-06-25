@@ -77,3 +77,9 @@ def test_coordinator_plain_string_dep_is_a_data_edge():
     assert t2.depends_on == ("T1",)
     assert t2.order_deps == frozenset()      # a plain id defaults to a data edge
     assert t2.data_deps == ("T1",)
+
+
+def test_coordinator_rejects_dep_object_without_id():
+    bad = '{"tasks": [{"id": "T1", "agent": "backend", "instruction": "x", "depends_on": [{"type": "order"}]}]}'
+    with pytest.raises(ValueError, match="missing 'id'"):
+        asyncio.run(Coordinator().plan("x", ROSTER, _Canned(bad)))
