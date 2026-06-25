@@ -38,7 +38,10 @@ async def dispatch_plan(
                 payload={"id": task.id, "agent": task.agent, "instruction": task.instruction},
                 causal_parent=plan_entry.seq,
             )
-            result = await executor.run(Assignment(task.id, task.agent, task.instruction))
+            try:
+                result = await executor.run(Assignment(task.id, task.agent, task.instruction))
+            except Exception as exc:
+                result = Result(task.id, task.agent, f"error: {exc}", ok=False)
             ledger.append(
                 actor=task.agent,
                 kind="result",
