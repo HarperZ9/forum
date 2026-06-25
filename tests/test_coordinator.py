@@ -50,3 +50,8 @@ def test_coordinator_rejects_unknown_agent():
     bad = '{"tasks": [{"id": "T1", "agent": "ghost", "instruction": "x", "depends_on": []}]}'
     with pytest.raises(ValueError, match="ghost"):
         asyncio.run(Coordinator().plan("x", ROSTER, _Canned(bad)))
+
+
+def test_coordinator_handles_braces_in_request():
+    plan = asyncio.run(Coordinator().plan("build a config with {host} and {port}", ROSTER, _Canned(PLAN_JSON)))
+    assert [t.id for t in plan.tasks] == ["T1", "T2"]
