@@ -90,3 +90,22 @@ class Validator:
         prompt = _VALIDATOR_PROMPT.format(instruction=instruction, output=output)
         data = await ask_json(executor, "validator", prompt)
         return Verdict(bool(data["ok"]), float(data.get("score", 0.0)), str(data.get("reason", "")))
+
+
+_SYNTHESIZER_PROMPT = """Combine the task results into one clear answer to the request.
+
+Request: {request}
+Results:
+{results}
+
+Write the final answer."""
+
+
+class Synthesizer:
+    """Combine task results into one answer, using a model."""
+
+    async def synthesize(self, request: str, results: dict, executor: Executor) -> str:
+        lines = "\n".join(f"- {tid}: {r.output}" for tid, r in results.items())
+        prompt = _SYNTHESIZER_PROMPT.format(request=request, results=lines)
+        out = await executor.run(Assignment("control", "synthesizer", prompt))
+        return out.output.strip()
