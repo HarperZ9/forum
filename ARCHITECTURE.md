@@ -168,6 +168,18 @@ heavy work should keep it brief or offload it; a verifier that crashes is witnes
 could-not-decide, never fatal, so external code can never sink an answer the run already
 produced.
 
+How the answer reads is checked too. A deterministic delivery floor (forum.delivery)
+measures the answer's concision (sentence length, filler ratio) and flags one that is
+dense or padded, witnessed every run. When it flags and a Reviser is configured, Forum
+pulls a tighter version and accepts it only if it is strictly shorter and still covers
+the request's terms (the same lexical coverage check the intent floor uses), so an
+accepted revision drops no request term; that is a floor on dropped terms, not a proof
+of preserved meaning. A revision that fails either test, or a reviser that crashes, is
+recorded and discarded, and the original stands. The floor is the peer of the intent floor and the
+reviser the peer of the verifier seam, and the default abstains. This is the verified
+quality ladder applied to delivery: measure deterministically, let the model improve
+only when the floor flags, and accept its work only when a check confirms it.
+
 ## Reading the record
 
 A record you cannot read is only half of accountability. `forum.report` closes

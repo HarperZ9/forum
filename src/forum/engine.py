@@ -7,6 +7,7 @@ from collections.abc import Callable
 from forum.budget import RunBudget
 from forum.context import ContextProvider, NullContextProvider
 from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Validator
+from forum.delivery import NullReviser, Reviser, assess
 from forum.dispatch import augment_with_upstream, dispatch_plan
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.intent import DEFAULT_THRESHOLD, coverage
@@ -60,6 +61,7 @@ class Orchestrator:
         intent_threshold: float = DEFAULT_THRESHOLD,
         intent_judge: IntentJudge | None = None,
         verifier: VerifierProvider | None = None,
+        reviser: Reviser | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
@@ -70,6 +72,8 @@ class Orchestrator:
         self.intent_judge = intent_judge
         # the peer of context: an external verifier checks the answer (default abstains)
         self.verifier = verifier or NullVerifier()
+        # opt-in: tightens a flagged answer, then Forum verifies the revision before use
+        self.reviser = reviser or NullReviser()
         self.context_provider = context_provider or NullContextProvider()
         # ordered ladder of stronger executors; a failed task escalates up it (witnessed)
         self.escalation_executors = list(escalation_executors or [])
@@ -207,8 +211,10 @@ class Orchestrator:
         answer_entry = self.ledger.append(
             actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq
         )
-        await self._witness_intent(request, answer, answer_entry.seq, counter, over_budget)
-        self._witness_verification(request, answer, answer_entry.seq)
+        # delivery first, so intent and verification both see and chain to the delivered answer
+        answer, answer_seq = self._resolve_delivery(request, answer, answer_entry.seq)
+        await self._witness_intent(request, answer, answer_seq, counter, over_budget)
+        self._witness_verification(request, answer, answer_seq)
         return answer
 
     async def _witness_verdict(
@@ -282,6 +288,66 @@ class Orchestrator:
                 payload=payload,
                 causal_parent=check.seq,
             )
+
+    def _resolve_delivery(self, request: str, answer: str, parent_seq: int) -> tuple[str, int]:
+        """Witness the delivery floor and, when it flags a dense answer, pull a verified
+        tightening. The floor (forum.delivery.assess) is deterministic and always runs.
+        If it flags and a reviser is configured, Forum pulls a tighter version and accepts
+        it only if it is strictly shorter AND still covers the request's terms
+        (forum.intent.coverage). That guard is lexical, not semantic: an accepted revision
+        keeps every request term the original carried and drops none, but coverage cannot
+        see content outside the request, so this is a floor on dropped terms, not a proof
+        of preserved meaning. A revision that fails either test, or a reviser that crashes,
+        is recorded and discarded; the floor never blocks. An accepted revision is
+        witnessed as its own result entry (revised_from the original) so the run's last
+        result is what shipped. Returns (answer to deliver, seq of the entry holding it).
+        """
+        d = assess(answer)
+        check = self.ledger.append(
+            actor="delivery",
+            kind="delivery_check",
+            payload={
+                "words": d.words, "sentences": d.sentences,
+                "mean_sentence_words": d.mean_sentence_words,
+                "filler_ratio": d.filler_ratio, "flagged": d.flagged,
+            },
+            causal_parent=parent_seq,
+        )
+        if not d.flagged:
+            return answer, parent_seq
+        try:
+            revised = self.reviser.revise(request, answer)
+        except Exception as exc:
+            self.ledger.append(
+                actor="reviser", kind="revision",
+                payload={"accepted": False, "reason": f"reviser failed: {type(exc).__name__}: {exc}"},
+                causal_parent=check.seq,
+            )
+            return answer, parent_seq
+        if revised is None:
+            return answer, parent_seq
+        after = assess(revised)
+        cov_before, _ = coverage(request, answer)
+        cov_after, _ = coverage(request, revised)
+        accepted = after.words < d.words and cov_after >= cov_before
+        rev = self.ledger.append(
+            actor="reviser", kind="revision",
+            payload={
+                "accepted": accepted,
+                "words_before": d.words, "words_after": after.words,
+                "coverage_before": round(cov_before, 4), "coverage_after": round(cov_after, 4),
+            },
+            causal_parent=check.seq,
+        )
+        if not accepted:
+            return answer, parent_seq
+        # the accepted, tighter answer is what ships; witness it as its own result entry
+        # so the run's last result is the delivered answer, not the pre-revision one
+        delivered = self.ledger.append(
+            actor="synthesizer", kind="result",
+            payload={"answer": revised, "revised_from": parent_seq}, causal_parent=rev.seq,
+        )
+        return revised, delivered.seq
 
     def _witness_verification(self, request: str, answer: str, parent_seq: int) -> None:
         """Witness an external verifier's verdict on the answer, if one is configured.

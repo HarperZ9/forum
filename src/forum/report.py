@@ -11,8 +11,9 @@ def summarize(ledger: Ledger) -> dict:
 
     Counts entries by kind, task results (and failures), verdict pass/fail,
     intent-coverage checks (and how many were flagged, judged, and judged as
-    drift), external verifications (and how many were refuted), escalations, budget
-    stops, contexts, synthesized answers, model calls per model with a scalar total
+    drift), external verifications (and how many were refuted), delivery checks (and
+    how many were flagged) with revisions (and how many were accepted), escalations,
+    budget stops, contexts, synthesized answers, model calls per model with a scalar total
     (read from each task result's recorded model), and the byte weight of the
     witnessed payloads (an efficiency signal, comparable across runs). Pure and
     read-only: everything comes from what was witnessed, so the summary is as
@@ -40,8 +41,8 @@ def summarize(ledger: Ledger) -> dict:
                 model_calls[model] += 1
             if body.get("ok") is False:
                 failed_results += 1
-        elif "answer" in body:
-            answers += 1
+        elif "answer" in body and "revised_from" not in body:
+            answers += 1  # a delivery revision re-states the same answer; do not double-count
 
     verdicts = ledger.query(kind="verdict")
     verdicts_pass = sum(1 for v in verdicts if ledger.get_payload(v.payload_hash).get("ok"))
@@ -56,6 +57,10 @@ def summarize(ledger: Ledger) -> dict:
     verifications_refuted = sum(
         1 for e in verifications if ledger.get_payload(e.payload_hash).get("ok") is False
     )
+    delivery_checks = ledger.query(kind="delivery_check")
+    delivery_flagged = sum(1 for e in delivery_checks if ledger.get_payload(e.payload_hash).get("flagged"))
+    revisions = ledger.query(kind="revision")
+    revisions_accepted = sum(1 for e in revisions if ledger.get_payload(e.payload_hash).get("accepted"))
 
     # The UTF-8 byte weight of the witnessed content (distinct payloads; the content
     # store already dedups identical bodies). An efficiency signal, not a token count:
@@ -89,6 +94,10 @@ def summarize(ledger: Ledger) -> dict:
         "intent_drift_judged": intent_drift_judged,
         "verifications": len(verifications),
         "verifications_refuted": verifications_refuted,
+        "delivery_checks": len(delivery_checks),
+        "delivery_flagged": delivery_flagged,
+        "revisions": len(revisions),
+        "revisions_accepted": revisions_accepted,
         "checkpoints": kinds.get("checkpoint", 0),
         "resumes": kinds.get("resume", 0),
         "escalations": kinds.get("tier_escalation", 0),
@@ -109,6 +118,7 @@ _NUMERIC = (
     "entries", "requests", "plans", "tasks", "task_results", "failed_results",
     "verdicts_pass", "verdicts_fail", "intent_checks", "intent_flagged",
     "intent_judgments", "intent_drift_judged", "verifications", "verifications_refuted",
+    "delivery_checks", "delivery_flagged", "revisions", "revisions_accepted",
     "checkpoints", "resumes",
     "escalations", "budget_stops", "contexts", "answers", "model_calls_total",
     "payload_bytes",
