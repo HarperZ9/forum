@@ -131,6 +131,23 @@ fires on the witnessed verdict, an auditable signal, not on a model's self-repor
 confidence (which a cascade attacker can game). Each retry and its verdict are recorded,
 so the cheapest model that passes is chosen in the open rather than in a black box.
 
+## Reading the record
+
+A record you cannot read is only half of accountability. `forum.report` closes
+that half without adding any trust. `summarize(ledger)` reads the ledger and
+aggregates it into a run summary: counts by kind (requests, plans, tasks, results,
+verdicts), task failures and verdict pass and fail, escalations, budget stops, the
+model calls broken out per model, the Merkle checkpoint, and the verify result. It
+reads only what was witnessed and re-derives nothing, so the summary is exactly as
+trustworthy as the ledger underneath it, and it ships the checkpoint and verify flag
+alongside the numbers so a reader can confirm that.
+
+`compare(a, b)` takes two such summaries and reports the delta on the numeric
+fields, and `forum bench A B` runs it over two ledgers. This is the measurement
+seam for the project's own improvement: a change that claims to cut model calls or
+failures is held to the record of two runs rather than a recollection. Both
+functions are pure and read-only, the same discipline as the core they read.
+
 ## Determinism
 
 Nothing in the core reads the wall clock or rolls dice in a way that changes its

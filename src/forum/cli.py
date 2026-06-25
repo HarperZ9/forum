@@ -140,6 +140,37 @@ def _cmd_ledger_get(args) -> int:
     return 0
 
 
+def _cmd_ledger_summary(args) -> int:
+    from forum.report import summarize
+
+    s = summarize(_open_ledger(args.ledger))
+    if args.json:
+        print(json.dumps(s, indent=2))
+        return 0
+    print(f"entries: {s['entries']}")
+    print(f"requests: {s['requests']} | plans: {s['plans']} | tasks: {s['tasks']}")
+    print(f"task results: {s['task_results']} (failed {s['failed_results']}) | verdicts: pass {s['verdicts_pass']} / fail {s['verdicts_fail']}")
+    print(f"escalations: {s['escalations']} | budget stops: {s['budget_stops']} | contexts: {s['contexts']} | answers: {s['answers']}")
+    print(f"model calls: {s['model_calls']}")
+    print(f"checkpoint: {s['checkpoint'][:16]}... | verified: {s['verified']}")
+    return 0
+
+
+def _cmd_bench(args) -> int:
+    from forum.report import compare, summarize
+
+    a = summarize(_open_ledger(args.a))
+    b = summarize(_open_ledger(args.b))
+    delta = compare(a, b)
+    if args.json:
+        print(json.dumps({"a": a, "b": b, "delta": delta}, indent=2))
+        return 0
+    print(f"{'metric':<16}{'A':>8}{'B':>8}{'delta':>8}")
+    for key in delta:
+        print(f"{key:<16}{a.get(key, 0):>8}{b.get(key, 0):>8}{delta[key]:>+8}")
+    return 0
+
+
 def _add_ledger(sp) -> None:
     sp.add_argument("--ledger", default=DEFAULT_LEDGER, help="ledger directory (default: forum-ledger)")
 
@@ -203,7 +234,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ledger(get)
     get.add_argument("seq", type=int)
     get.set_defaults(func=_cmd_ledger_get)
+    summary = lsub.add_parser("summary", help="aggregate the ledger into a run summary")
+    _add_ledger(summary)
+    summary.add_argument("--json", action="store_true", help="emit the summary as JSON")
+    summary.set_defaults(func=_cmd_ledger_summary)
     ledger.set_defaults(func=lambda a: _print_help_rc(ledger))
+
+    bench = sub.add_parser("bench", help="compare two ledgers (A/B) by their summaries")
+    bench.add_argument("a", help="ledger directory A")
+    bench.add_argument("b", help="ledger directory B")
+    bench.add_argument("--json", action="store_true", help="emit both summaries and the delta as JSON")
+    bench.set_defaults(func=_cmd_bench)
 
     return parser
 
