@@ -1,11 +1,13 @@
 import asyncio
 
 from forum.budget import RunBudget
+from forum.control import IntentJudge
 from forum.engine import Orchestrator
 from forum.executor import Result
 from forum.intent import coverage, salient_terms
 from forum.ledger import InMemoryStorage, Ledger
 from forum.policy import Policy
+from forum.report import summarize
 from forum.roster import loads
 
 # ---- the pure coverage primitives -------------------------------------------------
@@ -70,10 +72,11 @@ executor="echo"
 
 
 class _Exec:
-    """A scripted control loop whose synthesized answer is fixed per test."""
+    """A scripted control loop whose synthesized answer (and judge verdict) are fixed."""
 
-    def __init__(self, answer: str) -> None:
+    def __init__(self, answer: str, judge_ok: bool = True) -> None:
         self._answer = answer
+        self._judge_ok = judge_ok
 
     async def run(self, a):
         agent = a.agent
@@ -81,6 +84,8 @@ class _Exec:
             return Result(a.task_id, agent, '{"tasks": [{"id": "T1", "agent": "backend", "instruction": "build the api", "depends_on": []}]}')
         if agent == "validator":
             return Result(a.task_id, agent, '{"ok": true, "score": 0.9, "reason": "ok"}')
+        if agent == "intent-judge":
+            return Result(a.task_id, agent, '{"ok": %s, "score": 0.8, "reason": "judged"}' % ("true" if self._judge_ok else "false"))
         if agent == "synthesizer":
             return Result(a.task_id, agent, self._answer)
         return Result(a.task_id, agent, "did it")
@@ -91,9 +96,9 @@ def _led():
     return Ledger(InMemoryStorage(), clock=lambda: next(ticks))
 
 
-def _orch(led, answer, **kw):
+def _orch(led, answer, judge_ok=True, **kw):
     return Orchestrator(
-        ROSTER, led, _Exec(answer),
+        ROSTER, led, _Exec(answer, judge_ok),
         Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
         **kw,
     )
@@ -163,3 +168,62 @@ def test_no_intent_check_on_a_budget_stopped_run():
     led = _led()
     asyncio.run(_orch(led, "done").submit("build the api", budget=RunBudget(max_model_calls=0)))
     assert led.query(kind="intent_check") == []
+
+
+# ---- the model intent-judge (the rung above the floor) ----------------------------
+
+
+def test_flagged_run_with_a_judge_witnesses_an_intent_judgment():
+    led = _led()
+    asyncio.run(_orch(led, "done", intent_judge=IntentJudge()).submit("build the api"))
+    judged = led.query(kind="intent_judgment")
+    assert len(judged) == 1
+    parent = led.get(judged[0].causal_parent)
+    assert parent.kind == "intent_check"   # the judgment resolves the floor's flag
+
+
+def test_judge_clears_a_lexical_false_positive():
+    led = _led()
+    asyncio.run(_orch(led, "done", judge_ok=True, intent_judge=IntentJudge()).submit("build the api"))
+    body = led.get_payload(led.query(kind="intent_judgment")[0].payload_hash)
+    assert body["ok"] is True
+
+
+def test_judge_confirms_real_drift():
+    led = _led()
+    asyncio.run(_orch(led, "done", judge_ok=False, intent_judge=IntentJudge()).submit("build the api"))
+    body = led.get_payload(led.query(kind="intent_judgment")[0].payload_hash)
+    assert body["ok"] is False
+
+
+def test_no_judgment_when_coverage_passes_even_with_a_judge():
+    led = _led()
+    # the answer covers the request, so the floor never flags and the judge is not spent
+    asyncio.run(_orch(led, "build the api works", intent_judge=IntentJudge()).submit("build the api"))
+    assert led.query(kind="intent_judgment") == []
+
+
+def test_no_judgment_without_a_judge():
+    led = _led()
+    asyncio.run(_orch(led, "done").submit("build the api"))   # no intent_judge configured
+    assert led.query(kind="intent_judgment") == []
+
+
+def test_judge_skipped_when_budget_is_spent_by_synthesis():
+    # the run completes normally (plan, task, validate, synthesize = 4 calls), so the
+    # floor still runs, but the budget is exhausted by synthesis, so the judge is skipped
+    led = _led()
+    asyncio.run(
+        _orch(led, "done", intent_judge=IntentJudge()).submit("build the api", budget=RunBudget(max_model_calls=4))
+    )
+    assert len(led.query(kind="intent_check")) == 1
+    assert led.query(kind="intent_judgment") == []
+
+
+def test_summary_reports_judgments_and_confirmed_drift():
+    led = _led()
+    asyncio.run(_orch(led, "done", judge_ok=False, intent_judge=IntentJudge()).submit("build the api"))
+    s = summarize(led)
+    assert s["intent_judgments"] == 1
+    assert s["intent_drift_confirmed"] == 1
+    assert led.verify(deep=True) is True
