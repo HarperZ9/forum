@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.11.0: the delivery ladder, verified tightening
+
+Model output tends to be word-dense, and the reader wants the shortest path to the answer. This release measures that and, when asked, tightens it without dropping any request term, on the same verified ladder Forum uses for intent and routing.
+
+- **Delivery floor**: `forum.delivery.assess(text)` measures concision deterministically (word and sentence counts, mean sentence length, filler ratio) and flags an answer that reads as dense or padded. After synthesis Forum witnesses a `delivery_check`, always, zero-dependency. It is a floor on concision, not a judgment of cohesion, which is the reviser's rung.
+- **Verified tightening**: opt in with `Orchestrator(reviser=...)` (or `build_orchestrator(reviser=...)`). When the floor flags a verbose answer, Forum pulls a tighter version from the `Reviser` seam (a peer flagship, a model) and accepts it only if it is strictly shorter AND still covers the request's terms (`forum.intent.coverage`). That guard is lexical, not semantic: an accepted revision drops no request term, but coverage cannot see content outside the request, so it is a floor on dropped terms, not a proof of preserved meaning. A revision that fails either check, or a reviser that crashes, is recorded and discarded; the original stands. The default `NullReviser` keeps Forum standing alone.
+- The summary and `forum bench` report delivery checks (and flags) and revisions (and how many were accepted).
+
+Pure standard library core; the reviser is a model behind the seam, its output verified deterministically. 244 tests, plus 2 gated real-model tests. Run in `examples/run_delivery.py`.
+
 ## 1.10.0: efficiency, bounded prompts and a weighed record
 
 Efficiency is a verifiable quality, because waste is measurable. Forum is already cheap-first (route before a model, judge only when flagged, resume reuses work, budgets cap runs, the content store dedups identical bodies). This release closes the one waste path the engine introduced and makes efficiency visible.
