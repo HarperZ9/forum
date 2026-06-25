@@ -86,6 +86,22 @@ def test_summarize_counts_a_witnessed_run():
     assert len(s["checkpoint"]) == 64
 
 
+def test_summary_reports_payload_weight():
+    led = _led()
+    _run(led)
+    s = summarize(led)
+    assert s["payload_bytes"] > 0
+    assert summarize(_led())["payload_bytes"] == 0   # an empty ledger weighs nothing
+    assert "payload_bytes" in compare(s, s)          # flows through bench
+
+
+def test_payload_weight_grows_with_content():
+    small, big = _led(), _led()
+    small.append(actor="x", kind="result", payload={"id": "T", "output": "ok", "model": "m"})
+    big.append(actor="x", kind="result", payload={"id": "T", "output": "z" * 5000, "model": "m"})
+    assert summarize(big)["payload_bytes"] > summarize(small)["payload_bytes"]
+
+
 def test_compare_two_runs_reports_deltas():
     a_led, b_led = _led(), _led()
     _run(a_led)

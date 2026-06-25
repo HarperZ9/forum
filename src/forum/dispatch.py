@@ -8,8 +8,14 @@ from forum.executor import Assignment, Executor, Result, executor_id
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 
+# Per-upstream cap on injected output, to bound prompt growth down a deep or wide
+# plan. Generous enough to leave normal outputs untouched; only runaway gets trimmed.
+DEFAULT_MAX_UPSTREAM_CHARS = 8192
 
-def augment_with_upstream(task: Task, results: dict[str, Result]) -> tuple[str, list[str]]:
+
+def augment_with_upstream(
+    task: Task, results: dict[str, Result], *, max_chars: int = DEFAULT_MAX_UPSTREAM_CHARS
+) -> tuple[str, list[str]]:
     """Feed a task's data-dependency outputs into its instruction.
 
     Returns ``(instruction_for_the_executor, the upstream ids actually injected)``. A
@@ -21,20 +27,24 @@ def augment_with_upstream(task: Task, results: dict[str, Result]) -> tuple[str, 
     thus appears in the plan's edges but not in the downstream's data_from; that
     divergence is a witnessed signal, not a bug.
 
-    Safe to call on concurrent tasks within a wave: it has no await (so it runs
-    atomically between scheduling points) and reads only the results of strictly
-    earlier waves, which the wave barrier in dispatch_plan guarantees are complete.
-    Deterministic: upstreams are injected in depends_on order, deduplicated. The
-    upstream output is injected verbatim and uncapped, so a very large or deeply
-    chained upstream can grow the prompt; the ledger records the original instruction
-    plus data_from, from which the sent prompt is reconstructable at this version.
+    Each upstream output is capped at ``max_chars`` to bound prompt growth: an output
+    over the cap is injected truncated with a marker, while the full output stays in the
+    upstream's witnessed result entry, so the record loses nothing and only the prompt
+    shrinks. Safe to call on concurrent tasks within a wave: no await (so it runs
+    atomically between scheduling points) and it reads only the results of strictly
+    earlier waves, which the wave barrier guarantees are complete. Deterministic:
+    upstreams are injected in depends_on order, deduplicated.
     """
     parts: list[str] = []
     data_from: list[str] = []
     for dep in task.data_deps:
         up = results.get(dep)
         if up is not None and up.ok and dep not in data_from:
-            parts.append(f"- {dep}: {up.output}")
+            output = up.output
+            if len(output) > max_chars:
+                omitted = len(output) - max_chars
+                output = output[:max_chars] + f"\n... [truncated for prompt efficiency, {omitted} chars omitted; full output is witnessed]"
+            parts.append(f"- {dep}: {output}")
             data_from.append(dep)
     if not parts:
         return task.instruction, []

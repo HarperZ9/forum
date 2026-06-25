@@ -1,6 +1,6 @@
 import asyncio
 
-from forum.dispatch import dispatch_plan
+from forum.dispatch import augment_with_upstream, dispatch_plan
 from forum.executor import EchoExecutor
 from forum.ledger import InMemoryStorage, Ledger
 from forum.plan import Plan, Task
@@ -243,6 +243,44 @@ def test_fully_completed_plan_resumed_reuses_everything():
     assert len(ledger.query(kind="task")) == tasks_before  # nothing re-run, no new task entries
     reused = ledger.get_payload(ledger.query(kind="resume")[0].payload_hash)["reused"]
     assert reused == ["T1", "T2"]
+    assert ledger.verify(deep=True) is True
+
+
+def test_augment_caps_a_large_upstream_for_prompt_efficiency():
+    from forum.executor import Result
+
+    task = Task("T2", "x", "build", ("T1",))
+    results = {"T1": Result("T1", "x", "y" * 100, ok=True)}
+    instruction, data_from = augment_with_upstream(task, results, max_chars=10)
+    assert data_from == ["T1"]
+    assert "truncated for prompt efficiency" in instruction
+    assert "y" * 10 in instruction and "y" * 100 not in instruction  # capped, not the full output
+
+
+class _BigT1:
+    """T1 emits a large output; everyone else echoes the instruction they received."""
+
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        if assignment.task_id == "T1":
+            return Result("T1", assignment.agent, "x" * 10000)
+        return Result(assignment.task_id, assignment.agent, assignment.instruction)
+
+
+def test_capped_injection_shrinks_the_prompt_but_the_record_keeps_the_full_output():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))  # T2 data-depends on T1
+    results = asyncio.run(dispatch_plan(plan, ledger, _BigT1(), max_parallel=2))
+
+    assert "truncated for prompt efficiency" in results["T2"].output  # T2's prompt got a capped T1
+    assert len(results["T2"].output) < 10000  # bounded, not the full 10k
+    t1_result = next(
+        ledger.get_payload(e.payload_hash)
+        for e in ledger.query(kind="result")
+        if ledger.get_payload(e.payload_hash).get("id") == "T1"
+    )
+    assert t1_result["output"] == "x" * 10000  # the full output is still witnessed
     assert ledger.verify(deep=True) is True
 
 
