@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0: phased checkpoints and resumable runs
+
+A long run that crashes, hits a budget, or is stopped should not start over. Because every step is already witnessed durably, the ledger is the resume state: a resumed run reads it, reuses what succeeded, and finishes the rest. No model call is spent twice, and no bookkeeping is needed beyond the record that already exists.
+
+- **Resume**: `dispatch_plan(plan, ledger, executor, resume=True)` (and `Orchestrator.submit_plan(plan, resume=True)`) reuses every task that already has a witnessed successful result and re-runs only the missing or failed ones. A `resume` entry records which tasks were reused. Resume reuses the verified record; it never regenerates it with a model.
+- **Phased checkpoints**: `checkpoint_each_wave=True` witnesses a `checkpoint` entry (the Merkle root so far) and syncs the ledger after each wave, a re-checkable savepoint and the durability point for batched storage (v1.8).
+- The summary and `forum bench` report checkpoints and resumes.
+
+Pure standard library, deterministic. 223 tests, plus 2 gated real-model tests. Run in `examples/run_resume.py`.
+
 ## 1.8.0: opt-in batched fsync
 
 The durable ledger fsyncs every append, the strongest guarantee and the right default. For a high-throughput run where that per-append fsync is the bottleneck, this release adds an opt-in way to batch it, with the tradeoff stated plainly.

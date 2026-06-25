@@ -83,11 +83,17 @@ class Orchestrator:
     def route(self, text: str) -> RouteResult:
         return self.router.score(text, self.roster)
 
-    async def submit_plan(self, plan: Plan) -> dict[str, Result]:
+    async def submit_plan(
+        self, plan: Plan, *, resume: bool = False, checkpoint_each_wave: bool = False
+    ) -> dict[str, Result]:
         """Witness the request and run the plan through the witnessed dispatcher.
 
-        Note: plan-level agent/category authorization (policy.permits) is a later
-        concern; today only policy.max_parallel is applied, at dispatch.
+        With ``resume=True`` a known plan picks up where a prior run left off,
+        reusing tasks already witnessed as successful (the ledger is the resume
+        state). With ``checkpoint_each_wave=True`` each wave boundary is witnessed
+        and synced as a savepoint. Note: plan-level agent/category authorization
+        (policy.permits) is a later concern; today only policy.max_parallel is
+        applied, at dispatch.
         """
         request = self.ledger.append(
             actor="client", kind="request", payload={"tasks": [t.id for t in plan.tasks]}
@@ -98,6 +104,8 @@ class Orchestrator:
             self.executor,
             max_parallel=self.policy.max_parallel,
             parent_seq=request.seq,
+            resume=resume,
+            checkpoint_each_wave=checkpoint_each_wave,
         )
 
     async def submit(self, request: str, *, budget: RunBudget | None = None) -> str:
