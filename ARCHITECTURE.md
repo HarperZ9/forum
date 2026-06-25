@@ -104,8 +104,10 @@ stdlib `asyncio.start_server` (no web framework), plus lifecycle: start, stop,
 graceful drain, and a factory that gives the daemon one long-lived, durable
 `FileStorage` ledger so every request witnesses into the same record. Routing and
 the ledger are served without a model; planning and submitting drive the control
-loop and need a model executor. The MCP surface, the lone optional edge adapter,
-follows next.
+loop and need a model executor. `forum.mcp_surface` is the same tools over MCP
+(JSON-RPC on stdio), the lone optional edge adapter. It is a thin wrapper over
+the very same HttpSurface, so the two surfaces can never drift: its handle()
+seam is sockets-free and tested directly, and serve_stdio() wires real streams.
 
 ## Determinism
 
