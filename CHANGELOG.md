@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0: real executors
+
+Forum does real work now, not just toy plans.
+
+- **SubprocessExecutor**: runs an external command per task via `asyncio.create_subprocess_exec` (no shell, so no injection surface). Point it at any CLI, including a model CLI such as `["claude", "-p"]`.
+- **ApiExecutor**: drives a model via the Anthropic Messages API over stdlib `urllib`, with the blocking call kept off the event loop and an injectable opener for tests.
+- **Failure policy**: a task whose executor raises is witnessed as `ok=False` and the rest of the wave still runs. The ledger stays deep-verifiable.
+
+46 tests. Real run in `examples/run_real.py`.
+
 ## 0.2.0: the runtime
 
 The engine runs. A plan now executes end to end, with every step witnessed.
