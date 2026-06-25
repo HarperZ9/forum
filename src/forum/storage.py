@@ -74,11 +74,20 @@ def _read_rows(path: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _append_line(path: str, row: dict[str, Any]) -> None:
+def _append_line(path: str, row: dict[str, Any], *, fsync: bool = True) -> None:
     line = json.dumps(row, ensure_ascii=False)
     with open(path, "a", encoding="utf-8") as f:
         f.write(line + "\n")
         f.flush()
+        if fsync:
+            os.fsync(f.fileno())
+
+
+def _fsync_file(path: str) -> None:
+    """Force a file's buffered writes to disk. No-op if the file does not exist yet."""
+    if not os.path.exists(path):
+        return
+    with open(path, "a", encoding="utf-8") as f:
         os.fsync(f.fileno())
 
 
@@ -98,10 +107,18 @@ class FileStorage:
     Corruption is surfaced, not hidden: an interior line that is unparseable,
     blank, or missing a required field raises StorageCorruption; only a single
     torn trailing line (a crash-cut final append) is tolerated and dropped.
+
+    Durability is tunable. By default (``fsync_each=True``) every append is
+    fsynced before it returns, the strongest guarantee. With ``fsync_each=False``
+    appends are written and flushed to the OS but not fsynced per call, trading a
+    durability window for throughput; call ``sync()`` to force the logs to disk at
+    a point of your choosing. Either way the log stays append-only and the
+    torn-trailing-line tolerance applies on reload.
     """
 
-    def __init__(self, directory: str) -> None:
+    def __init__(self, directory: str, *, fsync_each: bool = True) -> None:
         os.makedirs(directory, exist_ok=True)
+        self._fsync_each = fsync_each
         self._entries_path = os.path.join(directory, "entries.jsonl")
         self._payloads_path = os.path.join(directory, "payloads.jsonl")
         self._entries: list[LedgerEntry] = [
@@ -114,7 +131,7 @@ class FileStorage:
             self._payloads.setdefault(r["hash"], r["body"])
 
     def append(self, entry: LedgerEntry) -> None:
-        _append_line(self._entries_path, _entry_to_row(entry))
+        _append_line(self._entries_path, _entry_to_row(entry), fsync=self._fsync_each)
         self._entries.append(entry)
 
     def all(self) -> list[LedgerEntry]:
@@ -137,8 +154,20 @@ class FileStorage:
     def put_payload(self, payload_hash: str, body: Any) -> None:
         if payload_hash in self._payloads:
             return
-        _append_line(self._payloads_path, {"hash": payload_hash, "body": body})
+        _append_line(self._payloads_path, {"hash": payload_hash, "body": body}, fsync=self._fsync_each)
         self._payloads[payload_hash] = body
 
     def get_payload(self, payload_hash: str) -> Any:
         return self._payloads[payload_hash]
+
+    def sync(self) -> None:
+        """Force buffered appends to disk (fsync both logs).
+
+        In the default mode every append is already fsynced, so this only adds a
+        redundant flush. In batched mode (fsync_each=False) it is how you make the
+        log durable to disk at a chosen point, for example a phase boundary or run
+        end. A crash before sync() can lose the un-fsynced tail; the log stays
+        append-only and the torn-trailing-line tolerance applies on reload.
+        """
+        _fsync_file(self._entries_path)
+        _fsync_file(self._payloads_path)
