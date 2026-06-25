@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0: a durable ledger
+
+The ledger can outlive the process now.
+
+- **FileStorage**: a durable, file-backed implementation of the `Storage` protocol, two append-only JSONL logs (entries and content-addressed payloads) in a directory. A fresh `FileStorage` over the same directory recovers the exact ledger after a restart, with `verify`, `replay`, `causal_chain`, and the Merkle `checkpoint` all intact.
+- **Crash-tolerant, tamper-honest**: a single torn trailing line (an append a crash cut short) is dropped on load; interior corruption raises a typed `StorageCorruption`; a tampered (reordered) file still loads so `verify()` can report it false. Every append is flushed and fsynced before it is mirrored to memory.
+- Still pure standard library, still zero runtime dependencies. The core stays storage-agnostic: `FileStorage` is an edge adapter behind the existing protocol.
+
+70 tests. Durable run in `examples/run_durable.py`.
+
 ## 0.4.0: the control loop
 
 Forum plans a plain request on its own now.
