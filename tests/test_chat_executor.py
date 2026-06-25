@@ -55,3 +55,18 @@ def test_chat_executor_handles_malformed_response():
     r = asyncio.run(ex.run(Assignment("T4", "worker", "x")))
     assert r.ok is False
     assert "unexpected chat response shape" in r.output
+
+
+def test_chat_executor_joins_list_content_parts():
+    # some OpenAI-compatible gateways return content as a list of {type, text} parts
+    def parts(request):
+        return json.dumps(
+            {"choices": [{"message": {"content": [
+                {"type": "text", "text": "hello "}, {"type": "text", "text": "world"}
+            ]}}]}
+        ).encode("utf-8")
+
+    ex = ChatExecutor("m", opener=parts)
+    r = asyncio.run(ex.run(Assignment("T5", "worker", "x")))
+    assert r.ok is True
+    assert r.output == "hello world"

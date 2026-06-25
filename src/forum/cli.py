@@ -13,7 +13,7 @@ DEFAULT_LEDGER = "forum-ledger"
 
 
 def _make_executor(args):
-    """Pick an executor from flags: --chat-url, --api, or --cmd, else None.
+    """Pick an executor from flags (the first present wins): --chat-url, --api, --cmd, else None.
 
     Forum is model-agnostic: --cmd runs any command (a local model CLI needs no
     account), --chat-url talks to any OpenAI-compatible server (local or cloud),
