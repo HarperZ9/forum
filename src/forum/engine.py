@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from forum.control import Classifier, Coordinator, Synthesizer, Validator
 from forum.dispatch import dispatch_plan
 from forum.executor import Executor, Result
 from forum.ledger import Ledger
@@ -19,12 +20,20 @@ class Orchestrator:
         executor: Executor,
         policy: Policy,
         router: RoutingProvider | None = None,
+        coordinator: Coordinator | None = None,
+        classifier: Classifier | None = None,
+        validator: Validator | None = None,
+        synthesizer: Synthesizer | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
         self.executor = executor
         self.policy = policy
         self.router = router or LexicalRouter()
+        self.coordinator = coordinator or Coordinator()
+        self.classifier = classifier or Classifier()
+        self.validator = validator or Validator()
+        self.synthesizer = synthesizer or Synthesizer()
 
     def route(self, text: str) -> RouteResult:
         return self.router.score(text, self.roster)
@@ -45,3 +54,29 @@ class Orchestrator:
             max_parallel=self.policy.max_parallel,
             parent_seq=request.seq,
         )
+
+    async def submit(self, request: str) -> str:
+        """Plan a plain request, run it, validate each result, and answer.
+
+        Every step (request, plan, tasks, results, verdicts, the answer) is
+        appended to the ledger, so the whole run is verifiable afterward.
+        """
+        req = self.ledger.append(actor="client", kind="request", payload={"text": request})
+        plan = await self.coordinator.plan(request, self.roster, self.executor)
+        results = await dispatch_plan(
+            plan, self.ledger, self.executor,
+            max_parallel=self.policy.max_parallel, parent_seq=req.seq,
+        )
+        for task in plan.tasks:
+            result = results.get(task.id)
+            if result is None:
+                continue
+            verdict = await self.validator.validate(task.instruction, result.output, self.executor)
+            self.ledger.append(
+                actor="validator", kind="verdict",
+                payload={"id": task.id, "ok": verdict.ok, "score": verdict.score},
+                causal_parent=req.seq,
+            )
+        answer = await self.synthesizer.synthesize(request, results, self.executor)
+        self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
+        return answer
