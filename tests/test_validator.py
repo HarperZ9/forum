@@ -24,3 +24,9 @@ def test_validator_can_fail():
     ex = _Canned('{"ok": false, "score": 0.1, "reason": "off topic"}')
     v = asyncio.run(Validator().validate("build the api", "a poem", ex))
     assert v.ok is False
+
+
+def test_validator_treats_string_false_as_failure():
+    ex = _Canned('{"ok": "false", "score": 0.1, "reason": "no"}')
+    v = asyncio.run(Validator().validate("build the api", "a poem", ex))
+    assert v.ok is False

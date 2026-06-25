@@ -8,12 +8,12 @@ from forum.plan import Plan, Task
 from forum.roster import Roster
 
 _COORDINATOR_PROMPT = """You are a planner. Break the request into a minimal task DAG.
-Available agents: {agents}.
+Available agents: <<AGENTS>>.
 Return ONLY JSON of the form:
-{{"tasks": [{{"id": "T1", "agent": "<one of the agents>", "instruction": "...", "depends_on": []}}]}}
+{"tasks": [{"id": "T1", "agent": "<one of the agents>", "instruction": "...", "depends_on": []}]}
 Use depends_on to order tasks. Keep the plan small.
 
-Request: {request}"""
+Request: <<REQUEST>>"""
 
 
 class Coordinator:
@@ -21,8 +21,10 @@ class Coordinator:
 
     async def plan(self, request: str, roster: Roster, executor: Executor) -> Plan:
         names = [a.name for a in roster.agents]
-        prompt = _COORDINATOR_PROMPT.format(request=request, agents=", ".join(names))
+        prompt = _COORDINATOR_PROMPT.replace("<<AGENTS>>", ", ".join(names)).replace("<<REQUEST>>", request)
         data = await ask_json(executor, "coordinator", prompt)
+        if "tasks" not in data:
+            raise ValueError(f"coordinator response missing 'tasks'; got keys {list(data)}")
         tasks = tuple(
             Task(
                 str(t["id"]),
@@ -48,11 +50,11 @@ class Classification:
 
 
 _CLASSIFIER_PROMPT = """Pick the single best agent for the task.
-Agents: {agents}.
+Agents: <<AGENTS>>.
 Return ONLY JSON of the form:
-{{"agent": "<one of the agents>", "confidence": 0.0, "reason": "..."}}
+{"agent": "<one of the agents>", "confidence": 0.0, "reason": "..."}
 
-Task: {task}"""
+Task: <<TASK>>"""
 
 
 class Classifier:
@@ -60,8 +62,10 @@ class Classifier:
 
     async def classify(self, task: str, roster: Roster, executor: Executor) -> Classification:
         names = [a.name for a in roster.agents]
-        prompt = _CLASSIFIER_PROMPT.format(task=task, agents=", ".join(names))
+        prompt = _CLASSIFIER_PROMPT.replace("<<AGENTS>>", ", ".join(names)).replace("<<TASK>>", task)
         data = await ask_json(executor, "classifier", prompt)
+        if "agent" not in data:
+            raise ValueError(f"classifier response missing 'agent'; got keys {list(data)}")
         agent = str(data["agent"])
         if agent not in names:
             raise ValueError(f"classifier chose unknown agent: {agent!r}")
@@ -77,26 +81,30 @@ class Verdict:
 
 _VALIDATOR_PROMPT = """Judge whether the output satisfies the instruction.
 Return ONLY JSON of the form:
-{{"ok": true, "score": 0.0, "reason": "..."}}
+{"ok": true, "score": 0.0, "reason": "..."}
 
-Instruction: {instruction}
-Output: {output}"""
+Instruction: <<INSTRUCTION>>
+Output: <<OUTPUT>>"""
 
 
 class Validator:
     """Judge an output against its instruction, using a model."""
 
     async def validate(self, instruction: str, output: str, executor: Executor) -> Verdict:
-        prompt = _VALIDATOR_PROMPT.format(instruction=instruction, output=output)
+        prompt = _VALIDATOR_PROMPT.replace("<<INSTRUCTION>>", instruction).replace("<<OUTPUT>>", output)
         data = await ask_json(executor, "validator", prompt)
-        return Verdict(bool(data["ok"]), float(data.get("score", 0.0)), str(data.get("reason", "")))
+        if "ok" not in data:
+            raise ValueError(f"validator response missing 'ok'; got keys {list(data)}")
+        raw_ok = data["ok"]
+        ok = raw_ok if isinstance(raw_ok, bool) else str(raw_ok).strip().lower() not in ("false", "0", "no", "")
+        return Verdict(ok, float(data.get("score", 0.0)), str(data.get("reason", "")))
 
 
 _SYNTHESIZER_PROMPT = """Combine the task results into one clear answer to the request.
 
-Request: {request}
+Request: <<REQUEST>>
 Results:
-{results}
+<<RESULTS>>
 
 Write the final answer."""
 
@@ -106,6 +114,6 @@ class Synthesizer:
 
     async def synthesize(self, request: str, results: dict, executor: Executor) -> str:
         lines = "\n".join(f"- {tid}: {r.output}" for tid, r in results.items())
-        prompt = _SYNTHESIZER_PROMPT.format(request=request, results=lines)
+        prompt = _SYNTHESIZER_PROMPT.replace("<<REQUEST>>", request).replace("<<RESULTS>>", lines)
         out = await executor.run(Assignment("control", "synthesizer", prompt))
         return out.output.strip()
