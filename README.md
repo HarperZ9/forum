@@ -176,7 +176,7 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.8, opt-in batched fsync.** A throughput option for the durable ledger: defer the per-append fsync and force it on demand with `ledger.sync()`. The default stays fsync-every-append; the tradeoff is stated plainly.
 - **1.9, phased checkpoints and resume.** A run resumes from the witnessed ledger, reusing successful tasks and re-running only the rest; each wave can checkpoint as a savepoint. The ledger is the resume state, no model in the loop.
 - **1.10, efficiency.** Bounded upstream injection (cap the prompt, keep the full output in the ledger) and a weighed record (`payload_bytes`) so a leaner run is provable in `forum bench`.
-- **1.11, the delivery ladder.** A deterministic concision floor on the answer, and an opt-in verified tightening: a reviser shortens a flagged answer, accepted only if it stays covered. Less word-dense, no meaning lost.
+- **1.11, the delivery ladder.** A deterministic concision floor on the answer, and an opt-in verified tightening: a reviser shortens a flagged answer, accepted only if it stays covered. Less word-dense, no request term dropped.
 - **Beyond.** A ledger-reading dashboard; a context-management layer (a Forum control-loop utility composing with an external context-supply brain through the provider seam); and the code-readability half of the quality contract (the concision half shipped in 1.11), peers not one absorbing the other.
 
 ## Docs

@@ -7,10 +7,13 @@ and reproducible. It is a floor on concision, not a judgment of cohesion or eleg
 which is the model reviser's rung above it.
 
 The reviser is the peer of the verifier seam: when the floor flags a verbose answer and
-a Reviser is configured, Forum pulls a tightened version, then verifies it is genuinely
-shorter and still covers the request (forum.intent.coverage) before it replaces the
-answer. A revision that does not pass both checks is recorded and discarded, so the
-delivery never costs meaning. The default NullReviser abstains, so Forum stands alone.
+a Reviser is configured, Forum pulls a tightened version, then accepts it only if it is
+strictly shorter and still covers the request's terms (forum.intent.coverage) before it
+replaces the answer. That guard is lexical, not semantic: an accepted revision keeps
+every request term the original carried, but coverage cannot see content outside the
+request, so it is a floor on dropped terms, not a proof of preserved meaning. A revision
+that fails either check is recorded and discarded. The default NullReviser abstains, so
+Forum stands alone.
 """
 
 from __future__ import annotations
@@ -73,8 +76,9 @@ class Reviser(Protocol):
     The peer of the VerifierProvider seam: a brain (the index flagship) or any model
     can implement it. Forum pulls a tighter version, then verifies it before use, so a
     Reviser is trusted no more than a Verifier. Return None to abstain. Forum never
-    imports the provider, only this shape. Like the verifier seam, verify() runs
-    synchronously inside the run; keep it quick.
+    imports the provider, only this shape. Like the verifier seam, revise() runs
+    synchronously inside the run, so a slow reviser blocks the calling run, and under
+    the daemon the event loop; keep it quick.
     """
 
     def revise(self, request: str, answer: str) -> str | None: ...

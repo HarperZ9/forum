@@ -3,9 +3,9 @@
 Model output tends to be word-dense, and the reader wants the shortest path to the
 answer. forum.delivery.assess measures that objectively (sentence length, filler), the
 way forum.intent measures coverage. When the floor flags a verbose answer and a Reviser
-is configured, Forum pulls a tighter version and accepts it only if it is genuinely
-shorter AND still covers the request, so the tightening never costs meaning. Scripted
-executors stand in so this runs offline.
+is configured, Forum pulls a tighter version and accepts it only if it is strictly
+shorter AND still covers the request's terms (a lexical guard: it drops no request term,
+but does not prove meaning is preserved). Scripted executors stand in so this runs offline.
 
 Run:  python examples/run_delivery.py        # no install, nothing to download
 """
