@@ -24,14 +24,22 @@ also need reach, the ability to act across a lot of agents at once. That's the r
 project. The small zero-dependency pieces in this repo aren't the goal. They're the
 bricks.
 
-Everything here is built and runs. The foundation (the ledger, the router, the
-planner), the runtime that executes a plan across agents and witnesses every step,
-real executors (a task can shell out to any command, including a model CLI, or call a
-model over the API), the control loop that turns a plain request into a plan and a
-single verified answer, a durable ledger that survives a restart, an always-on daemon
-over HTTP and MCP, and a `forum` command to drive it all. Every routing decision,
-plan, task, result, and verdict goes into a ledger you can verify, replay, and trace.
-The examples below show it, and the small zero-dependency pieces are still the bricks.
+Everything here is built, tested, and on PyPI. The foundation (ledger, router, planner),
+the runtime that executes a plan across agents and witnesses every step, model-agnostic
+executors (any command, any OpenAI-compatible server, the Anthropic API), the control
+loop that turns a plain request into one verified answer, a durable ledger that survives
+a restart and lets a run resume from where it stopped, an always-on daemon over HTTP and
+MCP, and a `forum` command. On top of that sit the parts that make a run trustworthy and
+lean: a bounded budget, witnessed model-tier escalation, a verified intent check, a
+delivery floor that tightens verbose answers without dropping a request's terms, typed
+data-flow between tasks, and clean seams for a peer brain to supply context and an
+external verifier to check the answer. Every routing decision, plan, task, result, and
+verdict goes into a ledger you can verify, replay, and trace. The small zero-dependency
+pieces are still the bricks.
+
+```bash
+pip install forum-engine
+```
 
 ## Watch it work
 
@@ -80,6 +88,34 @@ python examples/run.py
 
 It routes a request, runs a three-step plan across agents (with a stub standing in for
 a real model), and verifies the entire run from the ledger at the end.
+
+## The pains it answers
+
+These are real complaints from people running agent fleets. The project harvests them
+and lets each one drive a feature; each maps to something Forum does.
+
+- **"An unattended loop turned a dollar into a hundred overnight."** A `RunBudget` caps a run by model calls and wall-clock; when it is spent the run stops gracefully and witnesses where. `forum submit --max-model-calls N --max-seconds S`. (v1.1)
+- **"It drifted wrong and spiraled for hours before anyone caught it."** Every step is witnessed, and after synthesis Forum checks how much of the request the answer still covers, escalating to a model judge when that floor flags. Drift lands on the record, not at hour three. (v1.4, v1.5)
+- **"No idea which model actually ran each task."** Every result records the model that produced it, and a failed task escalates up a ladder of stronger models on the auditable verdict, witnessed. (v1.2)
+- **"I want to orchestrate my own subscriptions and local models, not a new SaaS."** Zero-dependency, self-hosted, model-agnostic: any command (a local CLI needs no account), any OpenAI-compatible server, or the Anthropic API. The daemon runs on your box. (shipped)
+- **"The loop has no contract, no standing authority."** A run carries a witnessed contract, organized context in and a bounded budget, and the ledger is the standing record of what was agreed and what happened. (v1.1)
+- **"Long loops exhaust the context window with no recovery."** A run checkpoints at wave boundaries and resumes from the witnessed ledger, reusing what already succeeded; injected context is bounded and pulled fresh per task. (v1.9, v1.10, v1.12)
+- **"Model output is a wall of words."** A deterministic delivery floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. (v1.11)
+- **"Memory is a routing problem, and stale facts poison it."** Forum plans and runs on organized context pulled from a brain through a clean seam; building and pruning that knowledge graph is a peer's job (the index flagship), and Forum consumes it, witnessed. (v1.1, v1.12)
+
+## More to run
+
+Each example is a short, offline, dependency-free demonstration of one capability:
+
+```bash
+python examples/run_request.py       # a plain request: plan, witnessed run, one verified answer
+python examples/run_escalation.py    # a failed task escalates up a ladder of stronger models
+python examples/run_intent_judge.py  # the intent ladder: a lexical drift floor, then a model judge
+python examples/run_delivery.py      # a verbose answer is tightened, accepted only if it stays covered
+python examples/run_resume.py        # a crashed run resumes from the ledger, reusing what succeeded
+python examples/run_efficiency.py    # bounded prompts and a weighed record
+python examples/run_summary.py       # read a run from the ledger, and A/B two runs with forum bench
+```
 
 ## From the command line
 
