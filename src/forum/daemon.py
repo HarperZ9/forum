@@ -117,6 +117,9 @@ class Daemon:
             await self._server.serve_forever()
 
     async def stop(self, drain_timeout: float = 5.0) -> None:
+        # close() stops accepting and wait_closed() waits for active connections
+        # to finish; the bounded asyncio.wait below is the timeout-bounded
+        # backstop so one slow in-flight handler cannot hang shutdown. Keep both.
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
