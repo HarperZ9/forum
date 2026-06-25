@@ -163,11 +163,24 @@ def test_batched_mode_recovers_exactly_after_sync(tmp_path):
     assert reopened.verify(deep=True) is True
 
 
-def test_inmemory_sync_is_a_noop(tmp_path):
+def test_inmemory_sync_is_a_noop():
     led = _ledger(InMemoryStorage())
     _populate(led)
     led.sync()  # must not raise
     assert led.verify(deep=True) is True
+
+
+def test_sync_in_default_mode_is_safe(tmp_path):
+    led = _ledger(FileStorage(str(tmp_path)))  # default fsync_each=True
+    _populate(led)
+    led.sync()  # redundant but must not raise
+    assert led.verify(deep=True) is True
+
+
+def test_sync_on_an_empty_ledger_creates_no_files(tmp_path):
+    Ledger(FileStorage(str(tmp_path), fsync_each=False)).sync()  # nothing appended yet
+    assert not (tmp_path / "entries.jsonl").exists()
+    assert not (tmp_path / "payloads.jsonl").exists()
 
 
 def test_interior_blank_line_raises_storage_corruption(tmp_path):

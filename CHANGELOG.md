@@ -4,11 +4,11 @@
 
 The durable ledger fsyncs every append, the strongest guarantee and the right default. For a high-throughput run where that per-append fsync is the bottleneck, this release adds an opt-in way to batch it, with the tradeoff stated plainly.
 
-- **`FileStorage(dir, fsync_each=False)`**: appends are written and flushed to the OS (so they survive a process crash) but not fsynced per call, for throughput. Call `ledger.sync()` to force the logs to disk at a point of your choosing (a phase boundary, the run's end). The default stays `fsync_each=True`: every append fsynced before it returns.
+- **`FileStorage(dir, fsync_each=False)`**: appends are written and flushed to the OS (so they survive a process crash) but not fsynced per call, for throughput. Call `ledger.sync()` to fsync the logs at a point of your choosing (a phase boundary, the run's end). The default stays `fsync_each=True`: every append fsynced before it returns.
 - **`Ledger.sync()` / `Storage.sync()`**: a new seam to force buffered writes down. A no-op for in-memory storage and for the default fsync-each mode; the durability control for batched mode. `build_orchestrator(..., fsync_each=False)` opts a daemon in.
 - Honest tradeoff: a crash before `sync()` can lose the un-fsynced tail. The log stays append-only and the torn-trailing-line tolerance still applies, so what survives still verifies and replays exactly.
 
-Pure standard library. 216 tests, plus 2 gated real-model tests. Run in `examples/run_batched_fsync.py`.
+Pure standard library. 218 tests, plus 2 gated real-model tests. Run in `examples/run_batched_fsync.py`.
 
 ## 1.7.0: the verification seam
 
