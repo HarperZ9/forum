@@ -4,7 +4,7 @@ import asyncio
 import dataclasses
 from collections.abc import Callable
 
-from forum.executor import Assignment, Executor, Result
+from forum.executor import Assignment, Executor, Result, executor_id
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 
@@ -52,7 +52,7 @@ async def dispatch_plan(
             entry = ledger.append(
                 actor=task.agent,
                 kind="result",
-                payload={"id": task.id, "output": result.output, "ok": result.ok},
+                payload={"id": task.id, "output": result.output, "ok": result.ok, "model": executor_id(executor)},
                 causal_parent=assigned.seq,
             )
             results[task.id] = dataclasses.replace(result, witnessed_seq=entry.seq)

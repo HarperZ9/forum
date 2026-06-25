@@ -1,28 +1,40 @@
 from __future__ import annotations
 
+import dataclasses
 import time
 
 from forum.budget import RunBudget
 from forum.context import ContextProvider, NullContextProvider
 from forum.control import Classifier, Coordinator, Synthesizer, Validator
 from forum.dispatch import dispatch_plan
-from forum.executor import Assignment, Executor, Result
+from forum.executor import Assignment, Executor, Result, executor_id
 from forum.ledger import Ledger
-from forum.plan import Plan
+from forum.plan import Plan, Task
 from forum.policy import Policy
 from forum.roster import Roster
 from forum.routing import LexicalRouter, RouteResult, RoutingProvider
 
 
-class _CountingExecutor:
-    """Wraps an executor to count run() invocations against a run's budget."""
+class _Meter:
+    """A shared tally of executor calls across a run, for the budget."""
 
-    def __init__(self, inner: Executor) -> None:
-        self._inner = inner
+    def __init__(self) -> None:
         self.calls = 0
 
+
+class _Counted:
+    """Wraps an executor so each run() increments a shared meter; passes model_id through."""
+
+    def __init__(self, inner: Executor, meter: _Meter) -> None:
+        self._inner = inner
+        self._meter = meter
+
+    @property
+    def model_id(self) -> str:
+        return executor_id(self._inner)
+
     async def run(self, assignment: Assignment) -> Result:
-        self.calls += 1
+        self._meter.calls += 1
         return await self._inner.run(assignment)
 
 
@@ -41,12 +53,15 @@ class Orchestrator:
         validator: Validator | None = None,
         synthesizer: Synthesizer | None = None,
         context_provider: ContextProvider | None = None,
+        escalation_executors: list[Executor] | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
         self.executor = executor
         self.policy = policy
         self.context_provider = context_provider or NullContextProvider()
+        # ordered ladder of stronger executors; a failed task escalates up it (witnessed)
+        self.escalation_executors = list(escalation_executors or [])
         self.router = router or LexicalRouter()
         self.coordinator = coordinator or Coordinator()
         # available for Tier-2 routing escalation; submit() uses the Coordinator's direct assignment
@@ -82,13 +97,15 @@ class Orchestrator:
         when it is exceeded the run stops gracefully, witnesses a budget entry,
         and stays verifiable. Every step is appended to the ledger.
         """
-        counter = _CountingExecutor(self.executor)
+        meter = _Meter()
+        counter = _Counted(self.executor, meter)
+        ladder = [_Counted(e, meter) for e in self.escalation_executors]
         start = time.monotonic()
 
         def over_budget() -> bool:
             if budget is None:
                 return False
-            if budget.max_model_calls is not None and counter.calls >= budget.max_model_calls:
+            if budget.max_model_calls is not None and meter.calls >= budget.max_model_calls:
                 return True
             if budget.max_seconds is not None and (time.monotonic() - start) >= budget.max_seconds:
                 return True
@@ -109,6 +126,7 @@ class Orchestrator:
             plan, self.ledger, counter,
             max_parallel=self.policy.max_parallel, parent_seq=parent, over_budget=over_budget,
         )
+        failed: list[Task] = []
         for task in plan.tasks:
             result = results.get(task.id)
             if result is None:
@@ -123,13 +141,41 @@ class Orchestrator:
                     payload={"id": task.id, "ok": False, "score": 0.0, "reason": "budget exceeded"},
                     causal_parent=vparent,
                 )
-            else:
-                await self._witness_verdict(task.id, task.instruction, result, vparent, counter)
+                failed.append(task)
+            elif not await self._witness_verdict(task.id, task.instruction, result, vparent, counter):
+                failed.append(task)
+
+        # Escalation: a failed task is retried up the ladder of stronger executors,
+        # triggered by the witnessed verdict (auditable), not opaque model confidence.
+        for task in failed:
+            for stronger in ladder:
+                if over_budget():
+                    break
+                current = results.get(task.id)
+                cur_seq = current.witnessed_seq if current and current.witnessed_seq is not None else req.seq
+                esc = self.ledger.append(
+                    actor="orchestrator", kind="tier_escalation",
+                    payload={"id": task.id, "to": stronger.model_id, "reason": "validation failed"},
+                    causal_parent=cur_seq,
+                )
+                try:
+                    retry = await stronger.run(Assignment(task.id, task.agent, task.instruction))
+                except Exception as exc:
+                    retry = Result(task.id, task.agent, f"error: {exc}", ok=False)
+                entry = self.ledger.append(
+                    actor=task.agent, kind="result",
+                    payload={"id": task.id, "output": retry.output, "ok": retry.ok, "model": stronger.model_id},
+                    causal_parent=esc.seq,
+                )
+                retry = dataclasses.replace(retry, witnessed_seq=entry.seq)
+                results[task.id] = retry
+                if await self._witness_verdict(task.id, task.instruction, retry, entry.seq, counter):
+                    break
 
         if over_budget():
             self.ledger.append(
                 actor="budget", kind="budget",
-                payload={"model_calls": counter.calls, "reason": "run stopped on budget"},
+                payload={"model_calls": meter.calls, "reason": "run stopped on budget"},
                 causal_parent=req.seq,
             )
             answer = "Run stopped: budget exceeded before completion."
@@ -142,7 +188,8 @@ class Orchestrator:
 
     async def _witness_verdict(
         self, task_id: str, instruction: str, result: Result, parent_seq: int, executor: Executor
-    ) -> None:
+    ) -> bool:
+        """Witness a verdict for a result and return whether it passed."""
         if not result.ok:
             # the task itself failed; witness the failure rather than ask the judge to bless it
             self.ledger.append(
@@ -151,7 +198,7 @@ class Orchestrator:
                 payload={"id": task_id, "ok": False, "score": 0.0, "reason": "task failed"},
                 causal_parent=parent_seq,
             )
-            return
+            return False
         # validate through the passed executor so the call counts against the run budget
         verdict = await self.validator.validate(instruction, result.output, executor)
         self.ledger.append(
@@ -160,6 +207,7 @@ class Orchestrator:
             payload={"id": task_id, "ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
             causal_parent=parent_seq,
         )
+        return verdict.ok
 
     async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
         """Resolve one task's agent through the routing ladder, witnessed.
@@ -215,7 +263,7 @@ class Orchestrator:
         result_entry = self.ledger.append(
             actor=agent,
             kind="result",
-            payload={"id": "T1", "output": result.output, "ok": result.ok},
+            payload={"id": "T1", "output": result.output, "ok": result.ok, "model": executor_id(self.executor)},
             causal_parent=assigned.seq,
         )
         await self._witness_verdict("T1", task, result, result_entry.seq, self.executor)
