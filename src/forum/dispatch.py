@@ -82,6 +82,7 @@ async def dispatch_plan(
     over_budget: Callable[[], bool] | None = None,
     resume: bool = False,
     checkpoint_each_wave: bool = False,
+    max_upstream_chars: int = DEFAULT_MAX_UPSTREAM_CHARS,
 ) -> dict[str, Result]:
     """Run a plan's waves through the executor, witnessing every step.
 
@@ -126,7 +127,7 @@ async def dispatch_plan(
                 results[task.id] = Result(task.id, task.agent, output, ok=True, witnessed_seq=seq)
                 return
             # a data edge feeds its upstream's output into this task; an order edge does not
-            instruction, data_from = augment_with_upstream(task, results)
+            instruction, data_from = augment_with_upstream(task, results, max_chars=max_upstream_chars)
             assigned = ledger.append(
                 actor="dispatch",
                 kind="task",

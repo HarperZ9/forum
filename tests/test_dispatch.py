@@ -257,6 +257,26 @@ def test_augment_caps_a_large_upstream_for_prompt_efficiency():
     assert "y" * 10 in instruction and "y" * 100 not in instruction  # capped, not the full output
 
 
+def test_augment_cap_boundary_and_disable():
+    from forum.executor import Result
+
+    task = Task("T2", "x", "go", ("T1",))
+    at = augment_with_upstream(task, {"T1": Result("T1", "x", "y" * 10, ok=True)}, max_chars=10)[0]
+    assert "truncated" not in at and "y" * 10 in at          # exactly at cap: not truncated
+    over = augment_with_upstream(task, {"T1": Result("T1", "x", "y" * 11, ok=True)}, max_chars=10)[0]
+    assert "truncated for prompt efficiency" in over          # one over cap: truncated
+    big = augment_with_upstream(task, {"T1": Result("T1", "x", "y" * 100, ok=True)}, max_chars=10**9)[0]
+    assert "truncated" not in big and "y" * 100 in big        # a huge cap effectively disables it
+
+
+def test_dispatch_plan_max_upstream_chars_tunes_the_cap():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))
+    results = asyncio.run(dispatch_plan(plan, ledger, _BigT1(), max_parallel=2, max_upstream_chars=100))
+    assert "truncated for prompt efficiency" in results["T2"].output
+    assert len(results["T2"].output) < 500  # tuned far below the 8192 default
+
+
 class _BigT1:
     """T1 emits a large output; everyone else echoes the instruction they received."""
 
