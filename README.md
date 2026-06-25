@@ -145,6 +145,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.context` and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), witnessed as the exact context that shaped it; and a `RunBudget` that bounds a run and witnesses where it stopped.
 - `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, and verify or replay the record over HTTP.
 - `forum.mcp_surface`: the same tools over MCP (JSON-RPC on stdio), the lone optional edge. It is a thin adapter over the HTTP surface, so the two can never drift.
+- `forum.report`: reading the record. `summarize(ledger)` aggregates a witnessed run into counts, model calls, the checkpoint, and the verify result, reading only what was witnessed; `compare(a, b)` (and `forum bench A B`) is the delta between two runs, so you can prove a change helped instead of asserting it.
 
 Pure standard library. No third-party runtime dependencies. The tests run the
 primitives directly, tamper detection and the Merkle property included.
@@ -164,7 +165,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.0.** Durable, verifiable, daemonized, installable, documented. The functional engine is complete.
 - **1.1, the run contract.** A ContextProvider seam (plan on a brain's organized context, witnessed) and a RunBudget that bounds a run. Research-informed.
 - **1.2, witnessed escalation.** Model identity in the ledger and validator-driven escalation up a ladder of stronger executors, on a verifiable signal not model confidence. Research-informed.
-- **Beyond.** Typed DAG edges, run summaries and ledger A/B, verdict-vs-intent drift checks, the verification seam, and a ledger-reading dashboard.
+- **1.3, reading the record.** A run summary aggregated purely from the witnessed ledger (`forum ledger summary`), and a ledger A/B (`forum bench`) so an improvement is measured from the record, not claimed.
+- **Beyond.** Typed DAG edges, verdict-vs-intent drift checks, the verification seam, and a ledger-reading dashboard.
 
 ## Docs
 

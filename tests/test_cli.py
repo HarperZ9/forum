@@ -110,3 +110,25 @@ def test_budget_flags_parse():
     args = build_parser().parse_args(["submit", "do x", "--max-model-calls", "5", "--max-seconds", "30"])
     assert args.max_model_calls == 5
     assert args.max_seconds == 30.0
+
+
+def test_ledger_summary_json(capsys, tmp_path):
+    _seed(str(tmp_path))
+    rc = main(["ledger", "summary", "--ledger", str(tmp_path), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["entries"] == 2
+    assert "checkpoint" in out and out["verified"] is True
+
+
+def test_bench_compares_two_ledgers(capsys, tmp_path):
+    a = str(tmp_path / "a")
+    b = str(tmp_path / "b")
+    _seed(a)
+    _seed(b)
+    Ledger(FileStorage(b)).append(actor="client", kind="request", payload={"t": "extra"})
+    rc = main(["bench", a, b, "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["delta"]["requests"] == 1
+    assert out["delta"]["entries"] == 1
