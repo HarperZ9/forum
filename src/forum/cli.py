@@ -150,6 +150,7 @@ def _cmd_ledger_summary(args) -> int:
     print(f"entries: {s['entries']}")
     print(f"requests: {s['requests']} | plans: {s['plans']} | tasks: {s['tasks']}")
     print(f"task results: {s['task_results']} (failed {s['failed_results']}) | verdicts: pass {s['verdicts_pass']} / fail {s['verdicts_fail']}")
+    print(f"intent checks: {s['intent_checks']} (flagged {s['intent_flagged']})")
     print(f"escalations: {s['escalations']} | budget stops: {s['budget_stops']} | contexts: {s['contexts']} | answers: {s['answers']}")
     print(f"model calls: {s['model_calls']}")
     print(f"checkpoint: {s['checkpoint'][:16]}... | verified: {s['verified']}")
