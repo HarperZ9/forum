@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0: the control loop
+
+Forum plans a plain request on its own now.
+
+- **Coordinator**: turns a plain request into a validated task plan, using a model.
+- **Classifier**: picks an agent for a task when keyword routing cannot decide.
+- **Validator**: judges a result against its instruction. A task that fails is witnessed as not ok, not blessed by the judge.
+- **Synthesizer**: combines the results into one answer.
+- **`Orchestrator.submit(request)`**: runs the whole loop, request to answer, every step witnessed and deep-verifiable.
+- **`ask_json`**: a small helper that parses structured output from a model reply, tolerant of prose wrapping, with brace-safe prompt building.
+
+59 tests. Full loop in `examples/run_request.py`.
+
 ## 0.3.0: real executors
 
 Forum does real work now, not just toy plans.
