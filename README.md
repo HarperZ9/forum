@@ -27,11 +27,11 @@ bricks.
 This is the first layer of them, and there's enough now to run. The foundation is
 here (the ledger, the router, the planner), and so is the runtime on top of it. Forum
 can take a multi-step plan, run it across agents, and witness every step, so you can
-verify the whole thing afterward. The two examples below show each half. Real
-executors are here too: a task can shell out to any command (including a model CLI) or
-call a model over the API. What's still ahead (see the [roadmap](#roadmap)): the
-model-backed control loop that plans a request for you, and a daemon to keep a fleet
-running.
+verify the whole thing afterward. The examples below show it. Real executors
+are here too: a task can shell out to any command (including a model CLI) or call a
+model over the API. And it plans for you now: hand it a plain request and the control
+loop turns it into a plan, runs it, checks each result, and writes a single answer.
+What's still ahead (see the [roadmap](#roadmap)): a daemon to keep a fleet running.
 
 ## Watch it work
 
@@ -113,6 +113,7 @@ collision (CVE-2012-2459) that naive Merkle code runs into.
 - `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.api_executor`: how work actually runs. A stub for tests, a `SubprocessExecutor` that runs any command (point it at a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API. A failing task is witnessed, not fatal.
+- `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed.
 
 Pure standard library. No third-party runtime dependencies. The tests run the
 primitives directly, tamper detection and the Merkle property included.
@@ -122,7 +123,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **Done, the foundation.** Ledger, router, roster, planner, policy. Tested and runnable.
 - **Done, the runtime.** An asyncio dispatcher that runs a plan's waves with bounded concurrency, a mailbox actor and a restart supervisor, and an Orchestrator that ties routing, planning, and witnessed dispatch into one call. The engine runs end to end against a stub executor today.
 - **Done, real executors.** A `SubprocessExecutor` that runs any command (so any CLI, including a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API, both behind the one executor seam. A failing task is witnessed, not fatal.
-- **Next.** The model-backed control loop (classify, coordinate, validate, synthesize) that turns a request into a plan on its own, and an HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
+- **Done, the control loop.** A Coordinator that turns a plain request into a plan, a Classifier, a Validator that judges each result (a failed task is witnessed, not blessed), and a Synthesizer that writes one answer. `Orchestrator.submit` runs the whole loop, witnessed.
+- **Next.** An HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
 
 ## Design
 
