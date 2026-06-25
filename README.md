@@ -143,6 +143,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed.
 - `forum.context` and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), witnessed as the exact context that shaped it; and a `RunBudget` that bounds a run and witnesses where it stopped.
+- `forum.verify`: the verification seam. A `VerifierProvider` lets an external verifier (a peer flagship, a proof-checker, a test runner) check the answer Forum produced, and the verdict is witnessed. The peer of the context seam: context flows in before the run, verification comes back after it. The default abstains, so Forum stands alone.
 - `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, and verify or replay the record over HTTP.
 - `forum.mcp_surface`: the same tools over MCP (JSON-RPC on stdio), the lone optional edge. It is a thin adapter over the HTTP surface, so the two can never drift.
 - `forum.intent` and the intent-judge: did the run answer the request? After synthesis, a deterministic coverage of the request's vocabulary by the answer is witnessed (a lexical floor that flags drift, never blocks). When it flags and you opt in (`IntentJudge`, or `forum submit --judge-intent`), a model resolves whether the answer truly drifted or just paraphrased, witnessed as its own entry and bounded by the budget. Cheap floor first, the model only when the floor earns it.
@@ -170,7 +171,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.4, did the run answer?** A witnessed intent check: how much of the request the final answer covers, recorded and surfaced in the summary and A/B. A reproducible lexical floor; a grounded model intent-judge is the next rung.
 - **1.5, the intent-judge.** The rung above the floor: when the lexical check flags drift, an opt-in model judge resolves whether the answer truly drifted or just paraphrased, witnessed and budget-bounded. Cheap-first, like routing and escalation.
 - **1.6, the DAG flows data.** Typed edges: a data edge feeds its upstream's witnessed output into the downstream task, an order edge only sequences. Existing plans now flow data downstream instead of dropping it, and every edge and hand-off is witnessed.
-- **Beyond.** The verification seam, phased checkpoints and resume, opt-in batched fsync, and a ledger-reading dashboard.
+- **1.7, the verification seam.** A VerifierProvider seam, the peer of the context seam, so an external verifier checks the answer after the run, witnessed. The default abstains; Forum stands alone.
+- **Beyond.** Phased checkpoints and resume, opt-in batched fsync, and a ledger-reading dashboard.
 
 ## Docs
 

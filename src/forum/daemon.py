@@ -11,6 +11,7 @@ from forum.ledger import Ledger
 from forum.policy import Policy
 from forum.roster import Roster, load_default
 from forum.storage import FileStorage
+from forum.verify import VerifierProvider
 
 _ALL_CATEGORIES = frozenset({"engineering", "graphics", "support", "research"})
 
@@ -154,6 +155,7 @@ def build_orchestrator(
     policy: Policy | None = None,
     context_provider: ContextProvider | None = None,
     intent_judge: IntentJudge | None = None,
+    verifier: VerifierProvider | None = None,
 ) -> Orchestrator:
     """Build an Orchestrator backed by a durable file ledger and the default roster.
 
@@ -170,6 +172,7 @@ def build_orchestrator(
         policy or Policy(allowed_categories=_ALL_CATEGORIES, max_parallel=6),
         context_provider=context_provider,
         intent_judge=intent_judge,
+        verifier=verifier,
     )
 
 
