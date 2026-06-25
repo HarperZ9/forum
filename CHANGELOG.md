@@ -8,7 +8,7 @@ Forum already plans on context from an external brain (the ContextProvider seam,
 - **Witnessed, not blocking**: a refuted answer is recorded for the operator to see; what to do about it is policy, consistent with the rest of the engine. The summary and `forum bench` report verifications and refutations.
 - This completes the provider pair: context flows in before the run, verification comes back after it, both witnessed, both clean seams to peer flagships that Forum never imports.
 
-Pure standard library. 211 tests, plus 2 gated real-model tests. Run in `examples/run_verification.py`.
+Pure standard library. 212 tests, plus 2 gated real-model tests. Run in `examples/run_verification.py`.
 
 ## 1.6.0: the DAG flows data (typed edges)
 

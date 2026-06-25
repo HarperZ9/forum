@@ -285,7 +285,19 @@ class Orchestrator:
         the intent check it is a witnessed signal and never blocks the run, leaving
         what to do about a refuted answer to policy.
         """
-        verification = self.verifier.verify(request, answer)
+        try:
+            verification = self.verifier.verify(request, answer)
+        except Exception as exc:
+            # the verifier is external, advisory code over an already-witnessed answer; a
+            # verifier that crashes is recorded as could-not-decide, not fatal, so the run
+            # keeps its answer (the same witnessed-not-fatal contract as the intent-judge)
+            self.ledger.append(
+                actor="verifier",
+                kind="verification",
+                payload={"ok": None, "detail": f"verifier failed: {type(exc).__name__}: {exc}", "source": ""},
+                causal_parent=parent_seq,
+            )
+            return
         if verification is None:
             return
         self.ledger.append(

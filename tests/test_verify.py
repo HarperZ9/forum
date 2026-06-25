@@ -107,3 +107,25 @@ def test_verification_ok_none_is_witnessed_but_not_a_refutation():
     s = summarize(led)
     assert s["verifications"] == 1
     assert s["verifications_refuted"] == 0  # None is "could not decide", not a refutation
+
+
+class _Boom:
+    def verify(self, request, answer):
+        raise RuntimeError("verifier crashed")
+
+
+def test_raising_verifier_is_witnessed_not_fatal_and_keeps_the_answer():
+    # a crashing external verifier cannot discard the answer the run already produced
+    led = _led()
+    orch = Orchestrator(
+        ROSTER, led, _Exec(),
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+        verifier=_Boom(),
+    )
+    answer = asyncio.run(orch.submit("build the api"))
+    assert answer == "the final answer"          # the answer survived the crash
+    body = led.get_payload(led.query(kind="verification")[0].payload_hash)
+    assert body["ok"] is None                     # could-not-decide, not refuted
+    assert "RuntimeError" in body["detail"]
+    assert summarize(led)["verifications_refuted"] == 0
+    assert led.verify(deep=True) is True

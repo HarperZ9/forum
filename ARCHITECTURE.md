@@ -154,7 +154,10 @@ checks the answer after it. A peer flagship, a proof-checker, or a test runner i
 the one-method seam, and Forum witnesses the verdict (verified, refuted, or
 could-not-decide) as its own entry chained to the answer. The default abstains, so Forum
 stands alone. Like the intent check it records the signal and does not block, leaving what
-to do about a refuted answer to policy.
+to do about a refuted answer to policy. The seam is synchronous, so a verifier that does
+heavy work should keep it brief or offload it; a verifier that crashes is witnessed as
+could-not-decide, never fatal, so external code can never sink an answer the run already
+produced.
 
 ## Reading the record
 
