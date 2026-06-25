@@ -72,4 +72,3 @@ pytest tests/test_real_model.py -v
 It runs a full `submit` and a `submit_one` through `ApiExecutor` and asserts the ledger
 is witnessed and deep-verifiable end to end. The same loop runs against any of the
 executors above.
-```

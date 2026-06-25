@@ -57,6 +57,8 @@ class ChatExecutor:
         body = json.dumps(
             {
                 "model": self._model,
+                # max_tokens is accepted by OpenAI (back-compat) and by every local
+                # server we target; newer OpenAI models also accept max_completion_tokens.
                 "max_tokens": self._max_tokens,
                 "messages": [{"role": "user", "content": instruction}],
             }
@@ -77,8 +79,16 @@ def _extract_text(raw) -> str | None:
         choices = data["choices"]
         if isinstance(choices, list) and choices and isinstance(choices[0], dict):
             message = choices[0].get("message")
-            if isinstance(message, dict) and isinstance(message.get("content"), str):
-                return message["content"]
+            if isinstance(message, dict):
+                content = message.get("content")
+                if isinstance(content, str):
+                    return content
+                if isinstance(content, list):
+                    # some OpenAI-compatible gateways return content as a list of
+                    # {type, text} parts; join the text parts
+                    joined = "".join(p.get("text", "") for p in content if isinstance(p, dict))
+                    if joined:
+                        return joined
     except (json.JSONDecodeError, KeyError, TypeError):
         return None
     return None
