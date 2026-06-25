@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+from collections.abc import Callable
 
 from forum.executor import Assignment, Executor, Result
 from forum.ledger import Ledger
@@ -15,6 +16,7 @@ async def dispatch_plan(
     *,
     max_parallel: int = 6,
     parent_seq: int | None = None,
+    over_budget: Callable[[], bool] | None = None,
 ) -> dict[str, Result]:
     """Run a plan's waves through the executor, witnessing every step.
 
@@ -39,10 +41,14 @@ async def dispatch_plan(
                 payload={"id": task.id, "agent": task.agent, "instruction": task.instruction},
                 causal_parent=plan_entry.seq,
             )
-            try:
-                result = await executor.run(Assignment(task.id, task.agent, task.instruction))
-            except Exception as exc:
-                result = Result(task.id, task.agent, f"error: {exc}", ok=False)
+            if over_budget is not None and over_budget():
+                # budget is gone; witness the task without spending a model call
+                result = Result(task.id, task.agent, "error: budget exceeded", ok=False)
+            else:
+                try:
+                    result = await executor.run(Assignment(task.id, task.agent, task.instruction))
+                except Exception as exc:
+                    result = Result(task.id, task.agent, f"error: {exc}", ok=False)
             entry = ledger.append(
                 actor=task.agent,
                 kind="result",
