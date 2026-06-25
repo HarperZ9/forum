@@ -132,6 +132,9 @@ class FileStorage:
             raise KeyError(seq)
         return entry
 
+    def count(self) -> int:
+        return len(self._entries)
+
     def put_payload(self, payload_hash: str, body: Any) -> None:
         if payload_hash in self._payloads:
             return
