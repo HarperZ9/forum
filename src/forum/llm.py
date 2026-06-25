@@ -12,7 +12,7 @@ async def ask_json(executor: Executor, agent: str, prompt: str) -> dict:
     model that wraps JSON in prose or code fences still parses. Raises
     ``ValueError`` when no JSON object is present.
     """
-    result = await executor.run(Assignment("control", agent, prompt))
+    result = await executor.run(Assignment(f"control:{agent}", agent, prompt))
     text = result.output
     start = text.find("{")
     end = text.rfind("}")

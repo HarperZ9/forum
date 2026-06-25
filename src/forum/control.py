@@ -115,5 +115,5 @@ class Synthesizer:
     async def synthesize(self, request: str, results: dict, executor: Executor) -> str:
         lines = "\n".join(f"- {tid}: {r.output}" for tid, r in results.items())
         prompt = _SYNTHESIZER_PROMPT.replace("<<REQUEST>>", request).replace("<<RESULTS>>", lines)
-        out = await executor.run(Assignment("control", "synthesizer", prompt))
+        out = await executor.run(Assignment("control:synthesizer", "synthesizer", prompt))
         return out.output.strip()

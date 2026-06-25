@@ -37,10 +37,15 @@ class ApiExecutor:
         request = self._build_request(assignment.instruction)
         try:
             raw = await asyncio.to_thread(self._opener, request)
-            data = json.loads(raw)
-            text = data["content"][0]["text"]
         except Exception as exc:
             return Result(assignment.task_id, assignment.agent, f"error: {exc}", ok=False)
+        text = _extract_text(raw)
+        if text is None:
+            preview = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+            return Result(
+                assignment.task_id, assignment.agent,
+                f"error: unexpected API response shape: {preview[:200]!r}", ok=False,
+            )
         return Result(assignment.task_id, assignment.agent, text, ok=True)
 
     def _build_request(self, instruction: str) -> urllib.request.Request:
@@ -57,6 +62,19 @@ class ApiExecutor:
             "x-api-key": os.environ.get(self._api_key_env, ""),
         }
         return urllib.request.Request(self._base_url, data=body, headers=headers, method="POST")
+
+
+def _extract_text(raw) -> str | None:
+    """Pull the assistant text from an Anthropic Messages response, or None if
+    the payload is not the expected {"content": [{"text": ...}]} shape."""
+    try:
+        data = json.loads(raw)
+        content = data["content"]
+        if isinstance(content, list) and content and isinstance(content[0], dict) and "text" in content[0]:
+            return content[0]["text"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+    return None
 
 
 def _default_opener(request: urllib.request.Request) -> bytes:
