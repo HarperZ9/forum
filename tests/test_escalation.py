@@ -1,5 +1,6 @@
 import asyncio
 
+from forum.budget import RunBudget
 from forum.engine import Orchestrator
 from forum.executor import Result
 from forum.ledger import InMemoryStorage, Ledger
@@ -40,6 +41,17 @@ class _Strong:
 
     async def run(self, a):
         return Result(a.task_id, a.agent, "good")
+
+
+class _Fixed:
+    """An escalation rung that always returns a fixed output, with a given model id."""
+
+    def __init__(self, output, model_id):
+        self._output = output
+        self.model_id = model_id
+
+    async def run(self, a):
+        return Result(a.task_id, a.agent, self._output)
 
 
 def _led():
@@ -86,3 +98,25 @@ def test_result_entries_record_model_identity():
     models = {r["model"] for r in _payloads(led, "result") if "model" in r}
     assert "strong-model" in models   # the escalation model is recorded
     assert "_Base" in models          # the base executor's identity (its type name) is recorded
+
+
+def test_escalation_walks_a_two_rung_ladder():
+    led = _led()
+    ladder = [_Fixed("bad", "mid-model"), _Fixed("good", "frontier-model")]
+    asyncio.run(_orch(led, escalation=ladder).submit("build the api"))
+    # rung 1 still fails ("bad"), rung 2 passes ("good"): both escalations witnessed in order
+    tos = [led._s.get_payload(e.payload_hash)["to"] for e in led.query(kind="tier_escalation")]
+    assert tos == ["mid-model", "frontier-model"]
+    t1 = [r for r in _payloads(led, "result") if r.get("id") == "T1"]
+    assert t1[-1]["output"] == "good" and t1[-1]["model"] == "frontier-model"
+    assert _payloads(led, "verdict")[-1]["ok"] is True
+    assert led.verify(deep=True) is True
+
+
+def test_budget_stops_escalation_before_it_runs():
+    # plan(1) + task(2) + validate-fail(3) spends a 3-call budget; the failed task
+    # must NOT escalate (a model call past the ceiling), so no tier_escalation is witnessed.
+    led = _led()
+    asyncio.run(_orch(led, escalation=[_Strong()]).submit("build the api", budget=RunBudget(max_model_calls=3)))
+    assert led.query(kind="tier_escalation") == []
+    assert led.verify(deep=True) is True
