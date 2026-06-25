@@ -53,3 +53,13 @@ def test_api_executor_handles_malformed_response():
     ex = ApiExecutor(opener=empty, api_key_env="UNUSED_KEY")
     r = asyncio.run(ex.run(Assignment("T4", "worker", "x")))
     assert r.ok is False
+
+
+def test_api_executor_gives_a_clear_message_on_unexpected_shape():
+    def odd(request):
+        return json.dumps({"error": {"type": "overloaded_error"}}).encode("utf-8")
+
+    ex = ApiExecutor(opener=odd, api_key_env="UNUSED_KEY")
+    r = asyncio.run(ex.run(Assignment("T5", "worker", "x")))
+    assert r.ok is False
+    assert "unexpected API response shape" in r.output
