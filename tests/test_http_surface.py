@@ -140,6 +140,13 @@ def test_wrong_method_is_405():
     assert _do(surface, "POST", "/status", b"{}").status == 405
 
 
+def test_wrong_method_on_ledger_and_replay_prefixes_is_405():
+    # The 405 fallback's prefix arm: a known resource, an unsupported method.
+    surface, _ = _surface()
+    assert _do(surface, "DELETE", "/ledger/0", b"").status == 405
+    assert _do(surface, "DELETE", "/replay/0", b"").status == 405
+
+
 def test_submit_bad_json_is_400():
     surface, _ = _surface()
     assert _do(surface, "POST", "/submit", b"not json").status == 400

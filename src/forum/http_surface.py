@@ -29,7 +29,7 @@ class Response:
 
     @property
     def reason(self) -> str:
-        return _REASONS.get(self.status, "OK")
+        return _REASONS.get(self.status, "Unknown")
 
 
 def json_response(obj: Any, status: int = 200) -> Response:
