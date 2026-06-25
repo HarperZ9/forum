@@ -94,6 +94,19 @@ Cheap and certain first, expensive and clever only when it's earned.
 - Plan compiles a task graph into ordered waves you can run in parallel (Kahn's layering), and refuses anything with a cycle or a missing dependency up front.
 - Policy is the rule of the room: which categories of work may run, and how many at a time.
 
+## Surfaces
+
+The daemon is the always-on edge. `forum.http_surface` is the HTTP semantics with
+no sockets in it: a single `dispatch(method, path, body)` coroutine maps a request
+to the Orchestrator and serializes JSON, so every endpoint is tested without a
+network. `forum.daemon` is the transport, a hand-written HTTP/1.1 parser over
+stdlib `asyncio.start_server` (no web framework), plus lifecycle: start, stop,
+graceful drain, and a factory that gives the daemon one long-lived, durable
+`FileStorage` ledger so every request witnesses into the same record. Routing and
+the ledger are served without a model; planning and submitting drive the control
+loop and need a model executor. The MCP surface, the lone optional edge adapter,
+follows next.
+
 ## Determinism
 
 Nothing in the core reads the wall clock or rolls dice in a way that changes its
