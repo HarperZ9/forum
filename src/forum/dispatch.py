@@ -4,6 +4,7 @@ import asyncio
 import dataclasses
 from collections.abc import Callable
 
+from forum.context import ContextProvider
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
@@ -83,12 +84,20 @@ async def dispatch_plan(
     resume: bool = False,
     checkpoint_each_wave: bool = False,
     max_upstream_chars: int = DEFAULT_MAX_UPSTREAM_CHARS,
+    context_provider: ContextProvider | None = None,
 ) -> dict[str, Result]:
     """Run a plan's waves through the executor, witnessing every step.
 
     Appends a ``plan`` entry, then a ``task`` + ``result`` entry per task with
     causal links. Each wave runs concurrently (bounded by ``max_parallel``);
     waves run in dependency order.
+
+    With a ``context_provider``, each task pulls fresh, task-specific context from
+    the brain (the ContextProvider seam) before it runs: the context is capped (like
+    upstream data), witnessed as its own entry, and the task is chained to it, so a
+    parallel or looped agent gets up-to-date context routed to it and the record
+    shows exactly what shaped each task. Forum pulls and witnesses the context; it
+    never generates it.
 
     With ``resume=True`` a task that already has a witnessed successful result in
     the ledger is reused, not re-run, and a ``resume`` entry records which were
@@ -128,11 +137,25 @@ async def dispatch_plan(
                 return
             # a data edge feeds its upstream's output into this task; an order edge does not
             instruction, data_from = augment_with_upstream(task, results, max_chars=max_upstream_chars)
+            # fresh, task-specific context pulled from the brain, capped and witnessed; the
+            # task is chained to it so the record shows what shaped it (Forum routes the
+            # context to the agent, it never generates it)
+            task_parent = plan_entry.seq
+            if context_provider is not None:
+                ctx = context_provider.context(task.instruction)
+                if ctx:
+                    if len(ctx) > max_upstream_chars:
+                        ctx = ctx[:max_upstream_chars] + "\n... [truncated for prompt efficiency]"
+                    task_parent = ledger.append(
+                        actor="context", kind="context",
+                        payload={"task": task.id, "context": ctx}, causal_parent=plan_entry.seq,
+                    ).seq
+                    instruction = instruction + "\n\nContext for this task:\n" + ctx
             assigned = ledger.append(
                 actor="dispatch",
                 kind="task",
                 payload={"id": task.id, "agent": task.agent, "instruction": task.instruction, "data_from": data_from},
-                causal_parent=plan_entry.seq,
+                causal_parent=task_parent,
             )
             if over_budget is not None and over_budget():
                 # budget is gone; witness the task without spending a model call

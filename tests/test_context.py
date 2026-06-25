@@ -67,10 +67,12 @@ def test_provider_context_is_witnessed_and_fed_to_the_plan():
     asyncio.run(orch.submit("build the api"))
 
     ctx_entries = led.query(kind="context")
-    assert len(ctx_entries) == 1
-    body = led._s.get_payload(ctx_entries[0].payload_hash)
+    request_ctx = ctx_entries[0]                              # the request-level context, before planning
+    body = led._s.get_payload(request_ctx.payload_hash)
     assert "Postgres" in body["context"]                      # the context was recorded
     assert "Postgres" in rec.prompts["coordinator"]           # and fed into the plan prompt
     plan_entry = led.query(kind="plan")[0]
-    assert plan_entry.causal_parent == ctx_entries[0].seq     # request -> context -> plan
+    assert plan_entry.causal_parent == request_ctx.seq        # request -> context -> plan
+    # per-task context is also witnessed now: the T1 task pulls its own context
+    assert any(led._s.get_payload(e.payload_hash).get("task") == "T1" for e in ctx_entries)
     assert led.verify(deep=True) is True

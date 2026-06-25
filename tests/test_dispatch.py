@@ -304,6 +304,46 @@ def test_capped_injection_shrinks_the_prompt_but_the_record_keeps_the_full_outpu
     assert ledger.verify(deep=True) is True
 
 
+class _PerTaskContext:
+    """A ContextProvider that returns context tailored to each task's instruction."""
+
+    def context(self, text):
+        return f"ctx for: {text}"
+
+
+def test_per_task_context_is_injected_witnessed_and_chained():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "do the thing", ()),))
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), context_provider=_PerTaskContext()))
+    assert "Context for this task:" in results["T1"].output  # the agent saw its context
+    assert "ctx for: do the thing" in results["T1"].output
+    ctx_bodies = [ledger.get_payload(e.payload_hash) for e in ledger.query(kind="context")]
+    assert any(c.get("task") == "T1" for c in ctx_bodies)    # witnessed, tied to the task
+    assert ledger.get(_task_entry(ledger, "T1").causal_parent).kind == "context"  # task chained to its context
+    assert ledger.verify(deep=True) is True
+
+
+def test_no_per_task_context_without_a_provider():
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "do the thing", ()),))
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor()))
+    assert "Context for this task" not in results["T1"].output
+    assert ledger.query(kind="context") == []  # default: no per-task context
+
+
+def test_per_task_context_is_capped():
+    ledger = make_ledger()
+
+    class _Big:
+        def context(self, text):
+            return "c" * 10000
+
+    plan = Plan((Task("T1", "x", "go", ()),))
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), context_provider=_Big(), max_upstream_chars=100))
+    assert "truncated for prompt efficiency" in results["T1"].output
+    assert len(results["T1"].output) < 500
+
+
 def test_resume_and_checkpoint_together():
     ledger = make_ledger()
     plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))

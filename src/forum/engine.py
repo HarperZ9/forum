@@ -148,6 +148,7 @@ class Orchestrator:
         results = await dispatch_plan(
             plan, self.ledger, counter,
             max_parallel=self.policy.max_parallel, parent_seq=parent, over_budget=over_budget,
+            context_provider=self.context_provider,
         )
         failed: list[Task] = []
         for task in plan.tasks:
