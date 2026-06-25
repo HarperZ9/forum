@@ -33,6 +33,10 @@ class ApiExecutor:
         self._max_tokens = max_tokens
         self._opener = opener or _default_opener
 
+    @property
+    def model_id(self) -> str:
+        return self._model
+
     async def run(self, assignment: Assignment) -> Result:
         request = self._build_request(assignment.instruction)
         try:

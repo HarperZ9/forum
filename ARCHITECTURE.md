@@ -125,6 +125,12 @@ where it is, witnesses a `budget` entry, and still verifies and replays cleanly.
 cannot run away, on context you can audit, is the difference between a demo and something you
 would leave running.
 
+Model selection is witnessed too. Every result records the model that produced it, and a
+task whose verdict fails can escalate up a ladder of stronger executors. The escalation
+fires on the witnessed verdict, an auditable signal, not on a model's self-reported
+confidence (which a cascade attacker can game). Each retry and its verdict are recorded,
+so the cheapest model that passes is chosen in the open rather than in a black box.
+
 ## Determinism
 
 Nothing in the core reads the wall clock or rolls dice in a way that changes its
