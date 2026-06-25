@@ -7,6 +7,16 @@ from typing import Any
 from forum.ledger import LedgerEntry
 
 
+_ENTRY_FIELDS = (
+    "seq", "ts", "actor", "kind",
+    "causal_parent", "payload_hash", "prev_hash", "entry_hash",
+)
+
+
+class StorageCorruption(ValueError):
+    """A persisted log line is malformed in a way a crash cannot explain."""
+
+
 def _entry_to_row(e: LedgerEntry) -> dict[str, Any]:
     return {
         "seq": e.seq,
@@ -21,6 +31,9 @@ def _entry_to_row(e: LedgerEntry) -> dict[str, Any]:
 
 
 def _row_to_entry(row: dict[str, Any]) -> LedgerEntry:
+    for field in _ENTRY_FIELDS:
+        if field not in row:
+            raise StorageCorruption(f"entry row missing field: {field!r}")
     return LedgerEntry(
         seq=row["seq"],
         ts=row["ts"],
@@ -34,16 +47,31 @@ def _row_to_entry(row: dict[str, Any]) -> LedgerEntry:
 
 
 def _read_rows(path: str) -> list[dict[str, Any]]:
-    """Strict JSONL read: every non-blank line must parse. (Task 2 relaxes this.)"""
+    """Parse a JSONL file into rows, tolerating one torn trailing line.
+
+    An interior unparseable line is corruption and raises StorageCorruption;
+    only the final line may be a half-written (crash-truncated) append, which
+    is dropped. Trailing truncation of whole, complete lines is not
+    self-detectable (any prefix of an append-only chain is itself valid);
+    detect it by comparing checkpoint() against an external witness.
+    """
     if not os.path.exists(path):
         return []
-    rows: list[dict[str, Any]] = []
     with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
+        lines = f.read().splitlines()
+    rows: list[dict[str, Any]] = []
+    last = len(lines) - 1
+    for i, line in enumerate(lines):
+        if not line:
+            if i == last:
+                continue  # trailing blank line
+            raise StorageCorruption(f"{path}: blank line at row {i}")
+        try:
             rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            if i == last:
+                break  # torn final append: drop it, keep the rest
+            raise StorageCorruption(f"{path}: corrupt line at row {i}") from exc
     return rows
 
 
@@ -78,6 +106,8 @@ class FileStorage:
         ]
         self._payloads: dict[str, Any] = {}
         for r in _read_rows(self._payloads_path):
+            if "hash" not in r or "body" not in r:
+                raise StorageCorruption("payload row missing 'hash' or 'body'")
             self._payloads.setdefault(r["hash"], r["body"])
 
     def append(self, entry: LedgerEntry) -> None:
