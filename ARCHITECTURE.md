@@ -131,6 +131,15 @@ fires on the witnessed verdict, an auditable signal, not on a model's self-repor
 confidence (which a cascade attacker can game). Each retry and its verdict are recorded,
 so the cheapest model that passes is chosen in the open rather than in a black box.
 
+A completed run is also checked against the request that started it. Each task is
+validated against its own instruction, but a run can pass every task and still answer a
+different question than the one asked. So after synthesis the Orchestrator witnesses an
+intent check: a deterministic, reproducible measure of how much of the request's
+vocabulary the final answer carries, the terms it missed, and whether that falls below
+a threshold. It is a lexical floor, not a semantic verdict; it records the signal and
+never blocks the run, leaving what to do about drift to policy. A grounded model judge
+is the next rung above this floor.
+
 ## Reading the record
 
 A record you cannot read is only half of accountability. `forum.report` closes
