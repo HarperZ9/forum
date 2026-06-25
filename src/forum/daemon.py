@@ -30,14 +30,25 @@ async def _read_request(reader: asyncio.StreamReader) -> tuple[str, str, bytes]:
         raise ValueError("malformed request line")
     method, path, _version = parts
     headers: dict[str, str] = {}
+    seen_content_length: str | None = None
     for line in lines[1:]:
         if not line:
             continue
         key, _, value = line.partition(b":")
-        headers[key.decode("latin-1").strip().lower()] = value.decode("latin-1").strip()
+        k = key.decode("latin-1").strip().lower()
+        v = value.decode("latin-1").strip()
+        if k == "content-length":
+            if seen_content_length is not None and seen_content_length != v:
+                raise ValueError("conflicting content-length headers")
+            seen_content_length = v
+        if k == "transfer-encoding":
+            raise ValueError("transfer-encoding is not supported")
+        headers[k] = v
     body = b""
     raw_len = headers.get("content-length")
     if raw_len is not None:
+        if not raw_len.isdigit():
+            raise ValueError("invalid content-length")
         n = int(raw_len)
         if n > MAX_BODY:
             raise _BodyTooLarge()
@@ -64,11 +75,12 @@ class Daemon:
     (Connection: close); the surface is HttpSurface.
     """
 
-    def __init__(self, orchestrator: Orchestrator, host: str = "127.0.0.1", port: int = 8080) -> None:
+    def __init__(self, orchestrator: Orchestrator, host: str = "127.0.0.1", port: int = 8080, read_timeout: float = 10.0) -> None:
         self.orchestrator = orchestrator
         self._surface = HttpSurface(orchestrator)
         self._host = host
         self._port = port
+        self._read_timeout = read_timeout
         self._server: asyncio.AbstractServer | None = None
         self._inflight: set[asyncio.Task] = set()
 
@@ -88,7 +100,10 @@ class Daemon:
             self._inflight.add(task)
         try:
             try:
-                method, path, body = await _read_request(reader)
+                method, path, body = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
+            except asyncio.TimeoutError:
+                await _write_response(writer, error(408, "request timed out"))
+                return
             except _BodyTooLarge:
                 await _write_response(writer, error(413, "request body too large"))
                 return

@@ -13,6 +13,7 @@ _REASONS = {
     400: "Bad Request",
     404: "Not Found",
     405: "Method Not Allowed",
+    408: "Request Timeout",
     413: "Payload Too Large",
     500: "Internal Server Error",
     502: "Bad Gateway",
@@ -62,11 +63,7 @@ class HttpSurface:
             return json_response({"ok": True})
         if method == "GET" and path == "/status":
             led = self._orch.ledger
-            return json_response({
-                "entries": len(led.replay()),
-                "checkpoint": led.checkpoint(),
-                "verified": led.verify(),
-            })
+            return json_response({"entries": led.count(), "checkpoint": led.checkpoint()})
         if method == "GET" and path == "/verify":
             led = self._orch.ledger
             return json_response({"chain": led.verify(), "deep": led.verify(deep=True)})

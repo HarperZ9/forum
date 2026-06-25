@@ -122,8 +122,9 @@ def test_durable_ledger_survives_a_daemon_restart(tmp_path):
             data = json.loads(body)
             assert status == 200
             assert data["entries"] > 0          # the prior run persisted
-            assert data["verified"] is True
             assert data["checkpoint"]           # a non-empty Merkle root over them
+            _, vbody = await _request(daemon.port, _get("/verify"))
+            assert json.loads(vbody) == {"chain": True, "deep": True}
         finally:
             await daemon.stop()
 
@@ -145,3 +146,97 @@ def build_orchestrator_in_memory():
         ScriptedExecutor(),
         Policy(allowed_categories=frozenset({"engineering", "graphics", "support", "research"}), max_parallel=4),
     )
+
+
+def test_malformed_request_line_is_400():
+    async def go():
+        daemon = Daemon(build_orchestrator_in_memory(), port=0)
+        await daemon.start()
+        try:
+            status, _ = await _request(daemon.port, b"GARBAGE\r\nHost: x\r\nConnection: close\r\n\r\n")
+            assert status == 400
+            # server still serves a good request afterward
+            ok, _ = await _request(daemon.port, _get("/health"))
+            assert ok == 200
+        finally:
+            await daemon.stop()
+    asyncio.run(go())
+
+
+def test_oversize_header_is_400():
+    async def go():
+        daemon = Daemon(build_orchestrator_in_memory(), port=0)
+        await daemon.start()
+        try:
+            raw = b"GET /health HTTP/1.1\r\nX-Big: " + b"a" * 70000 + b"\r\n\r\n"
+            status, _ = await _request(daemon.port, raw)
+            assert status == 400
+        finally:
+            await daemon.stop()
+    asyncio.run(go())
+
+
+def test_conflicting_content_length_is_400():
+    async def go():
+        daemon = Daemon(build_orchestrator_in_memory(), port=0)
+        await daemon.start()
+        try:
+            raw = (
+                b"POST /route HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n"
+                b"Content-Length: 99\r\nConnection: close\r\n\r\nhello"
+            )
+            status, _ = await _request(daemon.port, raw)
+            assert status == 400
+        finally:
+            await daemon.stop()
+    asyncio.run(go())
+
+
+def test_transfer_encoding_is_rejected_400():
+    async def go():
+        daemon = Daemon(build_orchestrator_in_memory(), port=0)
+        await daemon.start()
+        try:
+            raw = (
+                b"POST /route HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n"
+                b"Connection: close\r\n\r\n0\r\n\r\n"
+            )
+            status, _ = await _request(daemon.port, raw)
+            assert status == 400
+        finally:
+            await daemon.stop()
+    asyncio.run(go())
+
+
+def test_truncated_body_times_out_408():
+    async def go():
+        daemon = Daemon(build_orchestrator_in_memory(), port=0, read_timeout=0.5)
+        await daemon.start()
+        try:
+            # advertise 1000 bytes, send only 5, keep the socket open
+            raw = (
+                b"POST /route HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n"
+                b"Connection: close\r\n\r\nhello"
+            )
+            status, _ = await _request(daemon.port, raw)
+            assert status == 408
+        finally:
+            await daemon.stop()
+    asyncio.run(go())
+
+
+def test_negative_content_length_is_400():
+    async def go():
+        daemon = Daemon(build_orchestrator_in_memory(), port=0)
+        await daemon.start()
+        try:
+            raw = (
+                b"POST /route HTTP/1.1\r\nHost: x\r\nContent-Length: -5\r\n"
+                b"Connection: close\r\n\r\n"
+            )
+            status, _ = await _request(daemon.port, raw)
+            assert status == 400
+        finally:
+            await daemon.stop()
+    asyncio.run(go())
+

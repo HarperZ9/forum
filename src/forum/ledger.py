@@ -80,6 +80,7 @@ class Storage(Protocol):
         ...
     def head(self) -> LedgerEntry | None: ...
     def get(self, seq: int) -> LedgerEntry: ...
+    def count(self) -> int: ...
     def put_payload(self, payload_hash: str, body: Any) -> None: ...
     def get_payload(self, payload_hash: str) -> Any: ...
 
@@ -105,6 +106,9 @@ class InMemoryStorage:
         if entry.seq != seq:
             raise KeyError(seq)
         return entry
+
+    def count(self) -> int:
+        return len(self._entries)
 
     def put_payload(self, payload_hash: str, body: Any) -> None:
         self._payloads.setdefault(payload_hash, body)
@@ -178,6 +182,10 @@ class Ledger:
     def get(self, seq: int) -> LedgerEntry:
         """Return the entry at seq, or raise KeyError if absent."""
         return self._s.get(seq)
+
+    def count(self) -> int:
+        """Number of entries in the ledger."""
+        return self._s.count()
 
     def replay(self, until: int | None = None) -> list[LedgerEntry]:
         entries = self._s.all()

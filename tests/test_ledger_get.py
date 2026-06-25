@@ -21,3 +21,11 @@ def test_get_raises_keyerror_when_absent():
     led.append(actor="client", kind="request", payload={"t": "a"})
     with pytest.raises(KeyError):
         led.get(5)
+
+
+def test_count_tracks_entries():
+    led = _ledger()
+    assert led.count() == 0
+    led.append(actor="client", kind="request", payload={"t": "a"})
+    led.append(actor="worker", kind="result", payload={"t": "b"})
+    assert led.count() == 2

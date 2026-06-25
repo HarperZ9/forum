@@ -79,7 +79,6 @@ async def main() -> None:
         _, body = await _request(daemon.port, _get("/status"))
         status = json.loads(body)
         print("status entries   :", status["entries"])
-        print("status verified  :", status["verified"])
 
         _, body = await _request(daemon.port, _get("/verify"))
         print("verify           :", json.loads(body))

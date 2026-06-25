@@ -62,7 +62,6 @@ def test_status_on_fresh_ledger():
     body = _json(resp)
     assert resp.status == 200
     assert body["entries"] == 0
-    assert body["verified"] is True
     assert body["checkpoint"] == "0" * 64
 
 
