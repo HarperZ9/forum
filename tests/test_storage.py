@@ -2,8 +2,21 @@ import dataclasses
 
 import pytest
 
+import forum.storage as storage_mod
 from forum.ledger import InMemoryStorage, Ledger
 from forum.storage import FileStorage, StorageCorruption
+
+
+def _count_fsync(monkeypatch):
+    calls = {"n": 0}
+    real = storage_mod.os.fsync
+
+    def counting(fd):
+        calls["n"] += 1
+        return real(fd)
+
+    monkeypatch.setattr(storage_mod.os, "fsync", counting)
+    return calls
 
 
 def _ledger(storage, n_ticks=50):
@@ -122,6 +135,39 @@ def test_non_serializable_payload_is_rejected_at_store_time(tmp_path):
         led.append(actor="client", kind="request", payload={"bad": {1, 2, 3}})
     # Nothing was half-written: the directory is still a valid empty ledger.
     assert Ledger(FileStorage(str(tmp_path))).replay() == []
+
+
+def test_default_fsyncs_each_append(tmp_path, monkeypatch):
+    calls = _count_fsync(monkeypatch)
+    led = _ledger(FileStorage(str(tmp_path)))  # default fsync_each=True
+    led.append(actor="client", kind="request", payload={"text": "x"})
+    assert calls["n"] >= 1  # the append (entry + payload) was fsynced
+
+
+def test_batched_mode_defers_fsync_until_sync(tmp_path, monkeypatch):
+    calls = _count_fsync(monkeypatch)
+    led = _ledger(FileStorage(str(tmp_path), fsync_each=False))
+    led.append(actor="client", kind="request", payload={"v": 1})
+    led.append(actor="worker", kind="result", payload={"v": 2})
+    assert calls["n"] == 0  # batched: nothing fsynced per append
+    led.sync()
+    assert calls["n"] >= 1  # sync() forces the logs to disk
+
+
+def test_batched_mode_recovers_exactly_after_sync(tmp_path):
+    led = _ledger(FileStorage(str(tmp_path), fsync_each=False))
+    _populate(led)
+    led.sync()
+    reopened = Ledger(FileStorage(str(tmp_path)))
+    assert [e.seq for e in reopened.replay()] == [0, 1, 2]
+    assert reopened.verify(deep=True) is True
+
+
+def test_inmemory_sync_is_a_noop(tmp_path):
+    led = _ledger(InMemoryStorage())
+    _populate(led)
+    led.sync()  # must not raise
+    assert led.verify(deep=True) is True
 
 
 def test_interior_blank_line_raises_storage_corruption(tmp_path):

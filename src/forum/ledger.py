@@ -83,6 +83,9 @@ class Storage(Protocol):
     def count(self) -> int: ...
     def put_payload(self, payload_hash: str, body: Any) -> None: ...
     def get_payload(self, payload_hash: str) -> Any: ...
+    def sync(self) -> None:
+        """Force any buffered writes to durable storage (a no-op for in-memory)."""
+        ...
 
 
 class InMemoryStorage:
@@ -115,6 +118,10 @@ class InMemoryStorage:
 
     def get_payload(self, payload_hash: str) -> Any:
         return self._payloads[payload_hash]
+
+    def sync(self) -> None:
+        """No-op: in-memory storage has nothing to flush to disk."""
+        return None
 
 
 class Ledger:
@@ -190,6 +197,14 @@ class Ledger:
     def count(self) -> int:
         """Number of entries in the ledger."""
         return self._s.count()
+
+    def sync(self) -> None:
+        """Force buffered appends to durable storage.
+
+        A no-op unless the storage batches fsync (FileStorage with
+        fsync_each=False), where it makes the log durable to disk on demand.
+        """
+        self._s.sync()
 
     def replay(self, until: int | None = None) -> list[LedgerEntry]:
         entries = self._s.all()

@@ -156,6 +156,7 @@ def build_orchestrator(
     context_provider: ContextProvider | None = None,
     intent_judge: IntentJudge | None = None,
     verifier: VerifierProvider | None = None,
+    fsync_each: bool = True,
 ) -> Orchestrator:
     """Build an Orchestrator backed by a durable file ledger and the default roster.
 
@@ -164,7 +165,7 @@ def build_orchestrator(
     (an ApiExecutor or a model CLI via SubprocessExecutor) and return 502 under
     EchoExecutor.
     """
-    ledger = Ledger(FileStorage(ledger_dir))
+    ledger = Ledger(FileStorage(ledger_dir, fsync_each=fsync_each))
     return Orchestrator(
         roster or load_default(),
         ledger,
