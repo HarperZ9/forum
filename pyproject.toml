@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "forum-engine"
-version = "0.5.0"
+version = "0.6.0"
 description = "An orchestration engine for AI agents that records every step in a ledger you can verify"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,6 +22,9 @@ Repository = "https://github.com/HarperZ9/forum"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+forum = ["manifests/*.toml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

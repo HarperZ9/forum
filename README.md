@@ -119,7 +119,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.storage`: where the record lives. An in-memory store for tests and short runs, and a durable `FileStorage` (append-only JSONL) so a ledger survives a restart and stays verifiable.
 - `forum.routing`: a router that reads a request, picks a lane, and only falls back to a model when the keywords genuinely can't decide.
 - `forum.plan`: a task graph compiled into parallel waves, with cycles and missing dependencies caught up front.
-- `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load.
+- `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 24 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.api_executor`: how work actually runs. A stub for tests, a `SubprocessExecutor` that runs any command (point it at a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API. A failing task is witnessed, not fatal.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed.
@@ -134,6 +134,7 @@ primitives directly, tamper detection and the Merkle property included.
 - **Done, real executors.** A `SubprocessExecutor` that runs any command (so any CLI, including a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API, both behind the one executor seam. A failing task is witnessed, not fatal.
 - **Done, the control loop.** A Coordinator that turns a plain request into a plan, a Classifier, a Validator that judges each result (a failed task is witnessed, not blessed), and a Synthesizer that writes one answer. `Orchestrator.submit` runs the whole loop, witnessed.
 - **Done, durable storage.** A file-backed `FileStorage` (append-only JSONL) so a ledger outlives the process: it recovers exactly on restart, tolerates a crash-torn final write, and stays tamper-evident.
+- **Done, the default roster.** 24 domain-neutral capability lanes (engineering, graphics, support, research) shipped in the box and loaded with `roster.load_default()`. Plain capability names, every lane keyword-routable.
 - **Next.** An HTTP and MCP daemon, so a whole fleet can run against something larger than a single conversation. Every step still written down, still checkable.
 
 ## Design
