@@ -137,7 +137,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.ledger`: the record. Hash chain, content-addressed bodies, `verify` / `verify(deep=True)`, `replay`, `causal_chain`, Merkle `checkpoint`.
 - `forum.storage`: where the record lives. An in-memory store for tests and short runs, and a durable `FileStorage` (append-only JSONL) so a ledger survives a restart and stays verifiable. It fsyncs every append by default; `fsync_each=False` plus `ledger.sync()` batches that for throughput, with the durability window stated plainly.
 - `forum.routing`: a router that reads a request, picks a lane, and only falls back to a model when the keywords genuinely can't decide.
-- `forum.plan` and `forum.dispatch`: a task graph compiled into parallel waves (cycles and missing dependencies caught up front), with typed edges. A data edge feeds its upstream's witnessed output into the downstream task so it builds on real work; an order edge only sequences. Every edge and every data hand-off is witnessed.
+- `forum.plan` and `forum.dispatch`: a task graph compiled into parallel waves (cycles and missing dependencies caught up front), with typed edges. A data edge feeds its upstream's witnessed output into the downstream task so it builds on real work; an order edge only sequences. Every edge and every data hand-off is witnessed. A run resumes from the ledger, reusing tasks already witnessed as successful and re-running only the rest, and can checkpoint each wave as a savepoint.
 - `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 24 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
@@ -173,7 +173,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.6, the DAG flows data.** Typed edges: a data edge feeds its upstream's witnessed output into the downstream task, an order edge only sequences. Existing plans now flow data downstream instead of dropping it, and every edge and hand-off is witnessed.
 - **1.7, the verification seam.** A VerifierProvider seam, the peer of the context seam, so an external verifier checks the answer after the run, witnessed. The default abstains; Forum stands alone.
 - **1.8, opt-in batched fsync.** A throughput option for the durable ledger: defer the per-append fsync and force it on demand with `ledger.sync()`. The default stays fsync-every-append; the tradeoff is stated plainly.
-- **Beyond.** Phased checkpoints and resume, and a ledger-reading dashboard.
+- **1.9, phased checkpoints and resume.** A run resumes from the witnessed ledger, reusing successful tasks and re-running only the rest; each wave can checkpoint as a savepoint. The ledger is the resume state, no model in the loop.
+- **Beyond.** A ledger-reading dashboard, and a context-management layer: a Forum control-loop utility (budget, refresh, compact-on-limit) composing with an external context-supply brain through the provider seam, peers not one absorbing the other.
 
 ## Docs
 

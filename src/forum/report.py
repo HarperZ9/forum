@@ -70,6 +70,8 @@ def summarize(ledger: Ledger) -> dict:
         "intent_drift_judged": intent_drift_judged,
         "verifications": len(verifications),
         "verifications_refuted": verifications_refuted,
+        "checkpoints": kinds.get("checkpoint", 0),
+        "resumes": kinds.get("resume", 0),
         "escalations": kinds.get("tier_escalation", 0),
         "budget_stops": kinds.get("budget", 0),
         "contexts": kinds.get("context", 0),
@@ -87,6 +89,7 @@ _NUMERIC = (
     "entries", "requests", "plans", "tasks", "task_results", "failed_results",
     "verdicts_pass", "verdicts_fail", "intent_checks", "intent_flagged",
     "intent_judgments", "intent_drift_judged", "verifications", "verifications_refuted",
+    "checkpoints", "resumes",
     "escalations", "budget_stops", "contexts", "answers", "model_calls_total",
 )
 
