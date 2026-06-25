@@ -26,6 +26,10 @@ class VerifierProvider(Protocol):
     verdict it returns. It is the peer of the ContextProvider seam (context in,
     verification out). Return None to abstain, so nothing is witnessed. Forum never
     imports the provider, only this shape.
+
+    verify() runs synchronously inside the run, so keep it fast or offload heavy work
+    yourself: a slow verifier blocks the calling run, and under the daemon the event
+    loop. A verifier that raises is witnessed as could-not-decide, never fatal.
     """
 
     def verify(self, request: str, answer: str) -> Verification | None: ...
