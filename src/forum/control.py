@@ -19,9 +19,11 @@ Request: <<REQUEST>>"""
 class Coordinator:
     """Turn a plain request into a validated task plan, using a model."""
 
-    async def plan(self, request: str, roster: Roster, executor: Executor) -> Plan:
+    async def plan(self, request: str, roster: Roster, executor: Executor, context: str = "") -> Plan:
         names = [a.name for a in roster.agents]
         prompt = _COORDINATOR_PROMPT.replace("<<AGENTS>>", ", ".join(names)).replace("<<REQUEST>>", request)
+        if context:
+            prompt = f"Context (organized knowledge to use):\n{context}\n\n" + prompt
         data = await ask_json(executor, "coordinator", prompt)
         if "tasks" not in data:
             raise ValueError(f"coordinator response missing 'tasks'; got keys {list(data)}")

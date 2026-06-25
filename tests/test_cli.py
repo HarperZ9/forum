@@ -104,3 +104,9 @@ def test_chat_url_flag_parses_for_a_local_model():
     )
     assert args.chat_url.endswith("/v1/chat/completions")
     assert args.model == "llama3"
+
+
+def test_budget_flags_parse():
+    args = build_parser().parse_args(["submit", "do x", "--max-model-calls", "5", "--max-seconds", "30"])
+    assert args.max_model_calls == 5
+    assert args.max_seconds == 30.0

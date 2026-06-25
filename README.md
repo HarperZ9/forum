@@ -142,6 +142,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed.
+- `forum.context` and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), witnessed as the exact context that shaped it; and a `RunBudget` that bounds a run and witnesses where it stopped.
 - `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, and verify or replay the record over HTTP.
 - `forum.mcp_surface`: the same tools over MCP (JSON-RPC on stdio), the lone optional edge. It is a thin adapter over the HTTP surface, so the two can never drift.
 
@@ -161,7 +162,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **Done, the CLI.** A `forum` command: route, submit, serve, mcp, and ledger verify / show / replay / get. Pick a model with `--api` or `--cmd`.
 - **Done, hardened and proven.** Each verdict chains to the result it judged, the routing ladder reaches the Classifier on escalation (`assign` / `submit_one`), and a gated test proves the whole loop against a real model. See [RUNNING.md](RUNNING.md).
 - **1.0.** Durable, verifiable, daemonized, installable, documented. The functional engine is complete.
-- **Beyond.** Streaming results over the daemon, the optional peer-flagship seams (context and verification), and a ledger-reading dashboard.
+- **1.1, the run contract.** A ContextProvider seam (plan on a brain's organized context, witnessed) and a RunBudget that bounds a run. Research-informed.
+- **Beyond.** Witnessed model-tier escalation, typed DAG edges, run summaries and ledger A/B, the verification seam, and a ledger-reading dashboard.
 
 ## Docs
 

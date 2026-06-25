@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import time
+
+from forum.budget import RunBudget
+from forum.context import ContextProvider, NullContextProvider
 from forum.control import Classifier, Coordinator, Synthesizer, Validator
 from forum.dispatch import dispatch_plan
 from forum.executor import Assignment, Executor, Result
@@ -8,6 +12,18 @@ from forum.plan import Plan
 from forum.policy import Policy
 from forum.roster import Roster
 from forum.routing import LexicalRouter, RouteResult, RoutingProvider
+
+
+class _CountingExecutor:
+    """Wraps an executor to count run() invocations against a run's budget."""
+
+    def __init__(self, inner: Executor) -> None:
+        self._inner = inner
+        self.calls = 0
+
+    async def run(self, assignment: Assignment) -> Result:
+        self.calls += 1
+        return await self._inner.run(assignment)
 
 
 class Orchestrator:
@@ -24,11 +40,13 @@ class Orchestrator:
         classifier: Classifier | None = None,
         validator: Validator | None = None,
         synthesizer: Synthesizer | None = None,
+        context_provider: ContextProvider | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
         self.executor = executor
         self.policy = policy
+        self.context_provider = context_provider or NullContextProvider()
         self.router = router or LexicalRouter()
         self.coordinator = coordinator or Coordinator()
         # available for Tier-2 routing escalation; submit() uses the Coordinator's direct assignment
@@ -56,17 +74,40 @@ class Orchestrator:
             parent_seq=request.seq,
         )
 
-    async def submit(self, request: str) -> str:
+    async def submit(self, request: str, *, budget: RunBudget | None = None) -> str:
         """Plan a plain request, run it, validate each result, and answer.
 
-        Every step (request, plan, tasks, results, verdicts, the answer) is
-        appended to the ledger, so the whole run is verifiable afterward.
+        Pulls organized context from the ContextProvider first (witnessed), then
+        plans, dispatches, validates, and synthesizes. A RunBudget bounds the run:
+        when it is exceeded the run stops gracefully, witnesses a budget entry,
+        and stays verifiable. Every step is appended to the ledger.
         """
+        counter = _CountingExecutor(self.executor)
+        start = time.monotonic()
+
+        def over_budget() -> bool:
+            if budget is None:
+                return False
+            if budget.max_model_calls is not None and counter.calls >= budget.max_model_calls:
+                return True
+            if budget.max_seconds is not None and (time.monotonic() - start) >= budget.max_seconds:
+                return True
+            return False
+
         req = self.ledger.append(actor="client", kind="request", payload={"text": request})
-        plan = await self.coordinator.plan(request, self.roster, self.executor)
+        context = self.context_provider.context(request)
+        parent = req.seq
+        if context:
+            # Witness the exact context that shaped the plan, and chain
+            # request -> context -> plan so the provenance is reconstructable.
+            parent = self.ledger.append(
+                actor="context", kind="context", payload={"context": context}, causal_parent=req.seq
+            ).seq
+
+        plan = await self.coordinator.plan(request, self.roster, counter, context=context)
         results = await dispatch_plan(
-            plan, self.ledger, self.executor,
-            max_parallel=self.policy.max_parallel, parent_seq=req.seq,
+            plan, self.ledger, counter,
+            max_parallel=self.policy.max_parallel, parent_seq=parent, over_budget=over_budget,
         )
         for task in plan.tasks:
             result = results.get(task.id)
@@ -74,9 +115,28 @@ class Orchestrator:
                 continue
             # Link the verdict to the specific result entry it judges, so
             # causal_chain(verdict) reconstructs request -> plan -> task -> result -> verdict.
-            parent = result.witnessed_seq if result.witnessed_seq is not None else req.seq
-            await self._witness_verdict(task.id, task.instruction, result, parent)
-        answer = await self.synthesizer.synthesize(request, results, self.executor)
+            vparent = result.witnessed_seq if result.witnessed_seq is not None else req.seq
+            if result.ok and over_budget():
+                # do not spend a model call validating once the budget is gone
+                self.ledger.append(
+                    actor="validator", kind="verdict",
+                    payload={"id": task.id, "ok": False, "score": 0.0, "reason": "budget exceeded"},
+                    causal_parent=vparent,
+                )
+            else:
+                await self._witness_verdict(task.id, task.instruction, result, vparent)
+
+        if over_budget():
+            self.ledger.append(
+                actor="budget", kind="budget",
+                payload={"model_calls": counter.calls, "reason": "run stopped on budget"},
+                causal_parent=req.seq,
+            )
+            answer = "Run stopped: budget exceeded before completion."
+            self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
+            return answer
+
+        answer = await self.synthesizer.synthesize(request, results, counter)
         self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
         return answer
 

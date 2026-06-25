@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0: the witnessed run contract
+
+Research-informed (the agent-loops, second-brain, and model-testing videos): bound the run, and route on organized context.
+
+- **ContextProvider seam**: `submit()` pulls organized context from a `ContextProvider` (the clean seam to a "brain" like the index flagship) before planning, feeds it into the plan, and witnesses the exact context that shaped it (`request -> context -> plan`). The default `NullContextProvider` keeps Forum standing alone, zero-dependency.
+- **RunBudget**: `submit(request, budget=RunBudget(max_model_calls=..., max_seconds=...))` bounds a run. When the budget is spent the run stops gracefully, witnesses a `budget` entry, and stays fully verifiable. On the CLI: `forum submit ... --max-model-calls N --max-seconds S`.
+- Pure standard library, witnessed by design. Remaining research-derived ideas (witnessed model-tier escalation, typed DAG edges, run summaries, drift checks) are on the roadmap.
+
+156 tests, plus 2 gated real-model tests. Contract run in `examples/run_contract.py`.
+
 ## 1.0.0: the engine is complete
 
 Forum is a complete, accountable orchestration engine: durable, verifiable, daemonized, installable, and documented.
