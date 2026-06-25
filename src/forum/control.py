@@ -38,3 +38,31 @@ class Coordinator:
         plan = Plan(tasks)
         plan.schedule()  # raises on a cycle or an unknown dependency
         return plan
+
+
+@dataclass(frozen=True, slots=True)
+class Classification:
+    agent: str
+    confidence: float
+    reason: str
+
+
+_CLASSIFIER_PROMPT = """Pick the single best agent for the task.
+Agents: {agents}.
+Return ONLY JSON of the form:
+{{"agent": "<one of the agents>", "confidence": 0.0, "reason": "..."}}
+
+Task: {task}"""
+
+
+class Classifier:
+    """Pick an agent for a single task when keyword routing cannot decide."""
+
+    async def classify(self, task: str, roster: Roster, executor: Executor) -> Classification:
+        names = [a.name for a in roster.agents]
+        prompt = _CLASSIFIER_PROMPT.format(task=task, agents=", ".join(names))
+        data = await ask_json(executor, "classifier", prompt)
+        agent = str(data["agent"])
+        if agent not in names:
+            raise ValueError(f"classifier chose unknown agent: {agent!r}")
+        return Classification(agent, float(data.get("confidence", 0.0)), str(data.get("reason", "")))
