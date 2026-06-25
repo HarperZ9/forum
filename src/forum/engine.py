@@ -31,6 +31,7 @@ class Orchestrator:
         self.policy = policy
         self.router = router or LexicalRouter()
         self.coordinator = coordinator or Coordinator()
+        # available for Tier-2 routing escalation; submit() uses the Coordinator's direct assignment
         self.classifier = classifier or Classifier()
         self.validator = validator or Validator()
         self.synthesizer = synthesizer or Synthesizer()
@@ -71,10 +72,20 @@ class Orchestrator:
             result = results.get(task.id)
             if result is None:
                 continue
+            if not result.ok:
+                # the task itself failed; witness the failure rather than ask the judge to bless it
+                self.ledger.append(
+                    actor="validator",
+                    kind="verdict",
+                    payload={"id": task.id, "ok": False, "score": 0.0, "reason": "task failed"},
+                    causal_parent=req.seq,
+                )
+                continue
             verdict = await self.validator.validate(task.instruction, result.output, self.executor)
             self.ledger.append(
-                actor="validator", kind="verdict",
-                payload={"id": task.id, "ok": verdict.ok, "score": verdict.score},
+                actor="validator",
+                kind="verdict",
+                payload={"id": task.id, "ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
                 causal_parent=req.seq,
             )
         answer = await self.synthesizer.synthesize(request, results, self.executor)
