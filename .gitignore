@@ -30,6 +30,7 @@ node_modules/
 # --- Forum runtime artifacts ---
 *.ledger.jsonl
 ledger-store/
+forum-ledger/
 logs/
 *.log
 
