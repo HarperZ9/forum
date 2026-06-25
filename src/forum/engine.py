@@ -8,6 +8,7 @@ from forum.context import ContextProvider, NullContextProvider
 from forum.control import Classifier, Coordinator, Synthesizer, Validator
 from forum.dispatch import dispatch_plan
 from forum.executor import Assignment, Executor, Result, executor_id
+from forum.intent import DEFAULT_THRESHOLD, coverage
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 from forum.policy import Policy
@@ -54,11 +55,13 @@ class Orchestrator:
         synthesizer: Synthesizer | None = None,
         context_provider: ContextProvider | None = None,
         escalation_executors: list[Executor] | None = None,
+        intent_threshold: float = DEFAULT_THRESHOLD,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
         self.executor = executor
         self.policy = policy
+        self.intent_threshold = intent_threshold
         self.context_provider = context_provider or NullContextProvider()
         # ordered ladder of stronger executors; a failed task escalates up it (witnessed)
         self.escalation_executors = list(escalation_executors or [])
@@ -183,7 +186,10 @@ class Orchestrator:
             return answer
 
         answer = await self.synthesizer.synthesize(request, results, counter)
-        self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
+        answer_entry = self.ledger.append(
+            actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq
+        )
+        self._witness_intent(request, answer, answer_entry.seq)
         return answer
 
     async def _witness_verdict(
@@ -208,6 +214,27 @@ class Orchestrator:
             causal_parent=parent_seq,
         )
         return verdict.ok
+
+    def _witness_intent(self, request: str, answer: str, parent_seq: int) -> None:
+        """Witness how much of the request's vocabulary the final answer reflects.
+
+        A reproducible lexical coverage signal (forum.intent), recorded as its own
+        entry chained to the answer, so a completed run carries an auditable hint of
+        whether it drifted from what was asked. Each task can pass its own verdict
+        while the run as a whole misses the request; this is the check at that level.
+        It is a floor, not a verdict: it records the signal and never blocks the run.
+        """
+        score, missing = coverage(request, answer)
+        self.ledger.append(
+            actor="intent",
+            kind="intent_check",
+            payload={
+                "coverage": round(score, 4),
+                "flagged": score < self.intent_threshold,
+                "missing": sorted(missing),
+            },
+            causal_parent=parent_seq,
+        )
 
     async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
         """Resolve one task's agent through the routing ladder, witnessed.
