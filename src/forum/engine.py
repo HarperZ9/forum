@@ -15,6 +15,7 @@ from forum.plan import Plan, Task
 from forum.policy import Policy
 from forum.roster import Roster
 from forum.routing import LexicalRouter, RouteResult, RoutingProvider
+from forum.verify import NullVerifier, VerifierProvider
 
 
 class _Meter:
@@ -58,6 +59,7 @@ class Orchestrator:
         escalation_executors: list[Executor] | None = None,
         intent_threshold: float = DEFAULT_THRESHOLD,
         intent_judge: IntentJudge | None = None,
+        verifier: VerifierProvider | None = None,
     ) -> None:
         self.roster = roster
         self.ledger = ledger
@@ -66,6 +68,8 @@ class Orchestrator:
         self.intent_threshold = intent_threshold
         # opt-in: when set, a flagged run escalates from the lexical floor to a model judge
         self.intent_judge = intent_judge
+        # the peer of context: an external verifier checks the answer (default abstains)
+        self.verifier = verifier or NullVerifier()
         self.context_provider = context_provider or NullContextProvider()
         # ordered ladder of stronger executors; a failed task escalates up it (witnessed)
         self.escalation_executors = list(escalation_executors or [])
@@ -196,6 +200,7 @@ class Orchestrator:
             actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq
         )
         await self._witness_intent(request, answer, answer_entry.seq, counter, over_budget)
+        self._witness_verification(request, answer, answer_entry.seq)
         return answer
 
     async def _witness_verdict(
@@ -269,6 +274,26 @@ class Orchestrator:
                 payload=payload,
                 causal_parent=check.seq,
             )
+
+    def _witness_verification(self, request: str, answer: str, parent_seq: int) -> None:
+        """Witness an external verifier's verdict on the answer, if one is configured.
+
+        The peer of context: where a ContextProvider feeds organized knowledge in
+        before the run, a VerifierProvider checks the answer after it. The default
+        NullVerifier abstains (returns None), so Forum stands alone and nothing is
+        witnessed. A verdict is recorded as its own entry chained to the answer; like
+        the intent check it is a witnessed signal and never blocks the run, leaving
+        what to do about a refuted answer to policy.
+        """
+        verification = self.verifier.verify(request, answer)
+        if verification is None:
+            return
+        self.ledger.append(
+            actor="verifier",
+            kind="verification",
+            payload={"ok": verification.ok, "detail": verification.detail, "source": verification.source},
+            causal_parent=parent_seq,
+        )
 
     async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
         """Resolve one task's agent through the routing ladder, witnessed.
