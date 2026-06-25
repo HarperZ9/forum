@@ -64,3 +64,12 @@ class SubprocessExecutor:
         ok = proc.returncode == 0
         text = (out if ok else (err or out)).decode("utf-8", "replace").strip()
         return Result(assignment.task_id, assignment.agent, text, ok=ok)
+
+
+def executor_id(executor) -> str:
+    """A short identity for an executor: its model_id if it exposes one, else its type name.
+
+    Recorded on result entries so the ledger shows which model produced each output
+    (reproducibility, and detecting silent provider/model drift).
+    """
+    return getattr(executor, "model_id", None) or type(executor).__name__

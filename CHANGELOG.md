@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0: witnessed model-tier escalation
+
+Research-informed (arXiv 2026-06): FairTutor's selective escalation cut cost 71.6% at near-premium quality; "Forced Deferral" showed confidence-based cascades are adversarially gameable; "Reliability without Validity" showed single LLM judges are biased. So Forum escalates on a verifiable, witnessed signal, not opaque model confidence.
+
+- **Model identity in the ledger**: every result records the `model` that produced it (the executor's `model_id`, else its type), so a run is reproducible and silent model or provider drift becomes visible.
+- **Witnessed tier-escalation**: give the Orchestrator an ordered ladder of stronger executors (`escalation_executors=[...]`). When a task's witnessed verdict fails, Forum retries it up the ladder, witnessing a `tier_escalation` entry plus a fresh result and verdict, and uses the first passing result. Bounded by the same RunBudget. The trigger is the auditable verdict, not model confidence.
+
+160 tests, plus 2 gated real-model tests. Escalation run in `examples/run_escalation.py`.
+
 ## 1.1.0: the witnessed run contract
 
 Research-informed (the agent-loops, second-brain, and model-testing videos): bound the run, and route on organized context.
