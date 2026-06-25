@@ -81,6 +81,22 @@ python examples/run.py
 It routes a request, runs a three-step plan across agents (with a stub standing in for
 a real model), and verifies the entire run from the ledger at the end.
 
+## From the command line
+
+Installed, Forum gives you a `forum` command:
+
+```bash
+forum route "build the auth endpoint and the database schema"   # which lane, no model needed
+forum submit "ship a login API with docs" --api                 # plan, run, answer (needs ANTHROPIC_API_KEY)
+forum serve --port 8080                                          # the HTTP daemon
+forum mcp                                                        # the MCP stdio server
+forum ledger verify                                              # check the record
+forum ledger show --limit 20                                     # the last 20 entries
+```
+
+`submit`, `serve`, and `mcp` reach a model: pass `--api` (Anthropic API) or `--cmd "<model cli>"`
+(any command, run once per task). Routing and the ledger commands need no model at all.
+
 ## How the ledger works
 
 A log tells you what a program says it did. A ledger lets you prove it. Two old ideas
@@ -139,7 +155,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **Done, the default roster.** 24 domain-neutral capability lanes (engineering, graphics, support, research) shipped in the box and loaded with `roster.load_default()`. Plain capability names, every lane keyword-routable.
 - **Done, the daemon (HTTP).** A stdlib-asyncio HTTP service over one durable ledger: route, plan, submit, and verify or replay the record over HTTP. Every request witnessed into the same record.
 - **Done, the MCP surface.** The same tools over MCP (JSON-RPC on stdio), a thin adapter over the HTTP surface so the two cannot drift. The lone optional edge.
-- **Next.** A `forum` CLI and a published `pip install forum-engine` package.
+- **Done, the CLI.** A `forum` command: route, submit, serve, mcp, and ledger verify / show / replay / get. Pick a model with `--api` or `--cmd`.
+- **Next.** A published `pip install forum-engine` package and the 1.0 release.
 
 ## Design
 
