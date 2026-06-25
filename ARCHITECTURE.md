@@ -137,8 +137,16 @@ different question than the one asked. So after synthesis the Orchestrator witne
 intent check: a deterministic, reproducible measure of how much of the request's
 vocabulary the final answer carries, the terms it missed, and whether that falls below
 a threshold. It is a lexical floor, not a semantic verdict; it records the signal and
-never blocks the run, leaving what to do about drift to policy. A grounded model judge
-is the next rung above this floor.
+never blocks the run, leaving what to do about drift to policy.
+
+The rung above the floor is an opt-in model intent-judge. When the floor flags drift,
+a model reads the request and the answer, is told which request terms the floor found
+missing, and resolves whether the answer truly drifted or merely paraphrased. Its
+verdict is witnessed and chained to the flag it resolves, it runs through the run's
+executor, and it is bounded by the budget. The floor's known weakness is the
+paraphrase: a correct answer that reuses few of the request's words flags anyway, and
+the judge is what clears it. Cheap and certain first, the model only when the floor
+earns it, the same discipline as routing and escalation.
 
 ## Reading the record
 
