@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from forum.control import Classifier, Coordinator, Synthesizer, Validator
 from forum.dispatch import dispatch_plan
-from forum.executor import Executor, Result
+from forum.executor import Assignment, Executor, Result
 from forum.ledger import Ledger
 from forum.plan import Plan
 from forum.policy import Policy
@@ -75,22 +75,82 @@ class Orchestrator:
             # Link the verdict to the specific result entry it judges, so
             # causal_chain(verdict) reconstructs request -> plan -> task -> result -> verdict.
             parent = result.witnessed_seq if result.witnessed_seq is not None else req.seq
-            if not result.ok:
-                # the task itself failed; witness the failure rather than ask the judge to bless it
-                self.ledger.append(
-                    actor="validator",
-                    kind="verdict",
-                    payload={"id": task.id, "ok": False, "score": 0.0, "reason": "task failed"},
-                    causal_parent=parent,
-                )
-                continue
-            verdict = await self.validator.validate(task.instruction, result.output, self.executor)
-            self.ledger.append(
-                actor="validator",
-                kind="verdict",
-                payload={"id": task.id, "ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
-                causal_parent=parent,
-            )
+            await self._witness_verdict(task.id, task.instruction, result, parent)
         answer = await self.synthesizer.synthesize(request, results, self.executor)
         self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
         return answer
+
+    async def _witness_verdict(self, task_id: str, instruction: str, result: Result, parent_seq: int) -> None:
+        if not result.ok:
+            # the task itself failed; witness the failure rather than ask the judge to bless it
+            self.ledger.append(
+                actor="validator",
+                kind="verdict",
+                payload={"id": task_id, "ok": False, "score": 0.0, "reason": "task failed"},
+                causal_parent=parent_seq,
+            )
+            return
+        verdict = await self.validator.validate(instruction, result.output, self.executor)
+        self.ledger.append(
+            actor="validator",
+            kind="verdict",
+            payload={"id": task_id, "ok": verdict.ok, "score": verdict.score, "reason": verdict.reason},
+            causal_parent=parent_seq,
+        )
+
+    async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
+        """Resolve one task's agent through the routing ladder, witnessed.
+
+        Tier-0 lexical routing decides when it can; otherwise it escalates to the
+        Tier-2 Classifier. The route, and any classification, are both recorded.
+        """
+        routed = self.route(task)
+        route_entry = self.ledger.append(
+            actor="router",
+            kind="route",
+            payload={"task": task, "decided": routed.decided, "confidence": routed.confidence},
+            causal_parent=parent_seq,
+        )
+        if routed.decided is not None:
+            return routed.decided
+        classification = await self.classifier.classify(task, self.roster, self.executor)
+        self.ledger.append(
+            actor="classifier",
+            kind="classification",
+            payload={
+                "task": task,
+                "agent": classification.agent,
+                "confidence": classification.confidence,
+                "reason": classification.reason,
+            },
+            causal_parent=route_entry.seq,
+        )
+        return classification.agent
+
+    async def submit_one(self, task: str) -> Result:
+        """Run a single task end to end through the routing ladder, witnessed.
+
+        Picks the agent with assign() (router, then classifier on escalation),
+        runs it, validates the result, and witnesses every step, so a one-off
+        task is as accountable as a planned one.
+        """
+        req = self.ledger.append(actor="client", kind="request", payload={"text": task})
+        agent = await self.assign(task, parent_seq=req.seq)
+        assigned = self.ledger.append(
+            actor="dispatch",
+            kind="task",
+            payload={"id": "T1", "agent": agent, "instruction": task},
+            causal_parent=req.seq,
+        )
+        try:
+            result = await self.executor.run(Assignment("T1", agent, task))
+        except Exception as exc:
+            result = Result("T1", agent, f"error: {exc}", ok=False)
+        result_entry = self.ledger.append(
+            actor=agent,
+            kind="result",
+            payload={"id": "T1", "output": result.output, "ok": result.ok},
+            causal_parent=assigned.seq,
+        )
+        await self._witness_verdict("T1", task, result, result_entry.seq)
+        return result
