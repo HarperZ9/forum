@@ -41,8 +41,8 @@ def summarize(ledger: Ledger) -> dict:
                 model_calls[model] += 1
             if body.get("ok") is False:
                 failed_results += 1
-        elif "answer" in body:
-            answers += 1
+        elif "answer" in body and "revised_from" not in body:
+            answers += 1  # a delivery revision re-states the same answer; do not double-count
 
     verdicts = ledger.query(kind="verdict")
     verdicts_pass = sum(1 for v in verdicts if ledger.get_payload(v.payload_hash).get("ok"))

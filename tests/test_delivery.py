@@ -143,3 +143,40 @@ def test_summary_reports_delivery_and_revisions():
     s = summarize(led)
     assert s["delivery_checks"] == 1 and s["delivery_flagged"] == 1
     assert s["revisions"] == 1 and s["revisions_accepted"] == 1
+
+
+def test_revision_and_verifier_chain_to_the_delivered_answer():
+    from forum.verify import Verification
+
+    class _V:
+        def verify(self, request, answer):
+            return Verification(ok=True, detail="checked", source="v")
+
+    led = _led()
+    answer = asyncio.run(_orch(led, VERBOSE, reviser=_Reviser(REVISED), verifier=_V()).submit(REQUEST))
+    assert answer == REVISED
+    v = led.query(kind="verification")[0]
+    parent = led.get(v.causal_parent)  # verification must chain to the DELIVERED answer
+    assert led.get_payload(parent.payload_hash).get("answer") == REVISED
+
+
+def test_a_longer_or_identical_revision_is_rejected():
+    led = _led()
+    asyncio.run(_orch(led, VERBOSE, reviser=_Reviser(VERBOSE + " plus several more words")).submit(REQUEST))
+    assert led.get_payload(led.query(kind="revision")[0].payload_hash)["accepted"] is False
+    led2 = _led()
+    asyncio.run(_orch(led2, VERBOSE, reviser=_Reviser(VERBOSE)).submit(REQUEST))  # identical: not strictly shorter
+    assert led2.get_payload(led2.query(kind="revision")[0].payload_hash)["accepted"] is False
+
+
+def test_accepted_revision_is_a_result_entry_and_answers_counts_once():
+    led = _led()
+    asyncio.run(_orch(led, VERBOSE, reviser=_Reviser(REVISED)).submit(REQUEST))
+    bodies = [led.get_payload(e.payload_hash) for e in led.query(kind="result")]
+    assert any(b.get("answer") == REVISED for b in bodies)  # the delivered revision is a result entry
+    assert summarize(led)["answers"] == 1                    # but the run still counts one logical answer
+
+
+def test_assess_counts_non_ascii_words():
+    d = assess("café build the relational schema")
+    assert d.words == 5  # unicode-aware tokenization keeps non-ascii words
