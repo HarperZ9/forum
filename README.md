@@ -41,6 +41,19 @@ pieces are still the bricks.
 pip install forum-engine
 ```
 
+## Try it in the field
+
+Forum is the right first test when the hard part is not one model answer, but the route a team of agents took to get there.
+
+- **Doctor / clinical admin:** route a policy or intake review through explicit steps, with uncertainty and reviewer/tool handoffs visible before action.
+- **Artist / studio:** keep a generation pipeline legible: prompt, branch, critique, transform, export gate, and the reason each step happened.
+- **Media / newsroom:** record which agent gathered, checked, edited, or held a claim, then replay the causal path before publishing.
+- **Token economy / routing:** spend model calls only where the ledger shows they buy evidence, coverage, or verification instead of more confident prose.
+
+Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [gather](https://github.com/HarperZ9/gather), [index](https://github.com/HarperZ9/index), [crucible](https://github.com/HarperZ9/crucible), and [the telos engine](https://github.com/HarperZ9/telos).
+
+I am looking for verification, testing against real agent workflows, early traction from people willing to inspect ledgers, and possibly modest grassroots research funding or pointers.
+
 ## Watch it work
 
 ```bash
