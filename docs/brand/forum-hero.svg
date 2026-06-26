@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 520" role="img" aria-label="forum README hero for Project Telos. Route agent work through a ledger you can replay and verify.">
+  <title>forum Project Telos hero</title>
+  <desc>forum README hero for Project Telos. Route agent work through a ledger you can replay and verify.</desc>
+  <rect width="1280" height="520" rx="34" fill="#f4f3ef"/>
+  <path d="M80 96 H1200 M80 424 H1200" stroke="#0b0c0e" stroke-opacity=".14"/>
+  <text x="80" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" letter-spacing="6" fill="#585c64">PROJECT TELOS / WITNESSED AGENT ORCHESTRATION</text>
+  <text x="76" y="334" font-family="Arial Black, Impact, system-ui, sans-serif" font-size="182" letter-spacing="0" fill="#0b0c0e" fill-opacity=".08">FORUM</text>
+  <text font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700" fill="#0b0c0e">
+    <tspan x="84" y="188">Route agent work through a ledger</tspan>
+    <tspan x="84" dy="48">you can replay and verify.</tspan>
+  </text>
+  <text x="86" y="290" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22" fill="#2f3238">ROUTE / PLAN / LEDGER / DEEP VERIFY</text>
+  <g transform="translate(878 78) scale(.70)"><path d="M82 112 C146 70 206 70 270 112 C334 154 394 154 456 112" fill="none" stroke="#0b0c0e" stroke-width="12" stroke-linecap="round"/><path d="M82 214 C146 172 206 172 270 214 C334 256 394 256 456 214" fill="none" stroke="#0b0c0e" stroke-width="12" stroke-linecap="round"/><path d="M118 326 H404" stroke="#4636e8" stroke-width="14" stroke-linecap="round"/><circle cx="178" cy="326" r="18" fill="#f4f3ef" stroke="#0b0c0e" stroke-width="10"/><circle cx="278" cy="326" r="18" fill="#f4f3ef" stroke="#0b0c0e" stroke-width="10"/><circle cx="378" cy="326" r="18" fill="#f4f3ef" stroke="#0b0c0e" stroke-width="10"/></g>
+</svg>
