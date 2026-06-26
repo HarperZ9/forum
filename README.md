@@ -1,9 +1,49 @@
+<p align="center">
+  <img src="docs/brand/forum-hero.svg" alt="Forum, a Project Telos flagship for witnessed agent orchestration">
+</p>
+<!-- Project mark: docs/brand/forum-mark.svg -->
+
 # Forum
+
+> Route agent work through a ledger you can replay and verify.
+
+[Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos)
 
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
 ![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none](https://img.shields.io/badge/deps-none-success.svg)
+
+## Try it
+
+```bash
+pip install forum-engine
+```
+
+```bash
+git clone https://github.com/HarperZ9/forum
+cd forum
+python examples/demo.py
+```
+
+Open the visual ledger replay surface at [`examples/forum-demo.html`](examples/forum-demo.html).
+
+## Why it matters
+
+Agent fleets fail quietly when their route is just output. Forum makes the route the
+artifact: every plan, task, result, and verification step lands in a replayable ledger.
+It gives the people depending on the run something better than confidence: a record
+they can inspect, replay, and challenge.
+
+## Work with it
+
+Forum is the right first test when the hard part is not one model answer, but the route
+a team of agents took to get there. Bring it a clinical intake, newsroom check, studio
+pipeline, due-diligence pass, or token-budget problem where the path matters as much as
+the answer. The most useful next pressure is real use: workflows that need replay,
+verifier feedback, and research support for executor and witness hardening.
+
+## What it does
 
 Every few months there's a new framework for orchestrating AI agents. You wire one
 up, hand it a task, and it works. Then you try to run it for real, and you hit the
@@ -13,8 +53,7 @@ Usually all you've got is a pile of model output and a log you're supposed to tr
 Forum starts from that question. It's an orchestration engine for fleets of agents,
 and the idea underneath it is simple. The record of what happened isn't a side effect
 of the work. It is the work. Every routing decision, every task, every result goes
-into a ledger you can verify, replay, and trace. Think of how a bank reconciles its
-books instead of trusting the teller's memory.
+into a ledger you can verify, replay, and trace.
 
 Here's why it's built this way. A language model has no memory of its own. Each call
 starts from nothing. If you want to build something dependable on top of that, you
@@ -33,26 +72,7 @@ MCP, and a `forum` command. On top of that sit the parts that make a run trustwo
 lean: a bounded budget, witnessed model-tier escalation, a verified intent check, a
 delivery floor that tightens verbose answers without dropping a request's terms, typed
 data-flow between tasks, and clean seams for a peer brain to supply context and an
-external verifier to check the answer. Every routing decision, plan, task, result, and
-verdict goes into a ledger you can verify, replay, and trace. The small zero-dependency
-pieces are still the bricks.
-
-```bash
-pip install forum-engine
-```
-
-## Try it in the field
-
-Forum is the right first test when the hard part is not one model answer, but the route a team of agents took to get there.
-
-- **Doctor / clinical admin:** route a policy or intake review through explicit steps, with uncertainty and reviewer/tool handoffs visible before action.
-- **Artist / studio:** keep a generation pipeline legible: prompt, branch, critique, transform, export gate, and the reason each step happened.
-- **Media / newsroom:** record which agent gathered, checked, edited, or held a claim, then replay the causal path before publishing.
-- **Token economy / routing:** spend model calls only where the ledger shows they buy evidence, coverage, or verification instead of more confident prose.
-
-Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [gather](https://github.com/HarperZ9/gather), [index](https://github.com/HarperZ9/index), [crucible](https://github.com/HarperZ9/crucible), and [the telos engine](https://github.com/HarperZ9/telos).
-
-I am looking for verification, testing against real agent workflows, early traction from people willing to inspect ledgers, and possibly modest grassroots research funding or pointers.
+external verifier to check the answer.
 
 ## Watch it work
 

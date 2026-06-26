@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from forum.engine import Orchestrator
 from forum.executor import Result
@@ -18,6 +19,23 @@ model_tier="capable"
 executor="echo"
 """
 )
+
+
+def test_flagship_brand_assets_exist_and_are_referenced():
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for rel in [
+        "docs/brand/forum-mark.svg",
+        "docs/brand/forum-hero.svg",
+        "examples/forum-demo.html",
+    ]:
+        assert (root / rel).exists(), rel
+        assert rel in readme
+    assert "## Why it matters" in readme
+    assert "## Work with it" in readme
+    demo = (root / "examples/forum-demo.html").read_text(encoding="utf-8")
+    assert "deep verification catches body tampering" in demo
+    assert "Skip to content" in demo
 
 
 class _Exec:
@@ -104,7 +122,7 @@ def test_payload_weight_grows_with_content():
 
 def test_payload_bytes_counts_utf8_bytes_not_codepoints():
     led = _led()
-    led.append(actor="x", kind="result", payload={"id": "T", "output": "字" * 100, "model": "m"})
+    led.append(actor="x", kind="result", payload={"id": "T", "output": "\u5b57" * 100, "model": "m"})
     # the output is 100 codepoints but 300 UTF-8 bytes; payload_bytes must reflect bytes
     assert summarize(led)["payload_bytes"] >= 300
 

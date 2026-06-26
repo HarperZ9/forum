@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "forum-engine"
 version = "1.12.0"
-description = "An orchestration engine for AI agents that records every step in a ledger you can verify"
+description = "Model-agnostic agent orchestration with a replayable, verifiable causal ledger."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
