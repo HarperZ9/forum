@@ -2,12 +2,14 @@ from forum.roster import Roster, load_default
 from forum.routing import LexicalRouter
 
 EXPECTED_CATEGORIES = {"engineering", "graphics", "support", "research"}
+EXPECTED_DEFAULT_ROSTER_SIZE = 25
 
 
 def test_load_default_returns_the_full_roster():
     roster = load_default()
     assert isinstance(roster, Roster)
-    assert len(roster.agents) == 24
+    assert len(roster.agents) == EXPECTED_DEFAULT_ROSTER_SIZE
+    assert roster.by_name("project-telos") is not None
 
 
 def test_default_roster_names_are_unique():
