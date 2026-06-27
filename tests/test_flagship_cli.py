@@ -9,6 +9,7 @@ def test_status_json_is_action_envelope(capsys):
     assert payload["schema"] == "project-telos.flagship-action/v1"
     assert payload["tool"] == "forum"
     assert payload["native"]["role"] == "orchestration-routing"
+    assert "forum.ledger.summary" in payload["native"]["mcp_tools"]
 
 
 def test_doctor_human_prints_next_action(capsys):

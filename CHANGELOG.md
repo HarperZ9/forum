@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Presentation and operator-surface housekeeping for Project Telos parity.
+
+- README: adds the shared current-status block and consistent five-flagship navigation.
+- Status payload: exposes current operator commands, MCP tool names, and the 1.12/25-lane Project Telos roster summary under `native`.
+- Default roster: records the current 25-lane roster with the `project-telos` lane for flagship integration and operator-spine work.
+- MCP tools: records native availability for `forum.status`, `forum.doctor`, `forum.route`, and `forum.ledger.summary` in the Project Telos catalog.
+- CI repair: aligns the default-roster test and public docs with the current 25-lane manifest.
+
 ## 1.12.0: per-task context, fresh context routed to each agent
 
 A run already plans on context from a brain (the ContextProvider seam, v1.1). This release routes that seam down to every task, so each agent in a parallel or looped plan gets up-to-date context tailored to its own work, not one snapshot taken once before planning. This is the Forum-native half of context management: Forum pulls the context fresh, caps it, and witnesses it; the brain (a peer like the index flagship) supplies it; Forum never generates it.

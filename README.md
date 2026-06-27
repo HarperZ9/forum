@@ -7,12 +7,13 @@
 
 > Route agent work through a ledger you can replay and verify.
 
-[Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos)
+[Project Telos](https://harperz9.github.io) | [Gather](https://github.com/HarperZ9/gather) | [Crucible](https://github.com/HarperZ9/crucible) | [Index](https://github.com/HarperZ9/index) | [Forum](https://github.com/HarperZ9/forum) | [Telos](https://github.com/HarperZ9/telos)
 
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
-![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
+![version: 1.12](https://img.shields.io/badge/version-1.12-informational.svg)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none](https://img.shields.io/badge/deps-none-success.svg)
+![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
 
 ## Try it
 
@@ -42,6 +43,12 @@ a team of agents took to get there. Bring it a clinical intake, newsroom check, 
 pipeline, due-diligence pass, or token-budget problem where the path matters as much as
 the answer. The most useful next pressure is real use: workflows that need replay,
 verifier feedback, and research support for executor and witness hardening.
+
+## Current status
+
+- **Release:** `forum-engine 1.12.0`; command `forum`; Python 3.11+; zero third-party runtime dependencies in core.
+- **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, and `forum mcp` expose the Project Telos action envelope and native MCP tools including `forum.route`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`.
+- **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 25-lane default roster including `project-telos`, and preserves every route, task, result, and verification step in the ledger.
 
 ## What it does
 
