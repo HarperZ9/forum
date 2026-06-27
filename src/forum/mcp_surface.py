@@ -35,6 +35,16 @@ _TOOL_ROUTES = {
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
 }
 
+_TOOL_ALIASES = {
+    "forum.submit": "submit",
+    "forum.route": "route",
+    "forum.plan": "plan",
+    "forum.status": "status",
+    "forum.verify": "verify",
+    "forum.ledger.get": "ledger_get",
+    "forum.ledger.summary": "ledger_summary",
+}
+
 _TOOL_SPECS = [
     {
         "name": "submit",
@@ -82,6 +92,29 @@ _TOOL_SPECS = [
             "required": ["seq"],
         },
     },
+    {
+        "name": "forum.submit",
+        "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"request": {"type": "string", "description": "the request to fulfil"}},
+            "required": ["request"],
+        },
+    },
+    {
+        "name": "forum.route",
+        "description": "Score a request against the roster and return the decided lane or escalation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"text": {"type": "string", "description": "the request text to route"}},
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "forum.ledger.summary",
+        "description": "Summarize the witnessed causal ledger into counts, verification, and payload weight.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -95,6 +128,7 @@ class McpSurface:
     """
 
     def __init__(self, orchestrator: Orchestrator) -> None:
+        self._orchestrator = orchestrator
         self._surface = HttpSurface(orchestrator)
 
     async def handle(self, message: dict) -> dict | None:
@@ -120,7 +154,15 @@ class McpSurface:
 
     async def _call_tool(self, mid: Any, params: dict) -> dict:
         name = params.get("name")
-        route = _TOOL_ROUTES.get(name) if isinstance(name, str) else None
+        canonical = _TOOL_ALIASES.get(name, name) if isinstance(name, str) else None
+        if canonical == "ledger_summary":
+            from forum.report import summarize
+
+            return _ok(mid, {
+                "content": [{"type": "text", "text": json.dumps(summarize(self._orchestrator.ledger))}],
+                "isError": False,
+            })
+        route = _TOOL_ROUTES.get(canonical) if isinstance(canonical, str) else None
         if route is None:
             return _err(mid, -32602, f"unknown tool: {name!r}")
         http_method, path, body = route(params.get("arguments") or {})
