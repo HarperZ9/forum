@@ -39,7 +39,8 @@ _TOOL_ALIASES = {
     "forum.submit": "submit",
     "forum.route": "route",
     "forum.plan": "plan",
-    "forum.status": "status",
+    "forum.status": "flagship_status",
+    "forum.doctor": "flagship_doctor",
     "forum.verify": "verify",
     "forum.ledger.get": "ledger_get",
     "forum.ledger.summary": "ledger_summary",
@@ -111,6 +112,16 @@ _TOOL_SPECS = [
         },
     },
     {
+        "name": "forum.status",
+        "description": "Return Forum's Project Telos operator-spine status as a flagship action envelope.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.doctor",
+        "description": "Check Forum's Project Telos operator-spine readiness as a flagship action envelope.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "forum.ledger.summary",
         "description": "Summarize the witnessed causal ledger into counts, verification, and payload weight.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -155,6 +166,14 @@ class McpSurface:
     async def _call_tool(self, mid: Any, params: dict) -> dict:
         name = params.get("name")
         canonical = _TOOL_ALIASES.get(name, name) if isinstance(name, str) else None
+        if canonical in {"flagship_status", "flagship_doctor"}:
+            from forum.flagship import doctor_payload, status_payload
+
+            payload = status_payload() if canonical == "flagship_status" else doctor_payload()
+            return _ok(mid, {
+                "content": [{"type": "text", "text": json.dumps(payload)}],
+                "isError": False,
+            })
         if canonical == "ledger_summary":
             from forum.report import summarize
 
