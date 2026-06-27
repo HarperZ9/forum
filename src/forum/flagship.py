@@ -33,7 +33,18 @@ def _next(tool: str, action: str, reason: str) -> dict:
 def status_payload() -> dict:
     return envelope(
         "status",
-        native={"role": "orchestration-routing", "ledger": "causal-jsonl"},
+        native={
+            "role": "orchestration-routing",
+            "ledger": "causal-jsonl",
+            "operator_commands": ["status", "doctor", "demo", "mcp"],
+            "mcp_tools": [
+                "forum.route",
+                "forum.status",
+                "forum.doctor",
+                "forum.ledger.summary",
+            ],
+            "current_status": "1.12.0 per-task context with 25-lane Project Telos roster and MCP parity",
+        },
         next_actions=[_next("crucible", "assess", "verify the routed claim before public use")],
     )
 
