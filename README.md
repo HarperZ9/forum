@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/brand/forum-hero.svg" alt="Forum, a Project Telos flagship for witnessed agent orchestration">
+  <img src="docs/brand/forum-hero.png" alt="Forum, a Project Telos flagship for witnessed agent orchestration">
 </p>
 <!-- Project mark: docs/brand/forum-mark.svg -->
 
