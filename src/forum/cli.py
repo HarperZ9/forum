@@ -8,6 +8,7 @@ import shlex
 import sys
 
 from forum import __version__
+from forum.flagship import cmd_demo, cmd_doctor, cmd_status
 
 DEFAULT_LEDGER = "forum-ledger"
 
@@ -201,6 +202,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="forum", description="Forum: accountable multi-agent orchestration.")
     parser.add_argument("--version", action="version", version=f"forum {__version__}")
     sub = parser.add_subparsers(dest="command")
+
+    status = sub.add_parser("status", help="emit Forum's Project Telos operator-spine status")
+    status.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    status.set_defaults(func=cmd_status)
+
+    doctor = sub.add_parser("doctor", help="check Forum's operator-spine readiness")
+    doctor.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    doctor.set_defaults(func=cmd_doctor)
+
+    demo = sub.add_parser("demo", help="show Forum's operator-spine demo command")
+    demo.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    demo.set_defaults(func=cmd_demo)
 
     route = sub.add_parser("route", help="route a request to a capability lane (no model needed)")
     route.add_argument("text")

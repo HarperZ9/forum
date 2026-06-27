@@ -158,6 +158,14 @@ model_tier = "capable"
 executor = "cli"
 
 [[agent]]
+name = "project-telos"
+category = "support"
+domain = "Project Telos flagship integration, provenance workflows, and operator-spine work"
+keywords = ["telos", "flagship", "gather", "crucible", "index", "forum", "provenance", "workflow", "spine", "dogfood"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
 name = "data-pipeline"
 category = "support"
 domain = "ETL and data pipelines"
