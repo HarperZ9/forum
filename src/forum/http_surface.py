@@ -19,7 +19,7 @@ _REASONS = {
     502: "Bad Gateway",
 }
 
-_KNOWN_PATHS = {"/health", "/status", "/verify", "/checkpoint", "/route", "/plan", "/submit"}
+_KNOWN_PATHS = {"/health", "/status", "/verify", "/checkpoint", "/route", "/plan", "/submit", "/humanize"}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -79,6 +79,8 @@ class HttpSurface:
             return await self._plan(body)
         if method == "POST" and path == "/submit":
             return await self._submit(body)
+        if method == "POST" and path == "/humanize":
+            return self._humanize(body)
 
         if path in _KNOWN_PATHS or path.startswith("/ledger/") or path.startswith("/replay/"):
             return error(405, f"method {method} not allowed for {path}")
@@ -142,6 +144,24 @@ class HttpSurface:
             "needs_escalation": result.needs_escalation,
             "candidates": [{"agent": c.agent, "score": c.score} for c in result.candidates],
         })
+
+
+    def _humanize(self, body: bytes) -> Response:
+        from forum.humanize import humanize_text
+
+        data, err = self._read_json(body)
+        if err:
+            return err
+        text, err = self._str_field(data, "text")
+        if err:
+            return err
+        audience = data.get("audience", "operator")
+        if not isinstance(audience, str) or not audience:
+            return error(400, "field 'audience' must be a non-empty string when provided")
+        try:
+            return json_response(humanize_text(text, audience=audience))
+        except ValueError as exc:
+            return error(400, str(exc))
 
     async def _plan(self, body: bytes) -> Response:
         data, err = self._read_json(body)

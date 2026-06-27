@@ -30,6 +30,7 @@ _TOOL_ROUTES = {
     "submit": lambda a: ("POST", "/submit", _body({"request": a.get("request", "")})),
     "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
     "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
+    "humanize": lambda a: ("POST", "/humanize", _body({"text": a.get("text", ""), "audience": a.get("audience", "operator")})),
     "status": lambda a: ("GET", "/status", b""),
     "verify": lambda a: ("GET", "/verify", b""),
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
@@ -39,6 +40,7 @@ _TOOL_ALIASES = {
     "forum.submit": "submit",
     "forum.route": "route",
     "forum.plan": "plan",
+    "forum.prose.humanize": "humanize",
     "forum.status": "flagship_status",
     "forum.doctor": "flagship_doctor",
     "forum.verify": "verify",
@@ -108,6 +110,19 @@ _TOOL_SPECS = [
         "inputSchema": {
             "type": "object",
             "properties": {"text": {"type": "string", "description": "the request text to route"}},
+            "required": ["text"],
+        },
+    },
+
+    {
+        "name": "forum.prose.humanize",
+        "description": "Turn stiff model or agent prose into clearer operator-facing wording without adding facts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "agent or model prose to clarify"},
+                "audience": {"type": "string", "description": "target reader label; defaults to operator"},
+            },
             "required": ["text"],
         },
     },

@@ -39,11 +39,12 @@ def status_payload() -> dict:
             "operator_commands": ["status", "doctor", "demo", "mcp"],
             "mcp_tools": [
                 "forum.route",
+                "forum.prose.humanize",
                 "forum.status",
                 "forum.doctor",
                 "forum.ledger.summary",
             ],
-            "current_status": "1.12.0 per-task context with 25-lane Project Telos roster and MCP parity",
+            "current_status": "1.12.0 per-task context with 27-lane Project Telos roster and MCP parity",
         },
         next_actions=[_next("crucible", "assess", "verify the routed claim before public use")],
     )

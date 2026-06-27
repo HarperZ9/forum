@@ -60,7 +60,7 @@ def test_tools_list_has_the_tools():
     resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {t["name"] for t in resp["result"]["tools"]}
     assert {"submit", "route", "plan", "status", "verify", "ledger_get"} <= names
-    assert {"forum.submit", "forum.route", "forum.status", "forum.doctor", "forum.ledger.summary"} <= names
+    assert {"forum.submit", "forum.route", "forum.status", "forum.doctor", "forum.ledger.summary", "forum.prose.humanize"} <= names
     for tool in resp["result"]["tools"]:
         assert tool["inputSchema"]["type"] == "object"
 
@@ -79,6 +79,18 @@ def test_call_prefixed_route_decides_a_lane():
     assert result["isError"] is False
     payload = json.loads(result["content"][0]["text"])
     assert payload["decided"] == "backend"
+
+
+def test_call_prefixed_humanize_simplifies_agent_prose():
+    resp = _call(_mcp(), "forum.prose.humanize", {
+        "text": "As an AI language model, prior to launch utilize the report in order to assist users."
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["schema"] == "forum.prose-humanization/v1"
+    assert payload["output"] == "Before launch use the report to help users."
+    assert "facts were not independently checked" in payload["not_verified"]
 
 
 def test_call_submit_answers_and_witnesses():

@@ -46,3 +46,4 @@ Thumbs.db
 # internal design + SDD process artifacts (local only)
 docs/superpowers/
 .superpowers/
+.warden-safe-cache/

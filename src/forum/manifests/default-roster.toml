@@ -173,6 +173,23 @@ keywords = ["etl", "ingest", "warehouse", "batch", "pipeline"]
 model_tier = "capable"
 executor = "cli"
 
+
+[[agent]]
+name = "function-routing"
+category = "support"
+domain = "Function selection, tool routing, MCP calls, and action decomposition"
+keywords = ["function", "tool", "routing", "dispatch", "mcp"]
+model_tier = "capable"
+executor = "cli"
+
+[[agent]]
+name = "prose-humanization"
+category = "support"
+domain = "Humanizing model and agent prose while preserving the underlying facts"
+keywords = ["humanize", "prose", "tone", "clarity", "copy"]
+model_tier = "cheap"
+executor = "cli"
+
 # --- research ---
 
 [[agent]]
