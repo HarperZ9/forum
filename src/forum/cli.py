@@ -48,6 +48,17 @@ def _open_ledger(directory):
     return Ledger(FileStorage(directory))
 
 
+
+def _cmd_humanize(args) -> int:
+    from forum.humanize import humanize_text
+
+    try:
+        print(json.dumps(humanize_text(args.text, audience=args.audience)))
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    return 0
+
 def _cmd_route(args) -> int:
     from forum.roster import load_default
     from forum.routing import LexicalRouter
@@ -214,6 +225,12 @@ def build_parser() -> argparse.ArgumentParser:
     demo = sub.add_parser("demo", help="show Forum's operator-spine demo command")
     demo.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
     demo.set_defaults(func=cmd_demo)
+
+
+    humanize = sub.add_parser("humanize", help="clarify model or agent prose without adding facts")
+    humanize.add_argument("text")
+    humanize.add_argument("--audience", default="operator")
+    humanize.set_defaults(func=_cmd_humanize)
 
     route = sub.add_parser("route", help="route a request to a capability lane (no model needed)")
     route.add_argument("text")

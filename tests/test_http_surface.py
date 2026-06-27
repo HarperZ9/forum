@@ -167,3 +167,19 @@ def test_submit_with_echo_executor_is_502():
 def test_plan_with_echo_executor_is_502():
     surface, _ = _surface(executor=EchoExecutor())
     assert _do(surface, "POST", "/plan", b'{"request": "design an api"}').status == 502
+
+
+def test_humanize_simplifies_agent_prose():
+    surface, _ = _surface()
+    resp = asyncio.run(
+        surface.dispatch(
+            "POST",
+            "/humanize",
+            b'{"text":"As an AI language model, prior to launch utilize the report in order to assist users."}',
+        )
+    )
+    assert resp.status == 200
+    body = json.loads(resp.body)
+    assert body["schema"] == "forum.prose-humanization/v1"
+    assert body["output"] == "Before launch use the report to help users."
+    assert "facts were not independently checked" in body["not_verified"]

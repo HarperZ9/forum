@@ -47,8 +47,8 @@ verifier feedback, and research support for executor and witness hardening.
 ## Current status
 
 - **Release:** `forum-engine 1.12.0`; command `forum`; Python 3.11+; zero third-party runtime dependencies in core.
-- **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, and `forum mcp` expose the Project Telos action envelope and native MCP tools including `forum.route`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`.
-- **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 25-lane default roster including `project-telos`, and preserves every route, task, result, and verification step in the ledger.
+- **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, and `forum mcp` expose the Project Telos action envelope and native MCP tools including `forum.route`, `forum.prose.humanize`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`.
+- **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 27-lane default roster including `project-telos`, and preserves every route, task, result, and verification step in the ledger.
 
 ## What it does
 
@@ -163,6 +163,7 @@ Install it with `pip install forum-engine` (pure standard library, no dependenci
 
 ```bash
 forum route "build the auth endpoint and the database schema"        # which lane, no model needed
+forum humanize "As an AI language model, utilize this report."     # clearer operator prose, no new facts
 forum submit "ship a login API" --cmd "ollama run llama3"            # plan, run, answer with a local model, no account
 forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3   # the HTTP daemon
 forum mcp --cmd "ollama run llama3"                                  # the MCP stdio server

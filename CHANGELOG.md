@@ -2,13 +2,14 @@
 
 ## Unreleased
 
+- Routing depth: adds `function-routing` and `prose-humanization` lanes plus `forum humanize` / `forum.prose.humanize` for clearer operator-facing model and agent prose without adding facts.
 Presentation and operator-surface housekeeping for Project Telos parity.
 
 - README: adds the shared current-status block and consistent five-flagship navigation.
-- Status payload: exposes current operator commands, MCP tool names, and the 1.12/25-lane Project Telos roster summary under `native`.
-- Default roster: records the current 25-lane roster with the `project-telos` lane for flagship integration and operator-spine work.
-- MCP tools: records native availability for `forum.status`, `forum.doctor`, `forum.route`, and `forum.ledger.summary` in the Project Telos catalog.
-- CI repair: aligns the default-roster test and public docs with the current 25-lane manifest.
+- Status payload: exposes current operator commands, MCP tool names, and the 1.12/27-lane Project Telos roster summary under `native`.
+- Default roster: records the current 27-lane roster with the `project-telos` lane for flagship integration and operator-spine work.
+- MCP tools: records native availability for `forum.status`, `forum.doctor`, `forum.route`, `forum.prose.humanize`, and `forum.ledger.summary` in the Project Telos catalog.
+- CI repair: aligns the default-roster test and public docs with the current 27-lane manifest.
 
 ## 1.12.0: per-task context, fresh context routed to each agent
 
