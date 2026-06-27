@@ -60,7 +60,7 @@ def test_tools_list_has_the_tools():
     resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {t["name"] for t in resp["result"]["tools"]}
     assert {"submit", "route", "plan", "status", "verify", "ledger_get"} <= names
-    assert {"forum.submit", "forum.route", "forum.ledger.summary"} <= names
+    assert {"forum.submit", "forum.route", "forum.status", "forum.doctor", "forum.ledger.summary"} <= names
     for tool in resp["result"]["tools"]:
         assert tool["inputSchema"]["type"] == "object"
 
@@ -98,6 +98,19 @@ def test_call_status_and_verify_after_submit():
     verify = json.loads(_call(surface, "verify")["result"]["content"][0]["text"])
     assert verify == {"chain": True, "deep": True}
 
+
+def test_call_prefixed_status_and_doctor_return_action_envelopes():
+    status = json.loads(_call(_mcp(), "forum.status")["result"]["content"][0]["text"])
+    assert status["schema"] == "project-telos.flagship-action/v1"
+    assert status["tool"] == "forum"
+    assert status["command"] == "status"
+    assert status["native"]["role"] == "orchestration-routing"
+
+    doctor = json.loads(_call(_mcp(), "forum.doctor")["result"]["content"][0]["text"])
+    assert doctor["schema"] == "project-telos.flagship-action/v1"
+    assert doctor["command"] == "doctor"
+    assert doctor["native"]["checks"][0]["status"] == "MATCH"
+    assert doctor["next_actions"][0]["tool"] == "index"
 
 def test_call_prefixed_ledger_summary_after_submit():
     surface = _mcp()
