@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Enterprise readiness: adds `docs/ENTERPRISE-READINESS.md` for context envelopes, action receipts, readability gates, and host-neutral operation.
+
 - Routing depth: adds `function-routing` and `prose-humanization` lanes plus `forum humanize` / `forum.prose.humanize` for clearer operator-facing model and agent prose without adding facts.
 Presentation and operator-surface housekeeping for Project Telos parity.
 

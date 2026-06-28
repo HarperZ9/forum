@@ -50,6 +50,8 @@ verifier feedback, and research support for executor and witness hardening.
 - **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, and `forum mcp` expose the Project Telos action envelope and native MCP tools including `forum.route`, `forum.prose.humanize`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`.
 - **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 27-lane default roster including `project-telos`, and preserves every route, task, result, and verification step in the ledger.
 
+- **Enterprise readiness:** [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md) records the large-context, action-receipt, readability, and host-integration contract for unattended agent workflows.
+
 ## What it does
 
 Every few months there's a new framework for orchestrating AI agents. You wire one
