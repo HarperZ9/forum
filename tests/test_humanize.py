@@ -1,7 +1,7 @@
 import json
 
-from forum.humanize import HUMANIZE_SCHEMA, humanize_text
 from forum.cli import main
+from forum.humanize import HUMANIZE_SCHEMA, humanize_text
 
 
 def test_humanize_text_removes_model_preamble_and_simplifies_phrasing():

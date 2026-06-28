@@ -26,11 +26,12 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     readme = (root / "README.md").read_text(encoding="utf-8")
     for rel in [
         "docs/brand/forum-mark.svg",
-        "docs/brand/forum-hero.svg",
+        "docs/brand/forum-hero.png",
         "examples/forum-demo.html",
     ]:
         assert (root / rel).exists(), rel
         assert rel in readme
+    assert (root / "docs/brand/forum-hero.svg").exists()
     assert "## Why it matters" in readme
     assert "## Work with it" in readme
     demo = (root / "examples/forum-demo.html").read_text(encoding="utf-8")
