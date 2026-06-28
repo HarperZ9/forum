@@ -6,6 +6,17 @@ from forum import __version__
 
 SCHEMA = "project-telos.flagship-action/v1"
 TOOL = "forum"
+TELOS_CONTRACTS = {
+    "host_surfaces": ["CLI JSON", "MCP stdio", "plugins", "IDEs", "TUIs", "apps"],
+    "schemas": [
+        "project-telos.flagship-action/v1",
+        "project-telos.context-envelope/v1",
+        "project-telos.action-receipt/v1",
+    ],
+    "workflow_domains": ["enterprise", "research", "creative", "scientific", "education"],
+    "second_brain_role": "route agents, preserve ledger state, and humanize outputs without adding unsupported facts",
+    "privacy_boundary": "hosts receive receipts, hashes, redacted refs, and verdicts; raw private payloads stay in local adapters",
+}
 
 
 def envelope(command: str, *, status: str = "MATCH", native: dict | None = None,
@@ -45,6 +56,7 @@ def status_payload() -> dict:
                 "forum.ledger.summary",
             ],
             "current_status": "1.12.0 per-task context with 27-lane Project Telos roster and MCP parity",
+            "telos_contracts": TELOS_CONTRACTS,
         },
         next_actions=[_next("crucible", "assess", "verify the routed claim before public use")],
     )
