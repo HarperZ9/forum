@@ -15,6 +15,7 @@ This guide aligns the flagship with Project Telos context envelopes and action r
 - `forum status --json` and `forum doctor --json` for host readiness.
 - `forum route TEXT` before dispatching a worker.
 - `forum submit TEXT --max-model-calls N --max-seconds S` for bounded runs.
+- `forum submit TEXT --json` for answer, checkpoint, and Project Telos action receipt output.
 - `forum ledger verify` and `forum ledger summary --json` for replay and audit.
 - `forum mcp` for stdio MCP hosts.
 
@@ -26,7 +27,7 @@ This guide aligns the flagship with Project Telos context envelopes and action r
 
 ## Action Receipt Contribution
 
-- Action receipts should join to ledger sequence, causal parent, payload hash, model identity, budget state, and verification entry.
+- HTTP `/submit`, MCP `submit` / `forum.submit`, and `forum submit --json` emit `project-telos.action-receipt/v1` receipts that join to ledger sequence, payload hash, model identity, budget state, checkpoint, and verification verdict.
 - Compensation is append-only: a correction or rollback is a new ledger event with a pointer to the action it compensates.
 - Typed stop reasons include budget spent, verifier abstained, policy denied, task failed, and user interruption.
 
@@ -42,6 +43,6 @@ Enterprise agent output should be easier for the next agent and a human reviewer
 
 ## Platform Boundary
 
-The flagship remains usable alone through CLI JSON and as part of a larger surface through MCP. OpenAI, Anthropic, IDE, CLI, TUI, and application hosts should consume the same tool outputs and receipt fields rather than reimplementing flagship behavior.
+The flagship remains usable alone through CLI JSON, HTTP JSON, and as part of a larger surface through MCP. OpenAI, Anthropic, IDE, CLI, TUI, and application hosts should consume the same tool outputs and receipt fields rather than reimplementing flagship behavior.
 
 See Project Telos `project-telos.context-envelope/v1` and `project-telos.action-receipt/v1` for the shared cross-tool contract.

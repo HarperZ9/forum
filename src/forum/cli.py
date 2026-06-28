@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import dataclasses
 import json
+import os
 import shlex
 import sys
 
@@ -37,7 +38,7 @@ def _make_executor(args):
     if cmd:
         from forum.executor import SubprocessExecutor
 
-        return SubprocessExecutor(shlex.split(cmd))
+        return SubprocessExecutor(shlex.split(cmd, posix=os.name != "nt"))
     return None
 
 
@@ -85,23 +86,42 @@ def _cmd_submit(args) -> int:
         return 2
     from forum.budget import RunBudget
     from forum.daemon import build_orchestrator
+    from forum.receipts import submit_receipt
 
     budget = None
+    budget_payload = {}
     if args.max_model_calls is not None or args.max_seconds is not None:
         budget = RunBudget(max_model_calls=args.max_model_calls, max_seconds=args.max_seconds)
+        if args.max_model_calls is not None:
+            budget_payload["max_model_calls"] = args.max_model_calls
+        if args.max_seconds is not None:
+            budget_payload["max_seconds"] = args.max_seconds
     intent_judge = None
     if getattr(args, "judge_intent", False):
         from forum.control import IntentJudge
 
         intent_judge = IntentJudge()
     orch = build_orchestrator(args.ledger, executor=executor, intent_judge=intent_judge)
+    before_seq = orch.ledger.count()
     try:
         answer = asyncio.run(orch.submit(args.request, budget=budget))
     except ValueError as exc:
         print(f"submit failed: {exc}", file=sys.stderr)
         return 1
+    checkpoint = orch.ledger.checkpoint()
+    receipt = submit_receipt(
+        orch.ledger,
+        before_seq=before_seq,
+        request=args.request,
+        answer=answer,
+        executor=executor,
+        budget=budget_payload,
+    )
+    if args.json:
+        print(json.dumps({"answer": answer, "checkpoint": checkpoint, "receipt": receipt}, indent=2))
+        return 0
     print(answer)
-    print(f"checkpoint: {orch.ledger.checkpoint()}", file=sys.stderr)
+    print(f"checkpoint: {checkpoint}", file=sys.stderr)
     return 0
 
 
@@ -241,6 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--max-model-calls", type=int, default=None, help="bound the run to N model calls (witnessed budget)")
     submit.add_argument("--max-seconds", type=float, default=None, help="bound the run to S seconds (best-effort)")
     submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
+    submit.add_argument("--json", action="store_true", help="emit answer, checkpoint, and Project Telos action receipt as JSON")
     _add_ledger(submit)
     _add_executor(submit)
     submit.set_defaults(func=_cmd_submit)

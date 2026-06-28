@@ -95,6 +95,17 @@ def test_submit_answers_and_witnesses():
     assert resp.status == 200
     assert body["answer"] == "Done: the api is designed."
     assert body["checkpoint"] == orch.ledger.checkpoint()
+    receipt = body["receipt"]
+    assert receipt["schema"] == "project-telos.action-receipt/v1"
+    assert receipt["tool"] == "forum"
+    assert receipt["action"] == "submit"
+    assert receipt["action_intent_id"].startswith("sha256:")
+    assert receipt["ledger"]["checkpoint"] == orch.ledger.checkpoint()
+    assert receipt["ledger"]["verified"] is True
+    assert receipt["verification"]["verdict"] == "MATCH"
+    assert receipt["request"]["seq"] == 0
+    assert receipt["answer"]["seq"] >= receipt["request"]["seq"]
+    assert len(receipt["answer"]["payload_hash"]) == 64
     # the run was witnessed and is deep-verifiable
     assert orch.ledger.verify(deep=True) is True
     assert len(orch.ledger.replay()) > 0

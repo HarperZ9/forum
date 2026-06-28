@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from forum.engine import Orchestrator
+from forum.receipts import submit_receipt
 
 MAX_BODY = 1 << 20  # 1 MiB cap on a request body
 
@@ -189,6 +190,7 @@ class HttpSurface:
         request, err = self._str_field(data, "request")
         if err:
             return err
+        before_seq = self._orch.ledger.count()
         try:
             answer = await self._orch.submit(request)
         except ValueError as exc:
@@ -197,4 +199,15 @@ class HttpSurface:
                 "the configured executor did not return valid JSON; point the "
                 f"daemon at a real model executor ({exc})",
             )
-        return json_response({"answer": answer, "checkpoint": self._orch.ledger.checkpoint()})
+        receipt = submit_receipt(
+            self._orch.ledger,
+            before_seq=before_seq,
+            request=request,
+            answer=answer,
+            executor=self._orch.executor,
+        )
+        return json_response({
+            "answer": answer,
+            "checkpoint": self._orch.ledger.checkpoint(),
+            "receipt": receipt,
+        })
