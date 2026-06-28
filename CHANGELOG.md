@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Submit receipts: HTTP `/submit`, MCP `submit` / `forum.submit`, and `forum submit --json` now return a `project-telos.action-receipt/v1` packet with ledger join fields, payload hashes, model identity, checkpoint, budget state, and a verification verdict.
+- CLI compatibility: `forum submit --cmd` now parses commands with Windows-safe rules on Windows, preserving absolute paths for IDE, CLI, and MCP host launches.
+
 - Enterprise readiness: adds `docs/ENTERPRISE-READINESS.md` for context envelopes, action receipts, readability gates, and host-neutral operation.
 
 - Routing depth: adds `function-routing` and `prose-humanization` lanes plus `forum humanize` / `forum.prose.humanize` for clearer operator-facing model and agent prose without adding facts.

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from forum.cli import _cmd_mcp, _cmd_serve, build_parser, main
+from forum.cli import _cmd_mcp, _cmd_serve, _make_executor, build_parser, main
 from forum.ledger import Ledger
 from forum.storage import FileStorage
 
@@ -38,6 +38,36 @@ def test_submit_without_executor_is_guided_error(capsys, tmp_path):
     assert rc == 2
     assert "needs a model executor" in capsys.readouterr().err
 
+
+def test_submit_json_returns_answer_and_receipt(capsys, tmp_path):
+    import sys
+
+    model = tmp_path / "model.py"
+    model.write_text(
+        "import sys\n"
+        "text = sys.argv[1]\n"
+        "if 'You are a planner' in text:\n"
+        "    print('{\"tasks\":[{\"id\":\"T1\",\"agent\":\"backend\",\"instruction\":\"x\",\"depends_on\":[]}]}')\n"
+        "elif 'Judge whether the output satisfies' in text:\n"
+        "    print('{\"ok\":true,\"score\":0.9,\"reason\":\"ok\"}')\n"
+        "elif 'Write the final answer' in text:\n"
+        "    print('Done from cli.')\n"
+        "else:\n"
+        "    print('handled')\n",
+        encoding="utf-8",
+    )
+
+    rc = main([
+        "submit", "design an api", "--ledger", str(tmp_path / "ledger"),
+        "--cmd", f'{sys.executable} {model}', "--json",
+    ])
+    body = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert body["answer"] == "Done from cli."
+    assert body["receipt"]["schema"] == "project-telos.action-receipt/v1"
+    assert body["receipt"]["model"]["id"] == "SubprocessExecutor"
+    assert body["receipt"]["verification"]["verdict"] == "MATCH"
 
 def test_ledger_verify(capsys, tmp_path):
     _seed(str(tmp_path))
@@ -92,6 +122,18 @@ def test_serve_and_mcp_wire_to_their_handlers():
     assert mcp_args.func is _cmd_mcp
     assert mcp_args.ledger == "x"
 
+
+
+def test_cmd_executor_preserves_windows_paths(monkeypatch):
+    import forum.cli as cli
+
+    monkeypatch.setattr(cli.os, "name", "nt")
+    args = build_parser().parse_args([
+        "submit", "do x", "--cmd", r"C:\Tools\model.exe C:\tmp\adapter.py",
+    ])
+    executor = _make_executor(args)
+
+    assert executor._command == [r"C:\Tools\model.exe", r"C:\tmp\adapter.py"]
 
 def test_submit_flags_parse():
     args = build_parser().parse_args(["submit", "do x", "--api", "--model", "claude-opus-4-8"])

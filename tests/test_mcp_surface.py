@@ -100,6 +100,9 @@ def test_call_submit_answers_and_witnesses():
     payload = json.loads(result["content"][0]["text"])
     assert payload["answer"] == "Done."
     assert "checkpoint" in payload
+    assert payload["receipt"]["schema"] == "project-telos.action-receipt/v1"
+    assert payload["receipt"]["ledger"]["verified"] is True
+    assert payload["receipt"]["verification"]["verdict"] == "MATCH"
 
 
 def test_call_status_and_verify_after_submit():
