@@ -145,6 +145,7 @@ and lets each one drive a feature; each maps to something Forum does.
 - **"Model output is a wall of words."** A deterministic delivery floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. (v1.11)
 - **"Memory is a routing problem, and stale facts poison it."** Forum plans and runs on organized context pulled from a brain through a clean seam; building and pruning that knowledge graph is a peer's job (the index flagship), and Forum consumes it, witnessed. (v1.1, v1.12)
 - **"Self-improving agents need a deliberate lane, not a vague escalation."** Bounded model-foundry and daemon work routes to `model-foundry`, where eval-gated promotion, receipt chains, context envelopes, and verifier feedback are first-class dispatch signals.
+- **"Broad Telos work needs a primary room and visible secondary lanes."** Multi-domain flagship requests route to `project-telos` when the umbrella evidence is decisive, while graphics, research, and function-routing candidates remain visible for decomposition.
 
 ## More to run
 

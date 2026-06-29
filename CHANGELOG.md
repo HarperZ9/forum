@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Routing: broad Project Telos operator requests now use a decisive-hit floor so `project-telos` can win when it has enough raw keyword evidence, while secondary lanes such as `render-pipeline`, `deep-research`, and `function-routing` stay visible instead of forcing escalation.
 - Submit receipts: HTTP `/submit`, MCP `submit` / `forum.submit`, and `forum submit --json` now return a `project-telos.action-receipt/v1` packet with ledger join fields, payload hashes, model identity, checkpoint, budget state, and a verification verdict.
 - CLI compatibility: `forum submit --cmd` now parses commands with Windows-safe rules on Windows, preserving absolute paths for IDE, CLI, and MCP host launches.
 

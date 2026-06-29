@@ -63,6 +63,23 @@ def test_model_foundry_requests_route_without_escalation():
     assert result.candidates[0].agent == "model-foundry"
 
 
+def test_broad_project_telos_operator_requests_keep_secondary_lanes_without_escalation():
+    roster = load_default()
+    result = LexicalRouter().score(
+        "Continue improving the five Project Telos flagship tools as protocol agnostic "
+        "enterprise AI workflow tools, with MCP CLI compatibility, accessibility, "
+        "performance, current rendering research, and second brain integration.",
+        roster,
+    )
+    assert result.decided == "project-telos"
+    assert result.needs_escalation is False
+    assert result.confidence >= 0.5
+    assert result.candidates[0].agent == "project-telos"
+    assert {"render-pipeline", "deep-research", "function-routing"} <= {
+        candidate.agent for candidate in result.candidates[:8]
+    }
+
+
 def test_no_persona_names_in_default_roster():
     # Clean-room constraint: plain capability slugs, never the ecosystem
     # persona names.
