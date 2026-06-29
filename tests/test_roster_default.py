@@ -2,7 +2,7 @@ from forum.roster import Roster, load_default
 from forum.routing import LexicalRouter
 
 EXPECTED_CATEGORIES = {"engineering", "graphics", "support", "research"}
-EXPECTED_DEFAULT_ROSTER_SIZE = 27
+EXPECTED_DEFAULT_ROSTER_SIZE = 28
 
 
 def test_load_default_returns_the_full_roster():
@@ -10,6 +10,7 @@ def test_load_default_returns_the_full_roster():
     assert isinstance(roster, Roster)
     assert len(roster.agents) == EXPECTED_DEFAULT_ROSTER_SIZE
     assert roster.by_name("project-telos") is not None
+    assert roster.by_name("model-foundry") is not None
     assert roster.by_name("function-routing") is not None
     assert roster.by_name("prose-humanization") is not None
 
@@ -46,6 +47,20 @@ def test_every_default_lane_routes_to_itself():
         assert result.decided == spec.name, (
             f"{spec.name!r} routed to {result.decided!r} (confidence {result.confidence:.2f})"
         )
+
+
+def test_model_foundry_requests_route_without_escalation():
+    roster = load_default()
+    result = LexicalRouter().score(
+        "Build Telos into a bounded model foundry with a self improving daemon, "
+        "large context second brain, eval gated promotion, MCP native integration, "
+        "and receipt chained agent workflow.",
+        roster,
+    )
+    assert result.decided == "model-foundry"
+    assert result.needs_escalation is False
+    assert result.confidence >= 0.8
+    assert result.candidates[0].agent == "model-foundry"
 
 
 def test_no_persona_names_in_default_roster():

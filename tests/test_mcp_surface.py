@@ -81,6 +81,20 @@ def test_call_prefixed_route_decides_a_lane():
     assert payload["decided"] == "backend"
 
 
+def test_call_prefixed_route_decides_model_foundry_lane():
+    resp = _call(_mcp(), "forum.route", {
+        "text": (
+            "Build a model foundry self improving daemon with context envelopes, "
+            "eval promotion, and receipt chained workflow."
+        )
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["decided"] == "model-foundry"
+    assert payload["needs_escalation"] is False
+
+
 def test_call_prefixed_humanize_simplifies_agent_prose():
     resp = _call(_mcp(), "forum.prose.humanize", {
         "text": "As an AI language model, prior to launch utilize the report in order to assist users."

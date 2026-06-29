@@ -166,6 +166,14 @@ model_tier = "frontier"
 executor = "cli"
 
 [[agent]]
+name = "model-foundry"
+category = "support"
+domain = "Bounded model foundry, self-improving daemon, large-context brain, and eval-gated promotion work"
+keywords = ["foundry", "daemon", "self", "improving", "context", "eval", "promotion", "receipt"]
+model_tier = "frontier"
+executor = "cli"
+
+[[agent]]
 name = "data-pipeline"
 category = "support"
 domain = "ETL and data pipelines"

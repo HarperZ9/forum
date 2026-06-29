@@ -14,7 +14,10 @@ TELOS_CONTRACTS = {
         "project-telos.action-receipt/v1",
     ],
     "workflow_domains": ["enterprise", "research", "creative", "scientific", "education"],
-    "second_brain_role": "route agents, preserve ledger state, and humanize outputs without adding unsupported facts",
+    "second_brain_role": (
+        "route agents, preserve ledger state, route model-foundry daemon work, "
+        "and humanize outputs without adding unsupported facts"
+    ),
     "privacy_boundary": "hosts receive receipts, hashes, redacted refs, and verdicts; raw private payloads stay in local adapters",
 }
 
@@ -55,7 +58,10 @@ def status_payload() -> dict:
                 "forum.doctor",
                 "forum.ledger.summary",
             ],
-            "current_status": "1.12.0 per-task context with 27-lane Project Telos roster and MCP parity",
+            "current_status": (
+                "1.12.0 per-task context with 28-lane Project Telos roster, "
+                "model-foundry daemon routing, and MCP parity"
+            ),
             "telos_contracts": TELOS_CONTRACTS,
         },
         next_actions=[_next("crucible", "assess", "verify the routed claim before public use")],
