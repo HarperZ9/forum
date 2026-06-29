@@ -47,7 +47,7 @@ verifier feedback, and research support for executor and witness hardening.
 ## Current status
 
 - **Release:** `forum-engine 1.12.0`; command `forum`; Python 3.11+; zero third-party runtime dependencies in core.
-- **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, `forum submit --json`, and `forum mcp` expose the Project Telos action envelope, submit receipts, and native MCP tools including `forum.route`, `forum.prose.humanize`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`. The status payload also advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
+- **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, `forum submit --json`, and `forum mcp` expose the Project Telos action envelope, submit receipts, and native MCP tools including `forum.route`, `forum.prose.humanize`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`. The same CLI is available from source checkouts with `python -m forum`. The status payload also advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
 - **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 28-lane default roster including `project-telos` and `model-foundry`, and preserves every route, task, result, and verification step in the ledger.
 
 - **Enterprise readiness:** [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md) records the large-context, action-receipt, readability, and host-integration contract for unattended agent workflows.

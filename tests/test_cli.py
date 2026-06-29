@@ -1,4 +1,8 @@
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +28,22 @@ def test_version_exits_zero(capsys):
         main(["--version"])
     assert exc.value.code == 0
     assert "forum" in capsys.readouterr().out
+
+
+def test_package_module_entrypoint_runs_version():
+    root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "PYTHONPATH": str(root / "src")}
+    result = subprocess.run(
+        [sys.executable, "-m", "forum", "--version"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0
+    assert "forum " in result.stdout
 
 
 def test_route_decides_a_lane(capsys):
