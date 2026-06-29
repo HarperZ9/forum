@@ -7,9 +7,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Build sdist and wheel
@@ -22,7 +24,7 @@ jobs:
           /tmp/v/bin/pip install dist/*.whl
           /tmp/v/bin/forum --version
           /tmp/v/bin/python -c "from forum.roster import load_default; assert len(load_default().agents) == 24"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -30,11 +32,13 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     environment: pypi
     permissions:
       id-token: write   # trusted publishing (OIDC); no API token stored
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: dist
           path: dist/
