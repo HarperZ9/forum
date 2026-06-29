@@ -46,6 +46,23 @@ def test_package_module_entrypoint_runs_version():
     assert "forum " in result.stdout
 
 
+def test_source_checkout_module_entrypoint_runs_without_pythonpath():
+    root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [sys.executable, "-m", "forum", "--version"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "forum " in result.stdout
+
+
 def test_route_decides_a_lane(capsys):
     rc = main(["route", "build the api database server endpoint"])
     assert rc == 0
