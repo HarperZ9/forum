@@ -3,11 +3,11 @@
 </p>
 <!-- Project mark: docs/brand/forum-mark.svg -->
 
-# Forum
+# forum
 
-> Route agent work through a ledger you can replay and verify.
+> Route agent work through a ledger another run can resume.
 
-[Project Telos](https://harperz9.github.io) | [Gather](https://github.com/HarperZ9/gather) | [Crucible](https://github.com/HarperZ9/crucible) | [Index](https://github.com/HarperZ9/index) | [Forum](https://github.com/HarperZ9/forum) | [Telos](https://github.com/HarperZ9/telos)
+[Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos)
 
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
 ![version: 1.12](https://img.shields.io/badge/version-1.12-informational.svg)
@@ -31,14 +31,14 @@ Open the visual ledger replay surface at [`examples/forum-demo.html`](examples/f
 
 ## Why it matters
 
-Agent fleets fail quietly when their route is just output. Forum makes the route the
+Agent fleets fail quietly when their route is just output. forum makes the route the
 artifact: every plan, task, result, and verification step lands in a replayable ledger.
 It gives the people depending on the run something better than confidence: a record
 they can inspect, replay, and challenge.
 
 ## Work with it
 
-Forum is the right first test when the hard part is not one model answer, but the route
+forum is the right first test when the hard part is not one model answer, but the route
 a team of agents took to get there. Bring it a clinical intake, newsroom check, studio
 pipeline, due-diligence pass, or token-budget problem where the path matters as much as
 the answer. The most useful next pressure is real use: workflows that need replay,
@@ -49,6 +49,7 @@ verifier feedback, and research support for executor and witness hardening.
 - **Release:** `forum-engine 1.12.0`; command `forum`; Python 3.11+; zero third-party runtime dependencies in core.
 - **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, `forum submit --json`, and `forum mcp` expose the Project Telos action envelope, submit receipts, and native MCP tools including `forum.route`, `forum.prose.humanize`, `forum.status`, `forum.doctor`, and `forum.ledger.summary`. The same CLI is available from source checkouts with `python -m forum`. The status payload also advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
 - **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 28-lane default roster including `project-telos` and `model-foundry`, and preserves every route, task, result, and verification step in the ledger.
+- **Public role:** routing and loop-state layer for Project Telos: forum turns messy agent work into a ledger with explicit next actions, evidence, and stop conditions.
 
 - **Enterprise readiness:** [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md) records the large-context, action-receipt, readability, and host-integration contract for unattended agent workflows.
 
