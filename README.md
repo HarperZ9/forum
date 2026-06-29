@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/brand/forum-hero.png" alt="Forum, a Project Telos flagship for witnessed agent orchestration">
+  <img src="docs/brand/forum-hero.png" alt="Forum, coordinate agent work with replayable ledgers">
 </p>
 <!-- Project mark: docs/brand/forum-mark.svg -->
 
 # forum
 
-> Route agent work through a ledger another run can resume.
+> Coordinate agents through ledgers a later run can inspect and resume.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos)
 
