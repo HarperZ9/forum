@@ -30,3 +30,14 @@ def test_project_telos_route_lane(capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["decided"] == "project-telos"
     assert payload["needs_escalation"] is False
+
+
+def test_model_foundry_route_lane(capsys):
+    request = (
+        "Build a model foundry self improving daemon with context envelopes, "
+        "eval promotion, and receipt chained workflow."
+    )
+    assert main(["route", request]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["decided"] == "model-foundry"
+    assert payload["needs_escalation"] is False

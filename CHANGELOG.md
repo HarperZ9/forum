@@ -9,13 +9,14 @@
 - Operator surface: the status payload now advertises shared Project Telos CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
 
 - Routing depth: adds `function-routing` and `prose-humanization` lanes plus `forum humanize` / `forum.prose.humanize` for clearer operator-facing model and agent prose without adding facts.
+- Model-foundry routing: adds a `model-foundry` lane so bounded self-improving daemon, large-context brain, eval-gated promotion, and receipt-chained workflow requests route without ambiguous escalation.
 Presentation and operator-surface housekeeping for Project Telos parity.
 
 - README: adds the shared current-status block and consistent five-flagship navigation.
-- Status payload: exposes current operator commands, MCP tool names, and the 1.12/27-lane Project Telos roster summary under `native`.
-- Default roster: records the current 27-lane roster with the `project-telos` lane for flagship integration and operator-spine work.
+- Status payload: exposes current operator commands, MCP tool names, and the 1.12/28-lane Project Telos roster summary under `native`.
+- Default roster: records the current 28-lane roster with the `project-telos` lane for flagship integration and operator-spine work and the `model-foundry` lane for daemon/model workflow.
 - MCP tools: records native availability for `forum.status`, `forum.doctor`, `forum.route`, `forum.prose.humanize`, and `forum.ledger.summary` in the Project Telos catalog.
-- CI repair: aligns the default-roster test and public docs with the current 27-lane manifest.
+- CI repair: aligns the default-roster test and public docs with the current 28-lane manifest.
 
 ## 1.12.0: per-task context, fresh context routed to each agent
 
