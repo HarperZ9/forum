@@ -5,6 +5,9 @@
 - Routing: broad Project Telos operator requests now use a decisive-hit floor so `project-telos` can win when it has enough raw keyword evidence, while secondary lanes such as `render-pipeline`, `deep-research`, and `function-routing` stay visible instead of forcing escalation.
 - Submit receipts: HTTP `/submit`, MCP `submit` / `forum.submit`, and `forum submit --json` now return a `project-telos.action-receipt/v1` packet with ledger join fields, payload hashes, model identity, checkpoint, budget state, and a verification verdict.
 - CLI compatibility: `forum submit --cmd` now parses commands with Windows-safe rules on Windows, preserving absolute paths for IDE, CLI, and MCP host launches.
+- CLI compatibility: `python -m forum` now dispatches the normal Forum CLI, so source checkouts,
+  MCP hosts, IDE harnesses, and automation runners can use the same command surface as the
+  installed `forum` script.
 
 - Enterprise readiness: adds `docs/ENTERPRISE-READINESS.md` for context envelopes, action receipts, readability gates, and host-neutral operation.
 - Operator surface: the status payload now advertises shared Project Telos CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
