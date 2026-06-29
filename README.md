@@ -44,6 +44,12 @@ pipeline, due-diligence pass, or token-budget problem where the path matters as 
 the answer. The most useful next pressure is real use: workflows that need replay,
 verifier feedback, and research support for executor and witness hardening.
 
+## What to test first
+
+- Give forum a task with at least two plausible routes and one explicit stop condition.
+- Inspect whether the ledger preserves the decision, evidence, result, and next action well enough for a fresh run to resume.
+- A strong test is a failure case: missing context, unavailable credentials, bad evidence, or a verifier disagreement should become an explicit blocked or unverifiable route, not a confident answer.
+
 ## Current status
 
 - **Release:** `forum-engine 1.12.0`; command `forum`; Python 3.11+; zero third-party runtime dependencies in core.
