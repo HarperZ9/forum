@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from forum import __version__
 
@@ -85,7 +86,7 @@ def doctor_payload() -> dict:
         if route_result.decided == "project-telos" and not route_result.needs_escalation
         else "DRIFT"
     )
-    checks = [
+    checks: list[dict[str, Any]] = [
         {"name": "default_roster", "status": "MATCH"},
         {"name": "ledger_verification", "status": "MATCH"},
         {"name": "model_agnostic_executor", "status": "MATCH"},
