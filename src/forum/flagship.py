@@ -21,6 +21,13 @@ TELOS_CONTRACTS = {
     "privacy_boundary": "hosts receive receipts, hashes, redacted refs, and verdicts; raw private payloads stay in local adapters",
 }
 
+PRIVATE_LINE_ROUTE_PROBE = (
+    "Continue advancing Seed, Kun, Sofer, ORCA, and behavior-transform.io "
+    "toward private-line flagship state while preserving safe publication "
+    "boundaries, native doctor receipts, CI health, MCP CLI compatibility, "
+    "and enterprise presentation."
+)
+
 
 def envelope(command: str, *, status: str = "MATCH", native: dict | None = None,
              next_actions: list[dict] | None = None,
@@ -69,15 +76,38 @@ def status_payload() -> dict:
 
 
 def doctor_payload() -> dict:
+    from forum.roster import load_default
+    from forum.routing import LexicalRouter
+
+    route_result = LexicalRouter().score(PRIVATE_LINE_ROUTE_PROBE, load_default())
+    route_status = (
+        "MATCH"
+        if route_result.decided == "project-telos" and not route_result.needs_escalation
+        else "DRIFT"
+    )
     checks = [
         {"name": "default_roster", "status": "MATCH"},
         {"name": "ledger_verification", "status": "MATCH"},
         {"name": "model_agnostic_executor", "status": "MATCH"},
+        {
+            "name": "private_line_project_telos_route",
+            "status": route_status,
+            "decided": route_result.decided,
+            "needs_escalation": route_result.needs_escalation,
+            "confidence": route_result.confidence,
+        },
     ]
+    status = "MATCH" if all(check["status"] == "MATCH" for check in checks) else "DRIFT"
+    diagnostics = [] if status == "MATCH" else [{
+        "code": "private_line_route_drift",
+        "message": "private-line flagship request did not route to project-telos",
+    }]
     return envelope(
         "doctor",
+        status=status,
         native={"checks": checks},
         next_actions=[_next("index", "context", "refresh structural context for routing")],
+        diagnostics=diagnostics,
     )
 
 

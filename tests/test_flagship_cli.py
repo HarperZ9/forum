@@ -24,6 +24,14 @@ def test_doctor_human_prints_next_action(capsys):
     assert "next: index context" in out
 
 
+def test_doctor_probes_private_line_project_telos_route(capsys):
+    assert main(["doctor", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    checks = {check["name"]: check for check in payload["native"]["checks"]}
+    assert checks["private_line_project_telos_route"]["status"] == "MATCH"
+    assert checks["private_line_project_telos_route"]["decided"] == "project-telos"
+
+
 def test_project_telos_route_lane(capsys):
     request = "improve Project Telos flagship gather crucible index forum provenance workflow"
     assert main(["route", request]) == 0

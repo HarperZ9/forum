@@ -95,6 +95,22 @@ def test_call_prefixed_route_decides_model_foundry_lane():
     assert payload["needs_escalation"] is False
 
 
+def test_call_prefixed_route_decides_private_line_flagship_lane():
+    resp = _call(_mcp(), "forum.route", {
+        "text": (
+            "Continue advancing Seed, Kun, Sofer, ORCA, and behavior-transform.io "
+            "toward private-line flagship state while preserving safe publication "
+            "boundaries, native doctor receipts, CI health, MCP CLI compatibility, "
+            "and enterprise presentation."
+        )
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["decided"] == "project-telos"
+    assert payload["needs_escalation"] is False
+
+
 def test_call_prefixed_humanize_simplifies_agent_prose():
     resp = _call(_mcp(), "forum.prose.humanize", {
         "text": "As an AI language model, prior to launch utilize the report in order to assist users."
