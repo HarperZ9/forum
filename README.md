@@ -173,7 +173,7 @@ python examples/run_summary.py       # read a run from the ledger, and A/B two r
 Install it with `pip install forum-engine` (pure standard library, no dependencies come with it), and Forum gives you a `forum` command:
 
 ```bash
-forum route "build the auth endpoint and the database schema"        # which lane, no model needed
+forum route --json "build the auth endpoint and the database schema" # which lane, no model needed
 forum humanize "As an AI language model, utilize this report."     # clearer operator prose, no new facts
 forum submit "ship a login API" --cmd "ollama run llama3"            # plan, run, answer with a local model, no account
 forum submit "ship a login API" --cmd "ollama run llama3" --json     # include a Project Telos action receipt

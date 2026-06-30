@@ -70,6 +70,14 @@ def test_route_decides_a_lane(capsys):
     assert payload["decided"] == "backend"
 
 
+def test_route_accepts_json_flag_for_operator_consistency(capsys):
+    rc = main(["route", "build the api database server endpoint", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["decided"] == "backend"
+    assert "candidates" in payload
+
+
 def test_submit_without_executor_is_guided_error(capsys, tmp_path):
     rc = main(["submit", "do something", "--ledger", str(tmp_path)])
     assert rc == 2
