@@ -14,7 +14,7 @@ This guide aligns the flagship with Project Telos context envelopes and action r
 ## Host Commands
 
 - `forum status --json` and `forum doctor --json` for host readiness.
-- `forum route TEXT` before dispatching a worker.
+- `forum route --json TEXT` before dispatching a worker.
 - `forum submit TEXT --max-model-calls N --max-seconds S` for bounded runs.
 - `forum submit TEXT --json` for answer, checkpoint, and Project Telos action receipt output.
 - `forum ledger verify` and `forum ledger summary --json` for replay and audit.

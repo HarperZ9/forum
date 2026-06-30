@@ -254,6 +254,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     route = sub.add_parser("route", help="route a request to a capability lane (no model needed)")
     route.add_argument("text")
+    route.add_argument(
+        "--json",
+        action="store_true",
+        help="accepted for operator-surface consistency; route already emits JSON",
+    )
     route.set_defaults(func=_cmd_route)
 
     submit = sub.add_parser("submit", help="plan and answer a request, witnessed")
