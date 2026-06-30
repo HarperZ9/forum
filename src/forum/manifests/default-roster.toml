@@ -161,7 +161,7 @@ executor = "cli"
 name = "project-telos"
 category = "support"
 domain = "Project Telos flagship integration, provenance workflows, and operator-spine work"
-keywords = ["telos", "flagship", "gather", "crucible", "index", "forum", "provenance", "workflow", "spine", "dogfood"]
+keywords = ["telos", "flagship", "gather", "crucible", "index", "forum", "provenance", "workflow", "spine", "dogfood", "seed", "kun", "sofer", "orca", "behavior", "transform", "private", "line", "enterprise", "presentation", "receipts", "compatibility"]
 model_tier = "frontier"
 executor = "cli"
 
