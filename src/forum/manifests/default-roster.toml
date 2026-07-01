@@ -160,8 +160,8 @@ executor = "cli"
 [[agent]]
 name = "project-telos"
 category = "support"
-domain = "Project Telos flagship integration, provenance workflows, and operator-spine work"
-keywords = ["telos", "flagship", "gather", "crucible", "index", "forum", "provenance", "workflow", "spine", "dogfood", "seed", "kun", "sofer", "orca", "behavior", "transform", "private", "line", "enterprise", "presentation", "receipts", "compatibility"]
+domain = "Project Telos flagship integration, provenance workflows, browser evidence, model council routing, and operator-spine work"
+keywords = ["telos", "flagship", "gather", "crucible", "index", "forum", "provenance", "workflow", "spine", "dogfood", "seed", "kun", "sofer", "orca", "behavior", "transform", "private", "line", "enterprise", "presentation", "receipts", "compatibility", "browser", "evidence", "actuation", "automation", "work", "actuate", "research", "capture", "credential", "logistics", "council", "local", "pipeline", "learn", "assessment"]
 model_tier = "frontier"
 executor = "cli"
 
