@@ -59,6 +59,17 @@ class LexicalRouter:
 
         if top >= self._threshold and (top - second) >= self._margin:
             return RouteResult(candidates, candidates[0].agent, top, False)
+        hit_leaders = sorted(hit_counts.items(), key=lambda item: (-item[1], item[0]))
+        if hit_leaders:
+            hit_agent, hit_total = hit_leaders[0]
+            runner_up_hits = hit_leaders[1][1] if len(hit_leaders) > 1 else 0
+            if (
+                hit_total >= self._decisive_hits
+                and (hit_total - runner_up_hits) >= self._hit_margin
+            ):
+                score = next((candidate.score for candidate in candidates if candidate.agent == hit_agent), 0.0)
+                ordered = tuple(sorted(candidates, key=lambda candidate: (candidate.agent != hit_agent, -candidate.score, candidate.agent)))
+                return RouteResult(ordered, hit_agent, max(score, self._threshold), False)
         if (
             top_hits >= self._decisive_hits
             and (top_hits - second_hits) >= self._hit_margin
