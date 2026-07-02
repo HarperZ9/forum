@@ -38,13 +38,16 @@ def build_run_room(
     tasks = _tasks(payloads, max_text_chars)
     checkpoints = _checkpoints(payloads)
     answer = _answer(payloads, max_text_chars)
+    pending_gates = _pending_gates(ledger)
     signals = _signals(payloads, counts)
+    signals["pending_gates"] = len(pending_gates)
     next_actions = derive_next_actions(
         request=request,
         tasks=tasks,
         checkpoints=checkpoints,
         answer=answer,
         signals=signals,
+        pending_gates=pending_gates,
     )
     room = {
         "schema": RUN_ROOM_SCHEMA,
@@ -105,6 +108,30 @@ def room_text(room: dict) -> str:
                 f"{action.get('label', '')}"
             )
     return "\n".join(lines)
+
+
+def _pending_gates(ledger: Ledger) -> list[dict]:
+    """Unresolved human-in-the-loop gates: gate_pending entries with no decision yet.
+
+    A pending gate means a wave is paused awaiting the operator; the run room
+    surfaces it as a high-priority next action so the operator sees what blocks it.
+    """
+    from forum.gates import gate_resolution
+
+    pending: list[dict] = []
+    for entry in ledger.query(kind="gate_pending"):
+        body = _payload(ledger, entry.payload_hash)
+        run_seq = body.get("run_seq")
+        wave = body.get("wave")
+        if gate_resolution(ledger, run_seq, wave) == "pending":
+            pending.append({
+                "seq": entry.seq,
+                "run_seq": run_seq,
+                "wave": wave,
+                "tasks": list(body.get("tasks") or []),
+                "question": str(body.get("question", "")),
+            })
+    return pending
 
 
 def _room_start(entries: list[LedgerEntry], since_seq: int | None) -> int | None:

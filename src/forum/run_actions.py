@@ -8,15 +8,40 @@ def derive_next_actions(
     checkpoints: list[dict],
     answer: dict | None,
     signals: dict[str, int],
+    pending_gates: list[dict] | None = None,
 ) -> list[dict]:
     if request is None:
         return [_submit_request_action()]
 
     high = _blocking_actions(tasks, checkpoints, answer, signals)
+    high.extend(_gate_actions(pending_gates or []))
     normal = _quality_actions(signals)
     if answer is not None and not high:
         normal.append(_export_action(answer))
     return high + normal
+
+
+def _gate_actions(pending_gates: list[dict]) -> list[dict]:
+    """A high-priority review action per pending human-in-the-loop gate.
+
+    A gate pauses the run until the operator resolves it, so it is a blocking
+    action: nothing downstream runs until it is approved, edited, or rejected.
+    """
+    actions: list[dict] = []
+    for gate in pending_gates:
+        run_seq = gate.get("run_seq")
+        wave = gate.get("wave")
+        actions.append(
+            _action(
+                f"review-gate:{run_seq}:{wave}",
+                "review_gate",
+                "high",
+                f"Review gate on wave {wave}",
+                "a wave is paused awaiting human approval",
+                {"run_seq": run_seq, "wave": wave},
+            )
+        )
+    return actions
 
 
 def _submit_request_action() -> dict:
