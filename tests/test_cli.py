@@ -245,6 +245,65 @@ def test_ledger_summary_json(capsys, tmp_path):
     assert "checkpoint" in out and out["verified"] is True
 
 
+def test_ledger_capsule_json(capsys, tmp_path):
+    _seed(str(tmp_path))
+    rc = main(["ledger", "capsule", "--ledger", str(tmp_path), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["schema"] == "forum.context-capsule/v1"
+    assert payload["checkpoint"]
+    assert payload["verified"] is True
+
+
+def test_ledger_capsule_text(capsys, tmp_path):
+    _seed(str(tmp_path))
+    rc = main(["ledger", "capsule", "--ledger", str(tmp_path), "--text"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Forum context capsule" in out
+    assert "checkpoint:" in out
+
+
+def test_submit_use_capsule_context_witnesses_context(capsys, tmp_path):
+    import sys
+
+    ledger_dir = tmp_path / "ledger"
+    _seed(str(ledger_dir))
+    model = tmp_path / "model.py"
+    model.write_text(
+        "import sys\n"
+        "text = sys.argv[1]\n"
+        "if 'You are a planner' in text:\n"
+        "    assert 'Forum context capsule' in text\n"
+        "    print('{\"tasks\":[{\"id\":\"T1\",\"agent\":\"backend\",\"instruction\":\"x\",\"depends_on\":[]}]}')\n"
+        "elif 'Judge whether the output satisfies' in text:\n"
+        "    print('{\"ok\":true,\"score\":0.9,\"reason\":\"ok\"}')\n"
+        "elif 'Write the final answer' in text:\n"
+        "    print('Done with capsule.')\n"
+        "else:\n"
+        "    print('handled')\n",
+        encoding="utf-8",
+    )
+    rc = main([
+        "submit",
+        "design an api",
+        "--ledger",
+        str(ledger_dir),
+        "--cmd",
+        f"{sys.executable} {model}",
+        "--json",
+        "--use-capsule-context",
+        "--context-token-budget",
+        "1000",
+    ])
+    body = json.loads(capsys.readouterr().out)
+    led = Ledger(FileStorage(str(ledger_dir)))
+    contexts = [led.get_payload(e.payload_hash)["context"] for e in led.query(kind="context")]
+    assert rc == 0
+    assert body["answer"] == "Done with capsule."
+    assert any("Forum context capsule" in context for context in contexts)
+
+
 def test_bench_compares_two_ledgers(capsys, tmp_path):
     a = str(tmp_path / "a")
     b = str(tmp_path / "b")

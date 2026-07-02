@@ -122,6 +122,10 @@ def _cmd_submit(args) -> int:
 
         intent_judge = IntentJudge()
     orch = build_orchestrator(args.ledger, executor=executor, intent_judge=intent_judge)
+    if args.use_capsule_context:
+        from forum.context_capsule import LedgerCapsuleProvider
+
+        orch.context_provider = LedgerCapsuleProvider(orch.ledger)
     before_seq = orch.ledger.count()
     try:
         answer = asyncio.run(
@@ -226,6 +230,21 @@ def _cmd_ledger_summary(args) -> int:
     return 0
 
 
+def _cmd_ledger_capsule(args) -> int:
+    from forum.context_capsule import build_context_capsule, capsule_text
+
+    capsule = build_context_capsule(
+        _open_ledger(args.ledger),
+        max_items=args.max_items,
+        max_text_chars=args.max_text_chars,
+    )
+    if args.text:
+        print(capsule_text(capsule))
+        return 0
+    print(json.dumps(capsule, indent=2))
+    return 0
+
+
 def _cmd_bench(args) -> int:
     from forum.report import compare, summarize
 
@@ -303,6 +322,7 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--request-context-token-budget", type=int, default=None, help="bound request-level context to N approximate tokens")
     submit.add_argument("--task-context-token-budget", type=int, default=None, help="bound each per-task context slice to N approximate tokens")
     submit.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
+    submit.add_argument("--use-capsule-context", action="store_true", help="feed the current ledger's context capsule into the run before planning")
     submit.add_argument("--delivery-profile", default=None, help="delivery profile to witness: operator, engineer, researcher, executive")
     submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
     submit.add_argument("--json", action="store_true", help="emit answer, checkpoint, and Project Telos action receipt as JSON")
@@ -343,6 +363,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ledger(summary)
     summary.add_argument("--json", action="store_true", help="emit the summary as JSON")
     summary.set_defaults(func=_cmd_ledger_summary)
+    capsule = lsub.add_parser("capsule", help="compact the ledger into a reusable context capsule")
+    _add_ledger(capsule)
+    capsule.add_argument("--json", action="store_true", help="emit the capsule as JSON (default)")
+    capsule.add_argument("--text", action="store_true", help="emit prompt-safe capsule text")
+    capsule.add_argument("--max-items", type=int, default=8, help="maximum task result items to include")
+    capsule.add_argument("--max-text-chars", type=int, default=240, help="maximum characters copied from any text field")
+    capsule.set_defaults(func=_cmd_ledger_capsule)
     ledger.set_defaults(func=lambda a: _print_help_rc(ledger))
 
     bench = sub.add_parser("bench", help="compare two ledgers (A/B) by their summaries")
