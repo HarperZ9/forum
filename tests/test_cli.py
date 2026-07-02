@@ -78,6 +78,20 @@ def test_route_accepts_json_flag_for_operator_consistency(capsys):
     assert "candidates" in payload
 
 
+def test_route_includes_human_frame(capsys):
+    rc = main([
+        "route",
+        "build eval gated model promotion for a self improving daemon",
+        "--json",
+    ])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["decided"] == "model-foundry"
+    assert payload["frame"]["schema"] == "forum.route-frame/v1"
+    assert payload["frame"]["posture"] == "architect"
+    assert payload["frame"]["delivery_profile"] == "engineer"
+
+
 def test_submit_without_executor_is_guided_error(capsys, tmp_path):
     rc = main(["submit", "do something", "--ledger", str(tmp_path)])
     assert rc == 2

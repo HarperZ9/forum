@@ -74,6 +74,22 @@ def test_route_decides_a_lane():
     assert body["candidates"][0]["agent"] == "backend"
 
 
+def test_route_includes_human_frame():
+    surface, _ = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/route",
+        b'{"text": "capture browser evidence from a source page with provenance"}',
+    )
+    body = _json(resp)
+    assert resp.status == 200
+    assert body["frame"]["schema"] == "forum.route-frame/v1"
+    assert body["frame"]["domain"] == "evidence"
+    assert body["frame"]["posture"] == "investigator"
+    assert body["frame"]["delivery_profile"] == "researcher"
+
+
 def test_route_requires_text_field():
     surface, _ = _surface()
     assert _do(surface, "POST", "/route", b'{}').status == 400

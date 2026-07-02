@@ -87,6 +87,18 @@ def test_call_prefixed_route_decides_a_lane():
     assert payload["decided"] == "backend"
 
 
+def test_prefixed_route_includes_human_frame():
+    resp = _call(_mcp(), "forum.route", {
+        "text": "build eval gated model promotion for a self improving daemon",
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["frame"]["schema"] == "forum.route-frame/v1"
+    assert payload["frame"]["domain"] == "model-foundry"
+    assert payload["frame"]["posture"] == "architect"
+
+
 def test_call_prefixed_route_decides_model_foundry_lane():
     resp = _call(_mcp(), "forum.route", {
         "text": (
