@@ -13,6 +13,7 @@ from forum.context_budget import (
     pressure_payload,
 )
 from forum.executor import Assignment, Executor, Result, assignment_model_id
+from forum.gates import GatePolicy, gate_edits, gate_resolution
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 
@@ -129,6 +130,7 @@ async def dispatch_plan(
     context_provider: ContextProvider | None = None,
     context_budget: ContextBudget | None = None,
     context_meter: ContextBudgetMeter | None = None,
+    gates: GatePolicy | None = None,
 ) -> dict[str, Result]:
     """Run a plan's waves through the executor, witnessing every step.
 
@@ -153,6 +155,19 @@ async def dispatch_plan(
     ``checkpoint_each_wave=True`` a ``checkpoint`` entry (the Merkle
     root so far) is witnessed and the ledger synced after each wave, a re-checkable
     savepoint and the durability point for batched storage.
+
+    With a ``gates`` GatePolicy, a wave listed in ``gates.gated_waves`` pauses for
+    human approval at its boundary: BEFORE that wave is dispatched, dispatch reads
+    the ledger (a pure query, no callback) for a resolution keyed to
+    (run_seq=plan entry seq, wave). With no decision it appends a ``gate_pending``,
+    syncs, and returns early so the gated wave and everything downstream stay
+    un-run (no result entry for them); the operator resolves the gate via
+    gates.resolve_gate (CLI/HTTP/MCP) and re-invokes with resume=True over the same
+    ledger, which reuses the completed waves and re-reaches the boundary. A
+    ``gate_rejected`` appends a ``gate_stopped`` and returns without running the
+    wave; a ``gate_approved`` / ``gate_edited`` proceeds, an edit rewriting the
+    wave's task instructions first. The gate reads and the gate_pending / gate_stopped
+    appends stay await-free, at the wave boundary, like the checkpoint.
     """
     results: dict[str, Result] = {}
     if context_budget is not None and context_meter is None:
@@ -167,9 +182,15 @@ async def dispatch_plan(
         for t in plan.tasks
         for dep in t.depends_on
     ]
+    prior_plans = ledger.query(kind="plan")
     plan_entry = ledger.append(
         actor="dispatch", kind="plan", payload={"waves": waves, "edges": edges}, causal_parent=parent_seq
     )
+    # run_seq keys gate entries to ONE plan lineage per ledger dir. A resume appends
+    # a fresh plan entry, so the stable key is the earliest plan entry's seq (the
+    # first run), letting a gate resolved against the original run be found again
+    # when the resume re-reaches its boundary. First run: this plan entry itself.
+    run_seq = prior_plans[0].seq if prior_plans else plan_entry.seq
     if completed:
         ledger.append(
             actor="dispatch", kind="resume",
@@ -262,6 +283,53 @@ async def dispatch_plan(
             results[task.id] = dataclasses.replace(result, witnessed_seq=entry.seq)
 
     for i, wave in enumerate(waves):
+        if gates is not None and i in gates.gated_waves:
+            # Gate boundary: read the ledger (pure query, no await) for this wave's
+            # resolution, then decide synchronously. run_seq is stable across resume.
+            resolution = gate_resolution(ledger, run_seq, i)
+            if resolution is None or resolution == "pending":
+                if resolution is None:
+                    # No gate has fired yet: raise one and pause. Guarding on
+                    # resolution is None (matched by run_seq+wave) means a resume
+                    # that re-reaches a still-unresolved gate does not duplicate it.
+                    ledger.append(
+                        actor="dispatch", kind="gate_pending",
+                        payload={
+                            "run_seq": run_seq,
+                            "wave": i,
+                            "tasks": list(wave),
+                            "question": gates.question,
+                            "requested_by": "dispatch",
+                        },
+                        causal_parent=run_seq,
+                    )
+                    ledger.sync()
+                # pending (already raised, awaiting the operator): stop here so the
+                # gated wave and everything downstream stay un-run
+                return results
+            if resolution == "rejected":
+                reject = next(
+                    (
+                        e for e in ledger.query(kind="gate_rejected")
+                        if (body := ledger.get_payload(e.payload_hash)).get("run_seq") == run_seq
+                        and body.get("wave") == i
+                    ),
+                    None,
+                )
+                ledger.append(
+                    actor="dispatch", kind="gate_stopped",
+                    payload={"run_seq": run_seq, "wave": i, "reason": "gate rejected"},
+                    causal_parent=reject.seq if reject is not None else run_seq,
+                )
+                ledger.sync()
+                return results
+            if resolution == "edited":
+                # apply the operator's per-task instruction edits before dispatching
+                edits = gate_edits(ledger, run_seq, i)
+                for tid, instruction in edits.items():
+                    if tid in by_id:
+                        by_id[tid] = dataclasses.replace(by_id[tid], instruction=instruction)
+            # approved / edited: fall through and dispatch the wave
         async with asyncio.TaskGroup() as tg:
             for tid in wave:
                 tg.create_task(run_task(by_id[tid]))

@@ -23,6 +23,7 @@ from forum.executor import (
     assignment_model_id,
     executor_id,
 )
+from forum.gates import GatePolicy
 from forum.intent import DEFAULT_THRESHOLD, coverage
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
@@ -104,16 +105,23 @@ class Orchestrator:
         return self.router.score(text, self.roster)
 
     async def submit_plan(
-        self, plan: Plan, *, resume: bool = False, checkpoint_each_wave: bool = False
+        self,
+        plan: Plan,
+        *,
+        resume: bool = False,
+        checkpoint_each_wave: bool = False,
+        gates: GatePolicy | None = None,
     ) -> dict[str, Result]:
         """Witness the request and run the plan through the witnessed dispatcher.
 
         With ``resume=True`` a known plan picks up where a prior run left off,
         reusing tasks already witnessed as successful (the ledger is the resume
         state). With ``checkpoint_each_wave=True`` each wave boundary is witnessed
-        and synced as a savepoint. Note: plan-level agent/category authorization
-        (policy.permits) is a later concern; today only policy.max_parallel is
-        applied, at dispatch.
+        and synced as a savepoint. With a ``gates`` GatePolicy a gated wave pauses
+        for human approval at its boundary (gate_pending in the ledger); the
+        operator resolves it and re-invokes with resume=True over the same ledger.
+        Note: plan-level agent/category authorization (policy.permits) is a later
+        concern; today only policy.max_parallel is applied, at dispatch.
         """
         request = self.ledger.append(
             actor="client", kind="request", payload={"tasks": [t.id for t in plan.tasks]}
@@ -126,6 +134,7 @@ class Orchestrator:
             parent_seq=request.seq,
             resume=resume,
             checkpoint_each_wave=checkpoint_each_wave,
+            gates=gates,
         )
 
     async def submit(
