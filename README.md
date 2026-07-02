@@ -149,6 +149,7 @@ and lets each one drive a feature; each maps to something Forum does.
 - **"I want to orchestrate my own subscriptions and local models, not a new SaaS."** Zero-dependency, self-hosted, model-agnostic: any command (a local CLI needs no account), any OpenAI-compatible server, or the Anthropic API. The daemon runs on your box. (shipped)
 - **"The loop has no contract, no standing authority."** A run carries a witnessed contract, organized context in and a bounded budget, and the ledger is the standing record of what was agreed and what happened. (v1.1)
 - **"Long loops exhaust the context window with no recovery."** A run checkpoints at wave boundaries and resumes from the witnessed ledger, reusing what already succeeded; injected context is bounded and pulled fresh per task. (v1.9, v1.10, v1.12)
+- **"Large context becomes a hidden bill and a hidden risk."** A `ContextBudget` admits, trims, or omits request context, per-task context, and upstream result injection under approximate-token caps. Every decision is witnessed as `context_budget`, so a run can prove what context shaped it and what was left out. (v1.13)
 - **"Model output is a wall of words."** A deterministic delivery floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. (v1.11)
 - **"Memory is a routing problem, and stale facts poison it."** Forum plans and runs on organized context pulled from a brain through a clean seam; building and pruning that knowledge graph is a peer's job (the index flagship), and Forum consumes it, witnessed. (v1.1, v1.12)
 - **"Self-improving agents need a deliberate lane, not a vague escalation."** Bounded model-foundry and daemon work routes to `model-foundry`, where eval-gated promotion, receipt chains, context envelopes, and verifier feedback are first-class dispatch signals.
@@ -165,6 +166,7 @@ python examples/run_intent_judge.py  # the intent ladder: a lexical drift floor,
 python examples/run_delivery.py      # a verbose answer is tightened, accepted only if it stays covered
 python examples/run_resume.py        # a crashed run resumes from the ledger, reusing what succeeded
 python examples/run_efficiency.py    # bounded prompts and a weighed record
+python examples/run_context_pressure.py # witnessed approximate-token context budgets
 python examples/run_summary.py       # read a run from the ledger, and A/B two runs with forum bench
 ```
 
@@ -232,7 +234,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
 - `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed, and HTTP, MCP, and `forum submit --json` return a `project-telos.action-receipt/v1` packet that joins the answer to ledger sequence, payload hash, model identity, checkpoint, and verification verdict.
-- `forum.context` and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), and routes fresh task-specific context to each agent at dispatch, witnessed as the exact context that shaped each step; and a `RunBudget` that bounds a run and witnesses where it stopped.
+- `forum.context`, `forum.context_budget`, and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), and routes fresh task-specific context to each agent at dispatch, witnessed as the exact context that shaped each step; a `ContextBudget` that admits, trims, or omits request context, per-task context, and upstream injection under approximate-token caps; and a `RunBudget` that bounds a run and witnesses where it stopped.
 - `forum.verify`: the verification seam. A `VerifierProvider` lets an external verifier (a peer flagship, a proof-checker, a test runner) check the answer Forum produced, and the verdict is witnessed. The peer of the context seam: context flows in before the run, verification comes back after it. The default abstains, so Forum stands alone.
 - `forum.delivery`: how the answer reads. A deterministic floor (`assess`) measures concision (sentence length, filler) and flags a dense answer, witnessed every run; an opt-in `Reviser` seam tightens a flagged answer, and Forum accepts the tighter version only if it still covers the request. The floor stands alone; the reviser is the model rung, verified before it replaces the answer.
 - `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, and verify or replay the record over HTTP.
@@ -268,7 +270,8 @@ primitives directly, tamper detection and the Merkle property included.
 - **1.10, efficiency.** Bounded upstream injection (cap the prompt, keep the full output in the ledger) and a weighed record (`payload_bytes`) so a leaner run is provable in `forum bench`.
 - **1.11, the delivery ladder.** A deterministic concision floor on the answer, and an opt-in verified tightening: a reviser shortens a flagged answer, accepted only if it stays covered. Less word-dense, no request term dropped.
 - **1.12, per-task context.** The ContextProvider seam routed to every task: each agent gets fresh, task-specific context at dispatch, capped and witnessed. The Forum-native half of context management, composing with a brain through the seam.
-- **Beyond.** A ledger-reading dashboard; deeper context management (a context budget and compact-on-limit, composing with the brain); and the code-readability half of the quality contract (the concision half shipped in 1.11), peers not one absorbing the other.
+- **1.13, context pressure.** Deterministic approximate-token budgets for request context, per-task context, and upstream injection, with retained/trimmed/omitted decisions witnessed and summarized.
+- **Beyond.** A ledger-reading dashboard; compact-on-limit with the brain; platform execution rooms; advanced local model endpoints; and the code-readability half of the quality contract (the concision half shipped in 1.11), peers not one absorbing the other.
 
 ## Docs
 
