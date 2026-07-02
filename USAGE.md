@@ -32,6 +32,7 @@ python examples/demo.py
 python examples/run_request.py
 python examples/run_resume.py
 python examples/run_context_pressure.py
+python examples/run_delivery_profile.py
 ```
 
 ## Context Pressure
@@ -45,6 +46,18 @@ Forum treats these as approximate tokens using the same 4 bytes/token accounting
 by Index context envelopes. The ledger records `context_budget` entries for retained,
 trimmed, and omitted context, and `forum ledger summary --json` reports original,
 admitted, and saved context tokens.
+
+## Expert Delivery Profiles
+
+```bash
+forum humanize "Prior to launch, utilize the module test output." --profile engineer
+forum submit "ship the api" --cmd "ollama run llama3" --delivery-profile engineer --json
+```
+
+Profiles are deterministic checks, not named-writer mimicry. `operator` is the default
+contract; `engineer`, `researcher`, and `executive` add domain-specific expectations.
+Submit runs witness `delivery_profile_check` entries, and `forum ledger summary --json`
+reports profile checks and flags.
 
 ## MCP
 

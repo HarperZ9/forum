@@ -195,6 +195,13 @@ reviser the peer of the verifier seam, and the default abstains. This is the ver
 quality ladder applied to delivery: measure deterministically, let the model improve
 only when the floor flags, and accept its work only when a check confirms it.
 
+Expert Delivery Profiles add a second deterministic floor beside concision. A selected
+profile (`operator`, `engineer`, `researcher`, or `executive`) checks the delivered
+answer for model tells, indirect openings, filler, domain evidence language, and
+profile-specific shape. The check is witnessed as `delivery_profile_check`; it does not
+rewrite facts and it does not fail the run. It gives the operator a local, replayable
+contract for how the answer was delivered.
+
 ## Reading the record
 
 A record you cannot read is only half of accountability. `forum.report` closes
