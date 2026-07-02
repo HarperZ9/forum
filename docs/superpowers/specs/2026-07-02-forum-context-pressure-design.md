@@ -29,6 +29,15 @@ larger frontier calls only when it spends context deliberately: small routed pac
 fresh task-specific context, ledger joins, and explicit omission records instead of
 whole-workspace prompt dumps.
 
+The external benchmark has also moved. OpenClacky publicly positions itself around
+token efficiency, BYOK model routing, a compact core tool set, skill evolution,
+multi-session web UI, plugin/skill extension work, IM integrations, and multimedia
+model support. Forum's target is broader: not only a harness, but the Project Telos
+user platform and execution layer. Context Pressure is the first platform-grade control
+because every later feature - skills, councils, local model endpoints, multimedia
+orchestration, and research-driven execution - depends on knowing what context was
+admitted, what was omitted, and what every task actually saw.
+
 ## 2. Scope
 
 This release adds a deterministic context-pressure layer. It does not train models,
@@ -182,8 +191,9 @@ admitted slice is stored in the normal `context` or prompt path.
 Python API:
 
 - `Orchestrator.submit(request, budget=None, context_budget=None)`
-- `dispatch_plan(..., context_budget=None)`
-- `build_orchestrator(...)` accepts no new required argument.
+- `dispatch_plan(plan, ledger, executor, *, context_budget=None, context_meter=None)`
+- `build_orchestrator` keeps its existing required arguments and accepts no new
+  required argument.
 
 CLI:
 
@@ -198,7 +208,7 @@ HTTP:
 
 ```json
 {
-  "request": "...",
+  "request": "ship the login api",
   "context_token_budget": 4000,
   "request_context_token_budget": 1000,
   "task_context_token_budget": 800,
@@ -235,9 +245,9 @@ run carried less context pressure while preserving verification.
 - Negative budgets raise `ValueError` at construction or parser time.
 - `bytes_per_token` must be positive.
 - Budgeting never raises because text is too large; it trims or omits.
-- A context provider exception keeps the existing behavior: the caller path witnesses
-  failure where appropriate and does not turn omitted provider output into invented
-  context.
+- A context provider exception keeps the existing behavior: the dispatcher or
+  orchestrator records the same failure path it records today and does not turn omitted
+  provider output into invented context.
 - If total budget is exhausted, later context slices are omitted with
   `reason=max_total_tokens`; the run can still proceed without that context.
 
@@ -305,3 +315,9 @@ the next milestones can build on a stronger base:
   copied wholesale;
 - Telos action receipts can show not just what was done, but what context was allowed
   to shape the work.
+
+The next specs after this one should treat Forum as the Project Telos platform shell:
+multi-session run rooms, plugin and skill packaging, model endpoint routing, local
+advanced-model service integration, artifact/media task lanes, and operator-facing prose
+profiles. Those are intentionally downstream from Context Pressure so they inherit a
+measured, witnessed context contract instead of becoming another prompt-heavy harness.
