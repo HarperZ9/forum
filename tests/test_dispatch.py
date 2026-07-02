@@ -491,3 +491,35 @@ def test_upstream_context_budget_trims_prompt_but_keeps_full_result():
         if ledger.get_payload(e.payload_hash).get("id") == "T1"
     )
     assert t1_result["output"] == "x" * 10000
+
+
+def test_dispatch_records_selected_tier_model_identity():
+    from forum.executor import Result
+    from forum.roster import load_default
+    from forum.runtime import TieredExecutor
+
+    class _Named:
+        def __init__(self, model_id):
+            self.model_id = model_id
+
+        async def run(self, assignment):
+            return Result(assignment.task_id, assignment.agent, assignment.instruction)
+
+    ledger = make_ledger()
+    plan = Plan((
+        Task("T1", "backend", "build", ()),
+        Task("T2", "technical-writing", "docs", ()),
+    ))
+    executor = TieredExecutor(
+        load_default(),
+        _Named("default-local"),
+        tiers={"capable": _Named("capable-local"), "cheap": _Named("cheap-local")},
+    )
+
+    asyncio.run(dispatch_plan(plan, ledger, executor, max_parallel=2))
+
+    models = {
+        body["id"]: body["model"]
+        for body in (ledger.get_payload(e.payload_hash) for e in ledger.query(kind="result"))
+    }
+    assert models == {"T1": "capable-local", "T2": "cheap-local"}

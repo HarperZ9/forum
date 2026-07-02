@@ -186,6 +186,7 @@ forum humanize "As an AI language model, utilize this report."     # clearer ope
 forum ledger capsule --json                                        # compact the ledger into reusable context
 forum ledger room --json                                           # latest run as an operator room snapshot
 forum submit "ship a login API" --cmd "ollama run llama3"            # plan, run, answer with a local model, no account
+forum submit "ship a login API" --cmd "ollama run llama3" --cheap-cmd "ollama run phi3" --capable-cmd "ollama run llama3" --frontier-cmd "ollama run qwen2.5-coder" # route task agents by roster tier
 forum submit "ship a login API" --cmd "ollama run llama3" --use-capsule-context # use prior ledger state as bounded context
 forum submit "ship a login API" --cmd "ollama run llama3" --checkpoint-each-wave # witness phase savepoints
 forum submit "ship a login API" --cmd "ollama run llama3" --json     # include a Project Telos action receipt
@@ -198,8 +199,10 @@ forum ledger show --limit 20                                         # the last 
 `submit`, `serve`, and `mcp` reach a model, and Forum is model-agnostic about which.
 `--cmd "<any command>"` runs any model (a local CLI needs no account), `--chat-url`
 talks to any OpenAI-compatible server (local or cloud), and `--api` is one specific
-provider (Anthropic). Routing and the ledger commands need no model at all. See
-[RUNNING.md](RUNNING.md).
+provider (Anthropic). Add `--cheap-cmd`, `--capable-cmd`, or `--frontier-cmd` to
+route task agents to different local commands by the roster's model tier while
+`--cmd` remains the control/default executor. Routing and the ledger commands need
+no model at all. See [RUNNING.md](RUNNING.md).
 
 ## How the ledger works
 
@@ -244,7 +247,7 @@ quieter treatment: a reordered file still loads, and `verify()` still says no.
 - `forum.plan` and `forum.dispatch`: a task graph compiled into parallel waves (cycles and missing dependencies caught up front), with typed edges and optional task-level `done_when` criteria. A data edge feeds its upstream's witnessed output into the downstream task so it builds on real work; an order edge only sequences. Every edge, data hand-off, and structured done criterion is witnessed. A run resumes from the ledger, reusing tasks already witnessed as successful and re-running only the rest, and can checkpoint each wave as a savepoint. Injected upstream output is capped to keep prompts bounded, with the full output kept in the ledger.
 - `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 28 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
 - `forum.policy`: the rules of the room. Which work can run, and how much at once.
-- `forum.executor` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
+- `forum.executor` / `forum.runtime` / `forum.chat_executor` / `forum.api_executor`: how work actually runs, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `TieredExecutor` that routes task agents to cheap/capable/frontier executors from roster policy, a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
 - `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed; `checkpoint_each_wave` leaves phase savepoints during normal submit runs; and HTTP, MCP, and `forum submit --json` return a `project-telos.action-receipt/v1` packet that joins the answer to ledger sequence, payload hash, model identity, checkpoint, and verification verdict.
 - `forum.context`, `forum.context_budget`, and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), and routes fresh task-specific context to each agent at dispatch, witnessed as the exact context that shaped each step; a `ContextBudget` that admits, trims, or omits request context, per-task context, upstream injection, and final synthesis result inputs under approximate-token caps; and a `RunBudget` that bounds a run and witnesses where it stopped.
 - `forum.context_capsule`: compact run memory. It reads the witnessed ledger and produces a deterministic `forum.context-capsule/v1` brief with latest request, latest answer, task results, quality signals, checkpoint, and verification state. A `LedgerCapsuleProvider` feeds that brief back through the existing context seam, so a later run gets compact memory without raw ledger replay.

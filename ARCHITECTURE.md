@@ -116,6 +116,16 @@ improvements can train or evaluate against the exact contract the run carried.
 - Plan compiles a task graph into ordered waves you can run in parallel (Kahn's layering), and refuses anything with a cycle or a missing dependency up front. Its edges are typed: a data edge feeds the upstream's witnessed output into the downstream task so it builds on real work, while an order edge only sequences. Both constrain scheduling; the dispatcher records per task which upstreams it consumed (`data_from`), and the plan entry records every typed edge, so the data flow is in the ledger, not just the wiring. A task may also carry `done_when` criteria: the worker sees them in the task contract, the task entry witnesses them as structured data, and validation judges against the same criteria. Injected upstream output is capped so a deep plan cannot grow prompts without bound; the full output stays in the ledger, so only the prompt shrinks, not the record. A run is resumable from that record: re-dispatched with `resume=True` it reuses every task already witnessed as successful and re-runs only the rest, and it can checkpoint each wave as a re-checkable savepoint. The ledger is the resume state, so recovery reuses verified work rather than regenerating it with a model.
 - Policy is the rule of the room: which categories of work may run, and how many at a time.
 
+`forum.runtime.TieredExecutor` is the first executable consumer of that roster
+policy. It wraps the existing executor seam and, for task agents that appear in
+the roster, picks the configured cheap, capable, or frontier executor from the
+agent's `model_tier`. Control roles and unknown agents fall back to the default
+executor, so the planner, validator, and synthesizer keep the same stable path
+unless the operator chooses otherwise. The dispatcher asks an executor for the
+model id of the specific assignment it is witnessing, so a wrapper can route
+internally while the ledger still records `capable-local` or `frontier-local`
+on the task result rather than a generic wrapper name.
+
 ## Surfaces
 
 The daemon is the always-on edge. `forum.http_surface` is the HTTP semantics with
@@ -185,11 +195,12 @@ HTTP/MCP field), the dispatcher witnesses a checkpoint after each execution wave
 syncs the ledger. The checkpoint format is the same one used by lower-level
 `submit_plan`; the surface flag only makes it available to normal platform runs.
 
-Model selection is witnessed too. Every result records the model that produced it, and a
-task whose verdict fails can escalate up a ladder of stronger executors. The escalation
-fires on the witnessed verdict, an auditable signal, not on a model's self-reported
-confidence (which a cascade attacker can game). Each retry and its verdict are recorded,
-so the cheapest model that passes is chosen in the open rather than in a black box.
+Model selection is witnessed too. Every result records the model that produced it,
+including per-task selections made by `TieredExecutor`, and a task whose verdict
+fails can escalate up a ladder of stronger executors. The escalation fires on the
+witnessed verdict, an auditable signal, not on a model's self-reported confidence
+(which a cascade attacker can game). Each retry and its verdict are recorded, so
+the cheapest model that passes is chosen in the open rather than in a black box.
 
 A completed run is also checked against the request that started it. Each task is
 validated against its own instruction, but a run can pass every task and still answer a

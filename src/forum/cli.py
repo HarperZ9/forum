@@ -14,7 +14,13 @@ from forum.flagship import cmd_demo, cmd_doctor, cmd_status
 DEFAULT_LEDGER = "forum-ledger"
 
 
-def _make_executor(args):
+def _command_executor(cmd: str):
+    from forum.executor import SubprocessExecutor
+
+    return SubprocessExecutor(shlex.split(cmd, posix=os.name != "nt"))
+
+
+def _make_base_executor(args):
     """Pick an executor from flags (the first present wins): --chat-url, --api, --cmd, else None.
 
     Forum is model-agnostic: --cmd runs any command (a local model CLI needs no
@@ -36,10 +42,37 @@ def _make_executor(args):
         return ApiExecutor(args.model) if getattr(args, "model", None) else ApiExecutor()
     cmd = getattr(args, "cmd", None)
     if cmd:
-        from forum.executor import SubprocessExecutor
-
-        return SubprocessExecutor(shlex.split(cmd, posix=os.name != "nt"))
+        return _command_executor(cmd)
     return None
+
+
+def _tier_executors(args) -> dict:
+    commands = {
+        "cheap": getattr(args, "cheap_cmd", None),
+        "capable": getattr(args, "capable_cmd", None),
+        "frontier": getattr(args, "frontier_cmd", None),
+    }
+    return {tier: _command_executor(cmd) for tier, cmd in commands.items() if cmd}
+
+
+def _default_executor(base, tiers: dict):
+    if base is not None:
+        return base
+    for tier in ("capable", "frontier", "cheap"):
+        if tier in tiers:
+            return tiers[tier]
+    return None
+
+
+def _make_executor(args):
+    base = _make_base_executor(args)
+    tiers = _tier_executors(args)
+    if not tiers:
+        return base
+    from forum.roster import load_default
+    from forum.runtime import TieredExecutor
+
+    return TieredExecutor(load_default(), _default_executor(base, tiers), tiers=tiers)
 
 
 def _open_ledger(directory):
@@ -285,6 +318,9 @@ def _add_ledger(sp) -> None:
 
 def _add_executor(sp) -> None:
     sp.add_argument("--cmd", default=None, help='run any model command per task, e.g. --cmd "ollama run llama3" (no account needed)')
+    sp.add_argument("--cheap-cmd", default=None, help="command for cheap roster-tier task agents")
+    sp.add_argument("--capable-cmd", default=None, help="command for capable roster-tier task agents")
+    sp.add_argument("--frontier-cmd", default=None, help="command for frontier roster-tier task agents")
     sp.add_argument("--chat-url", default=None, help="an OpenAI-compatible chat-completions URL, e.g. a local Ollama or LM Studio server (no account needed)")
     sp.add_argument("--api", action="store_true", help="use the Anthropic API executor (reads ANTHROPIC_API_KEY)")
     sp.add_argument("--model", default=None, help="model id for --chat-url or --api")
