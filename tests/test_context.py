@@ -76,3 +76,51 @@ def test_provider_context_is_witnessed_and_fed_to_the_plan():
     # per-task context is also witnessed now: the T1 task pulls its own context
     assert any(led._s.get_payload(e.payload_hash).get("task") == "T1" for e in ctx_entries)
     assert led.verify(deep=True) is True
+
+
+def test_request_context_budget_trims_before_planning():
+    from forum.context_budget import ContextBudget
+
+    class _BigCtx:
+        def context(self, request):
+            return "abcdefghij" * 10
+
+    rec = _Recorder()
+    led, orch = _orch(rec, provider=_BigCtx())
+    asyncio.run(orch.submit("build the api", context_budget=ContextBudget(max_request_tokens=2)))
+
+    budget_entries = led.query(kind="context_budget")
+    assert len(budget_entries) >= 1
+    budget_body = led.get_payload(budget_entries[0].payload_hash)
+    assert budget_body["schema"] == "forum.context-pressure/v1"
+    assert budget_body["source"] == "request"
+    assert budget_body["action"] == "trimmed"
+    assert budget_body["reason"] == "max_request_tokens"
+
+    request_ctx = next(
+        e for e in led.query(kind="context") if "task" not in led.get_payload(e.payload_hash)
+    )
+    ctx = led.get_payload(request_ctx.payload_hash)["context"]
+    assert ctx == "abcdefgh"
+    assert "abcdefgh" in rec.prompts["coordinator"]
+    assert "abcdefghijabcdefghij" not in rec.prompts["coordinator"]
+    assert led.verify(deep=True) is True
+
+
+def test_request_context_budget_can_omit_context_and_keep_planning():
+    from forum.context_budget import ContextBudget
+
+    class _Ctx:
+        def context(self, request):
+            return "context"
+
+    rec = _Recorder()
+    led, orch = _orch(rec, provider=_Ctx())
+    asyncio.run(orch.submit("build the api", context_budget=ContextBudget(max_total_tokens=0)))
+
+    bodies = [led.get_payload(e.payload_hash) for e in led.query(kind="context_budget")]
+    assert bodies[0]["source"] == "request"
+    assert bodies[0]["action"] == "omitted"
+    assert bodies[0]["reason"] == "max_total_tokens"
+    assert "Context (organized knowledge to use)" not in rec.prompts["coordinator"]
+    assert led.verify(deep=True) is True
