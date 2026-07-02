@@ -137,6 +137,7 @@ def _cmd_submit(args) -> int:
                 budget=budget,
                 context_budget=context_budget,
                 delivery_profile=args.delivery_profile,
+                checkpoint_each_wave=args.checkpoint_each_wave,
             )
         )
     except ValueError as exc:
@@ -327,6 +328,7 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
     submit.add_argument("--use-capsule-context", action="store_true", help="feed the current ledger's context capsule into the run before planning")
     submit.add_argument("--delivery-profile", default=None, help="delivery profile to witness: operator, engineer, researcher, executive")
+    submit.add_argument("--checkpoint-each-wave", action="store_true", help="witness a checkpoint after each execution wave")
     submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
     submit.add_argument("--json", action="store_true", help="emit answer, checkpoint, and Project Telos action receipt as JSON")
     _add_ledger(submit)

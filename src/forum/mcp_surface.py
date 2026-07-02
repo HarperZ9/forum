@@ -36,6 +36,8 @@ def _submit_body(arguments: dict) -> bytes:
             body[key] = arguments[key]
     if "delivery_profile" in arguments:
         body["delivery_profile"] = arguments["delivery_profile"]
+    if "checkpoint_each_wave" in arguments:
+        body["checkpoint_each_wave"] = arguments["checkpoint_each_wave"]
     return _body(body)
 
 
@@ -99,6 +101,10 @@ _SUBMIT_PROPERTIES = {
     "delivery_profile": {
         "type": "string",
         "description": "delivery profile: operator, engineer, researcher, executive",
+    },
+    "checkpoint_each_wave": {
+        "type": "boolean",
+        "description": "witness a checkpoint after each execution wave",
     },
     **_CONTEXT_BUDGET_PROPERTIES,
 }

@@ -126,6 +126,7 @@ class Orchestrator:
         budget: RunBudget | None = None,
         context_budget: ContextBudget | None = None,
         delivery_profile: str | None = None,
+        checkpoint_each_wave: bool = False,
     ) -> str:
         """Plan a plain request, run it, validate each result, and answer.
 
@@ -189,6 +190,7 @@ class Orchestrator:
             context_provider=self.context_provider,
             context_budget=context_budget,
             context_meter=context_meter,
+            checkpoint_each_wave=checkpoint_each_wave,
         )
         failed: list[Task] = []
         for task in plan.tasks:

@@ -176,6 +176,12 @@ where it is, witnesses a `budget` entry, and still verifies and replays cleanly.
 cannot run away, on context you can audit, is the difference between a demo and something you
 would leave running.
 
+Phase savepoints are available on the high-level submit path. With
+`checkpoint_each_wave=True` (or `forum submit --checkpoint-each-wave`, or the same
+HTTP/MCP field), the dispatcher witnesses a checkpoint after each execution wave and
+syncs the ledger. The checkpoint format is the same one used by lower-level
+`submit_plan`; the surface flag only makes it available to normal platform runs.
+
 Model selection is witnessed too. Every result records the model that produced it, and a
 task whose verdict fails can escalate up a ladder of stronger executors. The escalation
 fires on the witnessed verdict, an auditable signal, not on a model's self-reported
