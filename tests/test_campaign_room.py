@@ -1,4 +1,5 @@
 from forum.campaign import Campaign, Feature, Project, declare_campaign
+from forum.campaign_ingest import ingest_project_status
 from forum.campaign_room import build_campaign_room, derive_campaign_next_actions
 from forum.campaign_status import derive_campaign_status
 from forum.ledger import InMemoryStorage, Ledger
@@ -89,6 +90,28 @@ def test_next_actions_investigate_for_violation():
     assert investigate
     assert investigate[0]["priority"] == "high"
     assert investigate[0]["target"]["feature_id"] == "c1"
+
+
+def test_room_surfaces_ingested_project_status():
+    ledger = make_ledger()
+    proj = Project(
+        project_id="crucible", owner="forum", priority=10,
+        features=(Feature("c1", "schema", "backend", "build"),),
+    )
+    ext = Project(
+        project_id="telos", owner="external:telos", priority=8,
+        features=(Feature("t1", "engine", "external", "engine"),),
+    )
+    declare_campaign(ledger, Campaign("camp1", "uplift", (proj, ext)))
+    ingest_project_status(
+        ledger, "camp1", "telos", "in_progress",
+        source="external:telos", reason="engine mid-build",
+    )
+    room = build_campaign_room(ledger, "camp1")
+    telos = next(p for p in room["projects"] if p["project_id"] == "telos")
+    assert telos["reported_status"] == "in_progress"
+    assert telos["reported_source"] == "external:telos"
+    assert room["verified"] is True
 
 
 def test_next_actions_close_campaign_when_complete():
