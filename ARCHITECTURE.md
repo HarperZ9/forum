@@ -119,12 +119,15 @@ improvements can train or evaluate against the exact contract the run carried.
 `forum.runtime.TieredExecutor` is the first executable consumer of that roster
 policy. It wraps the existing executor seam and, for task agents that appear in
 the roster, picks the configured cheap, capable, or frontier executor from the
-agent's `model_tier`. Control roles and unknown agents fall back to the default
-executor, so the planner, validator, and synthesizer keep the same stable path
-unless the operator chooses otherwise. The dispatcher asks an executor for the
-model id of the specific assignment it is witnessing, so a wrapper can route
-internally while the ledger still records `capable-local` or `frontier-local`
-on the task result rather than a generic wrapper name.
+agent's `model_tier`. Those tier executors can be shell commands or direct
+OpenAI-compatible chat endpoints, so an operator can point cheap work at one
+local server/model and frontier work at another without changing the plan shape.
+Control roles and unknown agents fall back to the default executor, so the
+planner, validator, and synthesizer keep the same stable path unless the
+operator chooses otherwise. The dispatcher asks an executor for the model id of
+the specific assignment it is witnessing, so a wrapper can route internally
+while the ledger still records `capable-local` or `frontier-local` on the task
+result rather than a generic wrapper name.
 
 ## Surfaces
 
