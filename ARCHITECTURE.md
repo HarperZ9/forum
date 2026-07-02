@@ -142,6 +142,14 @@ and upstream data injection. Each admitted, trimmed, or omitted slice is witness
 `context_budget`; the normal context entries store only admitted text, and omitted text
 is represented by counts and a reason rather than raw content.
 
+Context Capsules make prior run state compact before it becomes context. The capsule
+builder reads the ledger locally and extracts a deterministic brief: checkpoint,
+verification state, latest request, latest answer, task outputs, and quality signals.
+`LedgerCapsuleProvider` feeds that brief back through the same ContextProvider seam,
+so a later run can use witnessed memory without raw ledger replay. If a ContextBudget
+is configured, the capsule is admitted, trimmed, or omitted by the same request-context
+path as any other provider output.
+
 A `RunBudget` bounds the run. It caps model calls (deterministic, the cost-relevant
 dimension) and, best-effort, wall-clock seconds. The call cap is checked as each task
 starts, so a concurrent wave can overshoot it by at most the parallelism width. When the budget is spent the run stops
