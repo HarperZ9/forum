@@ -97,6 +97,16 @@ the order lanes happen to sit in the roster. Only when the keywords genuinely ca
 separate the candidates does it escalate to the model-backed classifier above it.
 Cheap and certain first, expensive and clever only when it's earned.
 
+A route now carries a human frame as well as a lane. `forum.route_frame` derives a
+deterministic `forum.route-frame/v1` payload from the request text and the route:
+domain, intent, posture, delivery profile, proof/domain lane hints, a short
+human-facing answer contract, and the matched local signals. This is not semantic
+understanding and not a model judgment. It is a local routing contract that tells
+the surfaces how the work should present itself while preserving the old route
+fields for compatibility. `Orchestrator.assign` witnesses the same frame into the
+route entry, so future routing and delivery improvements can train or evaluate
+against the exact contract the run carried.
+
 ## Roster, plan, policy
 
 - Roster is a cast list, not code. Each specialist is a row in a TOML file (name, domain, keywords, model tier, executor), validated when it loads.
