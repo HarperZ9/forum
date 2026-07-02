@@ -24,16 +24,42 @@ def _body(obj: dict) -> bytes:
     return json.dumps(obj).encode("utf-8")
 
 
+def _submit_body(arguments: dict) -> bytes:
+    body = {"request": arguments.get("request", "")}
+    for key in (
+        "context_token_budget",
+        "request_context_token_budget",
+        "task_context_token_budget",
+        "upstream_token_budget",
+    ):
+        if key in arguments:
+            body[key] = arguments[key]
+    if "delivery_profile" in arguments:
+        body["delivery_profile"] = arguments["delivery_profile"]
+    return _body(body)
+
+
+def _humanize_body(arguments: dict) -> bytes:
+    body = {
+        "text": arguments.get("text", ""),
+        "audience": arguments.get("audience", "operator"),
+    }
+    if "profile" in arguments:
+        body["profile"] = arguments["profile"]
+    return _body(body)
+
+
 # Tool name -> (arguments) -> (http_method, path, body). Each tool is served by
 # the shared HttpSurface, so the MCP and HTTP surfaces cannot drift.
 _TOOL_ROUTES = {
-    "submit": lambda a: ("POST", "/submit", _body({"request": a.get("request", "")})),
+    "submit": lambda a: ("POST", "/submit", _submit_body(a)),
     "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
     "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
-    "humanize": lambda a: ("POST", "/humanize", _body({"text": a.get("text", ""), "audience": a.get("audience", "operator")})),
+    "humanize": lambda a: ("POST", "/humanize", _humanize_body(a)),
     "status": lambda a: ("GET", "/status", b""),
     "verify": lambda a: ("GET", "/verify", b""),
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
+    "ledger_capsule": lambda a: ("GET", "/capsule", b""),
 }
 
 _TOOL_ALIASES = {
@@ -46,6 +72,35 @@ _TOOL_ALIASES = {
     "forum.verify": "verify",
     "forum.ledger.get": "ledger_get",
     "forum.ledger.summary": "ledger_summary",
+    "forum.ledger.capsule": "ledger_capsule",
+}
+
+_CONTEXT_BUDGET_PROPERTIES = {
+    "context_token_budget": {
+        "type": "integer",
+        "description": "run-wide approximate context token budget",
+    },
+    "request_context_token_budget": {
+        "type": "integer",
+        "description": "request-level context token budget",
+    },
+    "task_context_token_budget": {
+        "type": "integer",
+        "description": "per-task context token budget",
+    },
+    "upstream_token_budget": {
+        "type": "integer",
+        "description": "per-upstream injection token budget",
+    },
+}
+
+_SUBMIT_PROPERTIES = {
+    "request": {"type": "string", "description": "the request to fulfil"},
+    "delivery_profile": {
+        "type": "string",
+        "description": "delivery profile: operator, engineer, researcher, executive",
+    },
+    **_CONTEXT_BUDGET_PROPERTIES,
 }
 
 _TOOL_SPECS = [
@@ -54,7 +109,7 @@ _TOOL_SPECS = [
         "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
         "inputSchema": {
             "type": "object",
-            "properties": {"request": {"type": "string", "description": "the request to fulfil"}},
+            "properties": _SUBMIT_PROPERTIES,
             "required": ["request"],
         },
     },
@@ -100,7 +155,7 @@ _TOOL_SPECS = [
         "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
         "inputSchema": {
             "type": "object",
-            "properties": {"request": {"type": "string", "description": "the request to fulfil"}},
+            "properties": _SUBMIT_PROPERTIES,
             "required": ["request"],
         },
     },
@@ -122,6 +177,10 @@ _TOOL_SPECS = [
             "properties": {
                 "text": {"type": "string", "description": "agent or model prose to clarify"},
                 "audience": {"type": "string", "description": "target reader label; defaults to operator"},
+                "profile": {
+                    "type": "string",
+                    "description": "delivery profile: operator, engineer, researcher, executive",
+                },
             },
             "required": ["text"],
         },
@@ -139,6 +198,11 @@ _TOOL_SPECS = [
     {
         "name": "forum.ledger.summary",
         "description": "Summarize the witnessed causal ledger into counts, verification, and payload weight.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.ledger.capsule",
+        "description": "Compact the witnessed ledger into a deterministic context capsule.",
         "inputSchema": {"type": "object", "properties": {}},
     },
 ]
