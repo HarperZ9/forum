@@ -437,11 +437,19 @@ class Orchestrator:
         Tier-0 lexical routing decides when it can; otherwise it escalates to the
         Tier-2 Classifier. The route, and any classification, are both recorded.
         """
+        from forum.route_frame import derive_route_frame, frame_payload
+
         routed = self.route(task)
+        frame = derive_route_frame(task, routed)
         route_entry = self.ledger.append(
             actor="router",
             kind="route",
-            payload={"task": task, "decided": routed.decided, "confidence": routed.confidence},
+            payload={
+                "task": task,
+                "decided": routed.decided,
+                "confidence": routed.confidence,
+                "frame": frame_payload(frame),
+            },
             causal_parent=parent_seq,
         )
         if routed.decided is not None:
