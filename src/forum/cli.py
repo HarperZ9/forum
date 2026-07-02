@@ -334,12 +334,15 @@ def _cmd_ledger_capsule(args) -> int:
 
 
 def _cmd_ledger_room(args) -> int:
-    from forum.run_room import build_run_room, room_text
+    from forum.run_room import build_run_room, room_brief_text, room_text
 
     room = build_run_room(
         _open_ledger(args.ledger),
         max_text_chars=args.max_text_chars,
     )
+    if args.brief:
+        print(room_brief_text(room))
+        return 0
     if args.text:
         print(room_text(room))
         return 0
@@ -489,6 +492,7 @@ def build_parser() -> argparse.ArgumentParser:
     room = lsub.add_parser("room", help="project the latest run into an operator room snapshot")
     _add_ledger(room)
     room.add_argument("--json", action="store_true", help="emit the run room as JSON (default)")
+    room.add_argument("--brief", action="store_true", help="emit the polished operator brief")
     room.add_argument("--text", action="store_true", help="emit prompt-safe room text")
     room.add_argument("--max-text-chars", type=int, default=240, help="maximum characters copied from any text field")
     room.set_defaults(func=_cmd_ledger_room)
