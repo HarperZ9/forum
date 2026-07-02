@@ -164,14 +164,28 @@ Request: <<REQUEST>>
 Results:
 <<RESULTS>>
 
+<<DELIVERY_CONTRACT>>
 Write the final answer."""
 
 
 class Synthesizer:
     """Combine task results into one answer, using a model."""
 
-    async def synthesize(self, request: str, results: dict, executor: Executor) -> str:
+    async def synthesize(
+        self,
+        request: str,
+        results: dict,
+        executor: Executor,
+        delivery_contract: str = "",
+    ) -> str:
         lines = "\n".join(f"- {tid}: {r.output}" for tid, r in results.items())
-        prompt = _SYNTHESIZER_PROMPT.replace("<<REQUEST>>", request).replace("<<RESULTS>>", lines)
+        contract = delivery_contract.strip()
+        contract_block = f"Delivery contract:\n{contract}\n\n" if contract else ""
+        prompt = (
+            _SYNTHESIZER_PROMPT
+            .replace("<<REQUEST>>", request)
+            .replace("<<RESULTS>>", lines)
+            .replace("<<DELIVERY_CONTRACT>>", contract_block)
+        )
         out = await executor.run(Assignment("control:synthesizer", "synthesizer", prompt))
         return out.output.strip()
