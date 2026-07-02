@@ -32,6 +32,7 @@ python examples/demo.py
 python examples/run_request.py
 python examples/run_resume.py
 python examples/run_context_pressure.py
+python examples/run_context_capsule.py
 python examples/run_delivery_profile.py
 ```
 
@@ -46,6 +47,19 @@ Forum treats these as approximate tokens using the same 4 bytes/token accounting
 by Index context envelopes. The ledger records `context_budget` entries for retained,
 trimmed, and omitted context, and `forum ledger summary --json` reports original,
 admitted, and saved context tokens.
+
+## Context Capsules
+
+```bash
+forum ledger capsule --json
+forum ledger capsule --text
+forum submit "ship the api" --cmd "ollama run llama3" --use-capsule-context
+```
+
+Capsules compact the current ledger into a deterministic `forum.context-capsule/v1`
+brief: latest request, latest answer, task results, quality signals, checkpoint, and
+verification state. `--use-capsule-context` feeds that brief through the normal
+ContextProvider seam, so existing context budgets still decide how much is admitted.
 
 ## Expert Delivery Profiles
 
