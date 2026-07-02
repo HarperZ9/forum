@@ -201,6 +201,51 @@ def test_cmd_executor_preserves_windows_paths(monkeypatch):
 
     assert executor._command == [r"C:\Tools\model.exe", r"C:\tmp\adapter.py"]
 
+
+def test_tier_command_flags_parse_and_wrap_base_executor():
+    from forum.executor import Assignment
+    from forum.runtime import TieredExecutor
+
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--cmd",
+        "base-model",
+        "--cheap-cmd",
+        "cheap-model",
+        "--capable-cmd",
+        "capable-model",
+    ])
+    executor = _make_executor(args)
+
+    assert isinstance(executor, TieredExecutor)
+    assert executor.select(
+        Assignment("control:coordinator", "coordinator", "plan")
+    )._command == ["base-model"]
+    assert executor.select(Assignment("T1", "backend", "build"))._command == ["capable-model"]
+    assert executor.select(
+        Assignment("T2", "technical-writing", "docs")
+    )._command == ["cheap-model"]
+
+
+def test_tier_command_flags_can_supply_default_without_cmd():
+    from forum.executor import Assignment
+    from forum.runtime import TieredExecutor
+
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--capable-cmd",
+        "capable-model",
+    ])
+    executor = _make_executor(args)
+
+    assert isinstance(executor, TieredExecutor)
+    assert executor.select(
+        Assignment("control:coordinator", "coordinator", "plan")
+    )._command == ["capable-model"]
+
+
 def test_submit_flags_parse():
     args = build_parser().parse_args(["submit", "do x", "--api", "--model", "claude-opus-4-8"])
     assert args.api is True and args.model == "claude-opus-4-8"

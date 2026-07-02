@@ -73,3 +73,11 @@ def executor_id(executor) -> str:
     (reproducibility, and detecting silent provider/model drift).
     """
     return getattr(executor, "model_id", None) or type(executor).__name__
+
+
+def assignment_model_id(executor, assignment: Assignment) -> str:
+    """Executor identity for one assignment, when a wrapper can route per task."""
+    model_id_for = getattr(executor, "model_id_for", None)
+    if callable(model_id_for):
+        return model_id_for(assignment)
+    return executor_id(executor)

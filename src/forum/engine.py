@@ -16,7 +16,7 @@ from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Val
 from forum.delivery import NullReviser, Reviser, assess
 from forum.delivery_profile import assess_profile, get_profile, profile_payload
 from forum.dispatch import augment_with_upstream, dispatch_plan
-from forum.executor import Assignment, Executor, Result, executor_id
+from forum.executor import Assignment, Executor, Result, assignment_model_id, executor_id
 from forum.intent import DEFAULT_THRESHOLD, coverage
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
@@ -43,6 +43,9 @@ class _Counted:
     @property
     def model_id(self) -> str:
         return executor_id(self._inner)
+
+    def model_id_for(self, assignment: Assignment) -> str:
+        return assignment_model_id(self._inner, assignment)
 
     async def run(self, assignment: Assignment) -> Result:
         self._meter.calls += 1

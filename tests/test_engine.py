@@ -184,3 +184,44 @@ def test_submit_can_checkpoint_each_wave():
     checkpoints = ledger.query(kind="checkpoint")
     assert len(checkpoints) == 2
     assert ledger.verify(deep=True) is True
+
+
+def test_submit_preserves_tiered_executor_model_identity_through_budget_counter():
+    from forum.executor import Result
+    from forum.runtime import TieredExecutor
+
+    class _Control:
+        model_id = "control-local"
+
+        async def run(self, assignment):
+            if assignment.agent == "coordinator":
+                out = '{"tasks": [{"id": "T1", "agent": "backend", "instruction": "build", "depends_on": []}]}'
+            elif assignment.agent == "validator":
+                out = '{"ok": true, "score": 0.9, "reason": "good"}'
+            elif assignment.agent == "synthesizer":
+                out = "final answer"
+            else:
+                out = "control fallback"
+            return Result(assignment.task_id, assignment.agent, out)
+
+    class _Capable:
+        model_id = "capable-local"
+
+        async def run(self, assignment):
+            return Result(assignment.task_id, assignment.agent, "task result")
+
+    ledger = make_ledger()
+    executor = TieredExecutor(ROSTER, _Control(), tiers={"capable": _Capable()})
+    orch = Orchestrator(
+        ROSTER, ledger, executor,
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+    )
+
+    asyncio.run(orch.submit("build the backend"))
+
+    task_result = next(
+        ledger.get_payload(e.payload_hash)
+        for e in ledger.query(kind="result")
+        if ledger.get_payload(e.payload_hash).get("id") == "T1"
+    )
+    assert task_result["model"] == "capable-local"

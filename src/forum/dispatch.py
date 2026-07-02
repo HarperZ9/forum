@@ -12,7 +12,7 @@ from forum.context_budget import (
     apply_context_budget,
     pressure_payload,
 )
-from forum.executor import Assignment, Executor, Result, executor_id
+from forum.executor import Assignment, Executor, Result, assignment_model_id
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 
@@ -251,7 +251,12 @@ async def dispatch_plan(
             entry = ledger.append(
                 actor=task.agent,
                 kind="result",
-                payload={"id": task.id, "output": result.output, "ok": result.ok, "model": executor_id(executor)},
+                payload={
+                    "id": task.id,
+                    "output": result.output,
+                    "ok": result.ok,
+                    "model": assignment_model_id(executor, Assignment(task.id, task.agent, instruction)),
+                },
                 causal_parent=assigned.seq,
             )
             results[task.id] = dataclasses.replace(result, witnessed_seq=entry.seq)
