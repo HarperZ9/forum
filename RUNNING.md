@@ -94,10 +94,13 @@ curl http://127.0.0.1:8000/runtime
 curl -X POST http://127.0.0.1:8000/context/preflight \
   -H "content-type: application/json" \
   -d '{"request":"continue the run","use_capsule_context":true,"context_token_budget":0}'
+curl -X POST http://127.0.0.1:8000/prose/contract \
+  -H "content-type: application/json" \
+  -d '{"text":"build the API endpoint","profile":"engineer"}'
 ```
 
-MCP hosts get the same payloads through `forum.runtime.inspect` and
-`forum.context.preflight`.
+MCP hosts get the same payloads through `forum.runtime.inspect`,
+`forum.context.preflight`, and `forum.prose.contract`.
 
 Without an executor flag, routing and the ledger commands still work; planning and
 submitting return a clear message asking for a model.

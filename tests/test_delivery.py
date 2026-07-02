@@ -257,6 +257,9 @@ def test_submit_passes_route_frame_contract_to_synthesizer():
     assert "profile=engineer" in synth.instruction
     assert "domain=model-foundry" in synth.instruction
     assert "gating evidence" in synth.instruction
+    assert "Communication contract:" in synth.instruction
+    assert "Lead: Lead with the concrete change or decision." in synth.instruction
+    assert "Avoid: model preambles" in synth.instruction
 
 
 def test_delivery_profile_check_chains_to_accepted_revision():

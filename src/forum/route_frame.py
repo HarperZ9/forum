@@ -249,6 +249,8 @@ def derive_route_frame(
 
 
 def frame_payload(frame: RouteFrame) -> dict:
+    from forum.communication_contract import build_communication_contract
+
     return {
         "schema": frame.schema,
         "agent": frame.agent,
@@ -261,6 +263,15 @@ def frame_payload(frame: RouteFrame) -> dict:
         "proof_lane": frame.proof_lane,
         "domain_lane": frame.domain_lane,
         "human_contract": frame.human_contract,
+        "communication_contract": build_communication_contract(
+            domain=frame.domain,
+            intent=frame.intent,
+            posture=frame.posture,
+            profile=frame.delivery_profile,
+            human_contract=frame.human_contract,
+            proof_lane=frame.proof_lane,
+            domain_lane=frame.domain_lane,
+        ),
         "signals": list(frame.signals),
     }
 

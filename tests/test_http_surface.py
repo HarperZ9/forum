@@ -357,6 +357,24 @@ def test_humanize_accepts_delivery_profile():
     assert body["profile_check"]["profile"] == "engineer"
 
 
+def test_prose_contract_returns_route_communication_contract():
+    surface, _ = _surface()
+    resp = asyncio.run(
+        surface.dispatch(
+            "POST",
+            "/prose/contract",
+            b'{"text":"build the api database server endpoint","profile":"engineer"}',
+        )
+    )
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["schema"] == "forum.communication-contract/v1"
+    assert body["domain"] == "implementation"
+    assert body["posture"] == "architect"
+    assert body["profile"] == "engineer"
+    assert "verification" in body["structure"]
+
+
 def test_humanize_rejects_unknown_delivery_profile():
     surface, _ = _surface()
     resp = asyncio.run(

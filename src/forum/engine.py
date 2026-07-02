@@ -16,7 +16,13 @@ from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Val
 from forum.delivery import NullReviser, Reviser, assess
 from forum.delivery_profile import assess_profile, get_profile, profile_payload
 from forum.dispatch import augment_with_upstream, dispatch_plan
-from forum.executor import Assignment, Executor, Result, assignment_model_id, executor_id
+from forum.executor import (
+    Assignment,
+    Executor,
+    Result,
+    assignment_model_id,
+    executor_id,
+)
 from forum.intent import DEFAULT_THRESHOLD, coverage
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
@@ -493,6 +499,11 @@ class Orchestrator:
 
     @staticmethod
     def _delivery_contract(route_frame, selected_profile: str | None) -> str:
+        from forum.communication_contract import (
+            build_communication_contract,
+            communication_contract_text,
+        )
+
         profile = selected_profile or route_frame.delivery_profile
         parts = [
             f"posture={route_frame.posture}",
@@ -505,6 +516,19 @@ class Orchestrator:
         if route_frame.domain_lane is not None:
             parts.append(f"domain_lane={route_frame.domain_lane}")
         parts.append(route_frame.human_contract)
+        parts.append(
+            communication_contract_text(
+                build_communication_contract(
+                    domain=route_frame.domain,
+                    intent=route_frame.intent,
+                    posture=route_frame.posture,
+                    profile=profile,
+                    human_contract=route_frame.human_contract,
+                    proof_lane=route_frame.proof_lane,
+                    domain_lane=route_frame.domain_lane,
+                )
+            )
+        )
         return "\n".join(parts)
 
     async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
