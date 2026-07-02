@@ -128,7 +128,11 @@ def test_submit_json_returns_answer_and_receipt(capsys, tmp_path):
     assert body["receipt"]["schema"] == "project-telos.action-receipt/v1"
     assert body["receipt"]["model"]["id"] == "SubprocessExecutor"
     assert body["receipt"]["delivery_profile"]["requested"] == "engineer"
+    assert body["receipt"]["delivery_profile"]["selected"] == "engineer"
+    assert body["receipt"]["delivery_profile"]["source"] == "explicit"
     assert body["receipt"]["delivery_profile"]["checks"] == 1
+    assert body["receipt"]["route_frame"]["schema"] == "forum.route-frame/v1"
+    assert body["receipt"]["route_frame"]["delivery_profile"] == "engineer"
     assert body["receipt"]["verification"]["verdict"] == "MATCH"
 
 def test_ledger_verify(capsys, tmp_path):

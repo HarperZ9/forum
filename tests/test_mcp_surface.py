@@ -162,6 +162,9 @@ def test_call_submit_answers_and_witnesses():
     assert "checkpoint" in payload
     assert payload["receipt"]["schema"] == "project-telos.action-receipt/v1"
     assert payload["receipt"]["ledger"]["verified"] is True
+    assert payload["receipt"]["route_frame"]["schema"] == "forum.route-frame/v1"
+    assert payload["receipt"]["delivery_profile"]["selected"] == "engineer"
+    assert payload["receipt"]["delivery_profile"]["source"] == "route_frame"
     assert payload["receipt"]["verification"]["verdict"] == "MATCH"
 
 

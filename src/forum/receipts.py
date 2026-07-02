@@ -68,6 +68,40 @@ def _delivery_profile_observed(entries: list[LedgerEntry], ledger: Ledger) -> di
     }
 
 
+def _latest_payload(
+    entries: list[LedgerEntry], ledger: Ledger, kind: str
+) -> dict[str, Any] | None:
+    for entry in reversed(entries):
+        if entry.kind != kind:
+            continue
+        try:
+            payload = ledger.get_payload(entry.payload_hash)
+        except KeyError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _delivery_profile_selection(
+    entries: list[LedgerEntry],
+    ledger: Ledger,
+    requested: str | None,
+    route_frame: dict[str, Any] | None,
+) -> dict[str, Any]:
+    check = _latest_payload(entries, ledger, "delivery_profile_check")
+    selected = check.get("profile") if check else None
+    if selected is None:
+        source = "none"
+    elif requested is not None:
+        source = "explicit"
+    elif route_frame is not None and selected == route_frame.get("delivery_profile"):
+        source = "route_frame"
+    else:
+        source = "unknown"
+    return {"selected": selected, "source": source}
+
+
 def submit_receipt(
     ledger: Ledger,
     *,
@@ -82,6 +116,10 @@ def submit_receipt(
     entries = [entry for entry in ledger.replay() if entry.seq >= before_seq]
     request_entry = next((entry for entry in entries if entry.kind == "request"), entries[0] if entries else None)
     answer_entry = _answer_entry(entries, ledger, answer) or (entries[-1] if entries else None)
+    route_frame = _latest_payload(entries, ledger, "route_frame")
+    delivery_selection = _delivery_profile_selection(
+        entries, ledger, delivery_profile, route_frame
+    )
     verified = ledger.verify(deep=True)
     checkpoint = ledger.checkpoint()
     intent_material = {
@@ -113,8 +151,10 @@ def submit_receipt(
             "limits": context_budget or {},
             "observed": _context_budget_observed(entries, ledger),
         },
+        "route_frame": route_frame,
         "delivery_profile": {
             "requested": delivery_profile,
+            **delivery_selection,
             **_delivery_profile_observed(entries, ledger),
         },
         "verification": {
