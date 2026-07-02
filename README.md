@@ -188,6 +188,7 @@ forum ledger room --json                                           # latest run 
 forum submit "ship a login API" --cmd "ollama run llama3"            # plan, run, answer with a local model, no account
 forum submit "ship a login API" --cmd "ollama run llama3" --cheap-cmd "ollama run phi3" --capable-cmd "ollama run llama3" --frontier-cmd "ollama run qwen2.5-coder" # route task agents by roster tier
 forum submit "ship a login API" --chat-url http://localhost:11434/v1/chat/completions --model llama3 --cheap-chat-url http://localhost:11434/v1/chat/completions --cheap-model phi3 --frontier-chat-url http://localhost:8000/v1/chat/completions --frontier-model qwen2.5-coder # tier local endpoints directly
+forum submit "ship a login API" --runtime-config forum-runtime.toml  # load default and tier executors from local TOML
 forum submit "ship a login API" --cmd "ollama run llama3" --use-capsule-context # use prior ledger state as bounded context
 forum submit "ship a login API" --cmd "ollama run llama3" --checkpoint-each-wave # witness phase savepoints
 forum submit "ship a login API" --cmd "ollama run llama3" --json     # include a Project Telos action receipt
@@ -204,8 +205,10 @@ provider (Anthropic). Add `--cheap-cmd`, `--capable-cmd`, or `--frontier-cmd` to
 route task agents to different local commands by the roster's model tier, or add
 `--cheap-chat-url`, `--capable-chat-url`, and `--frontier-chat-url` with matching
 `--*-model` flags to route tiers directly to OpenAI-compatible local endpoints.
-The global `--cmd` or `--chat-url` remains the control/default executor. Routing
-and the ledger commands need no model at all. See [RUNNING.md](RUNNING.md).
+The global `--cmd` or `--chat-url` remains the control/default executor. For a
+durable local setup, put the same policy in a TOML file and pass `--runtime-config`
+to `submit`, `serve`, or `mcp`; explicit CLI flags override the file for that run.
+Routing and the ledger commands need no model at all. See [RUNNING.md](RUNNING.md).
 
 ## How the ledger works
 

@@ -122,12 +122,15 @@ the roster, picks the configured cheap, capable, or frontier executor from the
 agent's `model_tier`. Those tier executors can be shell commands or direct
 OpenAI-compatible chat endpoints, so an operator can point cheap work at one
 local server/model and frontier work at another without changing the plan shape.
-Control roles and unknown agents fall back to the default executor, so the
-planner, validator, and synthesizer keep the same stable path unless the
-operator chooses otherwise. The dispatcher asks an executor for the model id of
-the specific assignment it is witnessing, so a wrapper can route internally
-while the ledger still records `capable-local` or `frontier-local` on the task
-result rather than a generic wrapper name.
+`forum.runtime_config` is the durable local policy adapter for that same seam:
+it reads a TOML file into the default executor and tier executor map, stores only
+environment-variable names for bearer keys, and leaves explicit CLI flags as
+one-run overrides. Control roles and unknown agents fall back to the default
+executor, so the planner, validator, and synthesizer keep the same stable path
+unless the operator chooses otherwise. The dispatcher asks an executor for the
+model id of the specific assignment it is witnessing, so a wrapper can route
+internally while the ledger still records `capable-local` or `frontier-local`
+on the task result rather than a generic wrapper name.
 
 ## Surfaces
 

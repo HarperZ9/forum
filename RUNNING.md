@@ -23,6 +23,37 @@ Neither needs a key. `--cmd` is the most agnostic option: any program that takes
 prompt as its last argument is a valid executor, so Forum stays independent of any one
 provider and its updates.
 
+## Persistent tier config
+
+For repeated local runs, put the default executor and tier policy in TOML and pass
+it to `submit`, `serve`, or `mcp`:
+
+```toml
+[runtime.default]
+chat_url = "http://localhost:11434/v1/chat/completions"
+model = "llama3"
+
+[runtime.tiers.cheap]
+chat_url = "http://localhost:11434/v1/chat/completions"
+model = "phi3"
+
+[runtime.tiers.capable]
+cmd = "ollama run llama3"
+
+[runtime.tiers.frontier]
+chat_url = "http://localhost:8000/v1/chat/completions"
+model = "qwen2.5-coder"
+```
+
+```bash
+forum submit "ship a login API with docs" --runtime-config forum-runtime.toml
+forum serve --runtime-config forum-runtime.toml
+forum mcp --runtime-config forum-runtime.toml
+```
+
+Config files name environment variables with `api_key_env`; they do not store key
+values. Command-line executor flags still override the file for a single run.
+
 ## A hosted model
 
 Any OpenAI-compatible cloud works through the same `--chat-url`, with a key:

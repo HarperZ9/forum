@@ -77,6 +77,15 @@ def _tier_executors(args) -> dict:
     return tiers
 
 
+def _config_executors(args):
+    path = getattr(args, "runtime_config", None)
+    if not path:
+        return None, {}
+    from forum.runtime_config import executors_from_runtime_config
+
+    return executors_from_runtime_config(path)
+
+
 def _default_executor(base, tiers: dict):
     if base is not None:
         return base
@@ -87,14 +96,22 @@ def _default_executor(base, tiers: dict):
 
 
 def _make_executor(args):
-    base = _make_base_executor(args)
-    tiers = _tier_executors(args)
+    config_base, config_tiers = _config_executors(args)
+    base = _make_base_executor(args) or config_base
+    tiers = {**config_tiers, **_tier_executors(args)}
     if not tiers:
         return base
     from forum.roster import load_default
     from forum.runtime import TieredExecutor
 
     return TieredExecutor(load_default(), _default_executor(base, tiers), tiers=tiers)
+
+
+def _make_executor_or_error(args):
+    try:
+        return _make_executor(args), None
+    except ValueError as exc:
+        return None, f"invalid runtime config: {exc}"
 
 
 def _open_ledger(directory):
@@ -131,8 +148,8 @@ def _cmd_humanize(args) -> int:
     return 0
 
 def _cmd_route(args) -> int:
-    from forum.route_frame import derive_route_frame, frame_payload
     from forum.roster import load_default
+    from forum.route_frame import derive_route_frame, frame_payload
     from forum.routing import LexicalRouter
 
     roster = load_default()
@@ -149,7 +166,10 @@ def _cmd_route(args) -> int:
 
 
 def _cmd_submit(args) -> int:
-    executor = _make_executor(args)
+    executor, executor_error = _make_executor_or_error(args)
+    if executor_error is not None:
+        print(executor_error, file=sys.stderr)
+        return 2
     if executor is None:
         print(
             "submit needs a model executor. Forum is model-agnostic: pass --cmd "
@@ -221,8 +241,12 @@ def _cmd_submit(args) -> int:
 def _cmd_serve(args) -> int:
     from forum.daemon import serve
 
+    executor, executor_error = _make_executor_or_error(args)
+    if executor_error is not None:
+        print(executor_error, file=sys.stderr)
+        return 2
     asyncio.run(serve(
-        ledger_dir=args.ledger, host=args.host, port=args.port, executor=_make_executor(args)
+        ledger_dir=args.ledger, host=args.host, port=args.port, executor=executor
     ))
     return 0
 
@@ -231,7 +255,11 @@ def _cmd_mcp(args) -> int:
     from forum.daemon import build_orchestrator
     from forum.mcp_surface import serve_stdio
 
-    orch = build_orchestrator(args.ledger, executor=_make_executor(args))
+    executor, executor_error = _make_executor_or_error(args)
+    if executor_error is not None:
+        print(executor_error, file=sys.stderr)
+        return 2
+    orch = build_orchestrator(args.ledger, executor=executor)
     asyncio.run(serve_stdio(orch))
     return 0
 
@@ -339,6 +367,7 @@ def _add_ledger(sp) -> None:
 
 
 def _add_executor(sp) -> None:
+    sp.add_argument("--runtime-config", default=None, help="local TOML runtime config for default and tier executors")
     sp.add_argument("--cmd", default=None, help='run any model command per task, e.g. --cmd "ollama run llama3" (no account needed)')
     sp.add_argument("--cheap-cmd", default=None, help="command for cheap roster-tier task agents")
     sp.add_argument("--capable-cmd", default=None, help="command for capable roster-tier task agents")
