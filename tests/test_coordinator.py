@@ -62,6 +62,16 @@ _TYPED_PLAN_JSON = """{"tasks": [
   {"id": "T2", "agent": "docs", "instruction": "document it", "depends_on": [{"id": "T1", "type": "order"}]}
 ]}"""
 
+_DONE_PLAN_JSON = """{"tasks": [
+  {
+    "id": "T1",
+    "agent": "backend",
+    "instruction": "build the api",
+    "depends_on": [],
+    "done_when": ["unit tests pass", "docs mention the endpoint"]
+  }
+]}"""
+
 
 def test_coordinator_parses_typed_edges():
     plan = asyncio.run(Coordinator().plan("ship an api with docs", ROSTER, _Canned(_TYPED_PLAN_JSON)))
@@ -77,6 +87,11 @@ def test_coordinator_plain_string_dep_is_a_data_edge():
     assert t2.depends_on == ("T1",)
     assert t2.order_deps == frozenset()      # a plain id defaults to a data edge
     assert t2.data_deps == ("T1",)
+
+
+def test_coordinator_parses_done_when():
+    plan = asyncio.run(Coordinator().plan("ship an api", ROSTER, _Canned(_DONE_PLAN_JSON)))
+    assert plan.tasks[0].done_when == ("unit tests pass", "docs mention the endpoint")
 
 
 def test_coordinator_rejects_dep_object_without_id():

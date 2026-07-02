@@ -54,9 +54,10 @@ def augment_with_upstream(
                 output = output[:max_chars] + f"\n... [truncated for prompt efficiency, {omitted} chars omitted; full output is witnessed]"
             parts.append(f"- {dep}: {output}")
             data_from.append(dep)
+    instruction = task.contract_instruction()
     if not parts:
-        return task.instruction, []
-    return task.instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from
+        return instruction, []
+    return instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from
 
 
 def augment_with_upstream_budgeted(
@@ -87,9 +88,10 @@ def augment_with_upstream_budgeted(
             )
         parts.append(f"- {dep}: {output}")
         data_from.append(dep)
+    instruction = task.contract_instruction()
     if not parts:
-        return task.instruction, [], pressures
-    return task.instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from, pressures
+        return instruction, [], pressures
+    return instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from, pressures
 
 
 def _completed_results(ledger: Ledger, ids: set[str]) -> dict[str, tuple[str, int]]:
@@ -224,10 +226,18 @@ async def dispatch_plan(
                         payload={"task": task.id, "context": ctx}, causal_parent=plan_entry.seq,
                     ).seq
                     instruction = instruction + "\n\nContext for this task:\n" + ctx
+            task_payload = {
+                "id": task.id,
+                "agent": task.agent,
+                "instruction": task.instruction,
+                "data_from": data_from,
+            }
+            if task.done_when:
+                task_payload["done_when"] = list(task.done_when)
             assigned = ledger.append(
                 actor="dispatch",
                 kind="task",
-                payload={"id": task.id, "agent": task.agent, "instruction": task.instruction, "data_from": data_from},
+                payload=task_payload,
                 causal_parent=task_parent,
             )
             if over_budget is not None and over_budget():

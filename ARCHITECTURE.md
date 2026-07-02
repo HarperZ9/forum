@@ -110,7 +110,7 @@ against the exact contract the run carried.
 ## Roster, plan, policy
 
 - Roster is a cast list, not code. Each specialist is a row in a TOML file (name, domain, keywords, model tier, executor), validated when it loads.
-- Plan compiles a task graph into ordered waves you can run in parallel (Kahn's layering), and refuses anything with a cycle or a missing dependency up front. Its edges are typed: a data edge feeds the upstream's witnessed output into the downstream task so it builds on real work, while an order edge only sequences. Both constrain scheduling; the dispatcher records per task which upstreams it consumed (`data_from`), and the plan entry records every typed edge, so the data flow is in the ledger, not just the wiring. Injected upstream output is capped so a deep plan cannot grow prompts without bound; the full output stays in the ledger, so only the prompt shrinks, not the record. A run is resumable from that record: re-dispatched with `resume=True` it reuses every task already witnessed as successful and re-runs only the rest, and it can checkpoint each wave as a re-checkable savepoint. The ledger is the resume state, so recovery reuses verified work rather than regenerating it with a model.
+- Plan compiles a task graph into ordered waves you can run in parallel (Kahn's layering), and refuses anything with a cycle or a missing dependency up front. Its edges are typed: a data edge feeds the upstream's witnessed output into the downstream task so it builds on real work, while an order edge only sequences. Both constrain scheduling; the dispatcher records per task which upstreams it consumed (`data_from`), and the plan entry records every typed edge, so the data flow is in the ledger, not just the wiring. A task may also carry `done_when` criteria: the worker sees them in the task contract, the task entry witnesses them as structured data, and validation judges against the same criteria. Injected upstream output is capped so a deep plan cannot grow prompts without bound; the full output stays in the ledger, so only the prompt shrinks, not the record. A run is resumable from that record: re-dispatched with `resume=True` it reuses every task already witnessed as successful and re-runs only the rest, and it can checkpoint each wave as a re-checkable savepoint. The ledger is the resume state, so recovery reuses verified work rather than regenerating it with a model.
 - Policy is the rule of the room: which categories of work may run, and how many at a time.
 
 ## Surfaces
@@ -136,6 +136,13 @@ request. This is the seam to the "brain" (a peer like the index flagship can imp
 the default provider returns nothing, so Forum stands alone. When context is supplied it is
 witnessed as its own entry and the plan is chained to it, so the record shows the exact
 context that shaped the work: request, then context, then plan.
+
+Planned task contracts can be more precise than one instruction string. When the
+Coordinator returns `done_when` criteria, Forum keeps the instruction and criteria
+separate in the ledger while giving the worker a combined contract prompt. The
+Validator receives that same contract, so a task's pass/fail verdict is tied to the
+explicit stop condition the worker saw. This is the first layer below later human
+approval checkpoints: concrete criteria first, approval gates later.
 
 The same seam reaches every task. At dispatch each task pulls fresh, task-specific context
 from the provider, capped like upstream data and witnessed as its own entry that the task is

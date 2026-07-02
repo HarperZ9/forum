@@ -207,7 +207,7 @@ class Orchestrator:
                     causal_parent=vparent,
                 )
                 failed.append(task)
-            elif not await self._witness_verdict(task.id, task.instruction, result, vparent, counter):
+            elif not await self._witness_verdict(task.id, task.contract_instruction(), result, vparent, counter):
                 failed.append(task)
 
         # Escalation: a failed task is retried up the ladder of stronger executors,
@@ -236,7 +236,7 @@ class Orchestrator:
                 )
                 retry = dataclasses.replace(retry, witnessed_seq=entry.seq)
                 results[task.id] = retry
-                if await self._witness_verdict(task.id, task.instruction, retry, entry.seq, counter):
+                if await self._witness_verdict(task.id, task.contract_instruction(), retry, entry.seq, counter):
                     break
 
         if over_budget():
