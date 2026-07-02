@@ -150,3 +150,37 @@ def test_submit_validates_against_done_criteria():
     assert "Done criteria:" in instruction_section
     assert "- tests pass" in instruction_section
     assert ledger.verify(deep=True) is True
+
+
+class _TwoWaveExecutor:
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        agent = assignment.agent
+        if agent == "coordinator":
+            out = (
+                '{"tasks": ['
+                '{"id": "T1", "agent": "backend", "instruction": "design", "depends_on": []},'
+                '{"id": "T2", "agent": "backend", "instruction": "build", "depends_on": ["T1"]}'
+                ']}'
+            )
+        elif agent == "validator":
+            out = '{"ok": true, "score": 0.9, "reason": "good"}'
+        elif agent == "synthesizer":
+            out = "final answer: built"
+        else:
+            out = "did: " + assignment.instruction
+        return Result(assignment.task_id, assignment.agent, out)
+
+
+def test_submit_can_checkpoint_each_wave():
+    ledger = make_ledger()
+    orch = Orchestrator(
+        ROSTER, ledger, _TwoWaveExecutor(),
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+    )
+    asyncio.run(orch.submit("build the backend", checkpoint_each_wave=True))
+
+    checkpoints = ledger.query(kind="checkpoint")
+    assert len(checkpoints) == 2
+    assert ledger.verify(deep=True) is True

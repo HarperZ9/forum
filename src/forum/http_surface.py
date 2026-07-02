@@ -244,6 +244,9 @@ class HttpSurface:
             not isinstance(delivery_profile, str) or not delivery_profile
         ):
             return error(400, "field 'delivery_profile' must be a non-empty string when provided")
+        checkpoint_each_wave = data.get("checkpoint_each_wave", False)
+        if not isinstance(checkpoint_each_wave, bool):
+            return error(400, "field 'checkpoint_each_wave' must be a boolean when provided")
         context_budget, context_budget_payload, err = self._context_budget(data)
         if err:
             return err
@@ -253,6 +256,7 @@ class HttpSurface:
                 request,
                 context_budget=context_budget,
                 delivery_profile=delivery_profile,
+                checkpoint_each_wave=checkpoint_each_wave,
             )
         except ValueError as exc:
             message = str(exc)

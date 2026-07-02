@@ -189,6 +189,17 @@ def test_prefixed_submit_accepts_delivery_profile_field():
     assert payload["receipt"]["delivery_profile"]["checks"] == 1
 
 
+def test_prefixed_submit_can_checkpoint_each_wave():
+    surface = _mcp()
+    resp = _call(surface, "forum.submit", {
+        "request": "design an api",
+        "checkpoint_each_wave": True,
+    })
+    assert resp["result"]["isError"] is False
+    summary = json.loads(_call(surface, "forum.ledger.summary")["result"]["content"][0]["text"])
+    assert summary["checkpoints"] == 1
+
+
 def test_call_status_and_verify_after_submit():
     surface = _mcp()
     _call(surface, "submit", {"request": "design an api"})

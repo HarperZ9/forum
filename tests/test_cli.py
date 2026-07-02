@@ -254,6 +254,17 @@ def test_delivery_profile_submit_flag_parses():
     assert args.delivery_profile == "engineer"
 
 
+def test_submit_checkpoint_each_wave_flag_parses():
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--cmd",
+        "echo",
+        "--checkpoint-each-wave",
+    ])
+    assert args.checkpoint_each_wave is True
+
+
 def test_ledger_summary_json(capsys, tmp_path):
     _seed(str(tmp_path))
     rc = main(["ledger", "summary", "--ledger", str(tmp_path), "--json"])

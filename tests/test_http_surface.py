@@ -160,6 +160,31 @@ def test_submit_accepts_delivery_profile_field():
     assert body["receipt"]["delivery_profile"]["checks"] == 1
 
 
+def test_submit_can_checkpoint_each_wave():
+    surface, orch = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/submit",
+        b'{"request": "design an api", "checkpoint_each_wave": true}',
+    )
+    assert resp.status == 200
+    assert len(orch.ledger.query(kind="checkpoint")) == 1
+    assert orch.ledger.verify(deep=True) is True
+
+
+def test_submit_rejects_non_boolean_checkpoint_each_wave():
+    surface, _ = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/submit",
+        b'{"request": "design an api", "checkpoint_each_wave": "yes"}',
+    )
+    assert resp.status == 400
+    assert "checkpoint_each_wave" in json.loads(resp.body)["error"]
+
+
 def test_submit_rejects_unknown_delivery_profile():
     surface, _ = _surface()
     resp = _do(
