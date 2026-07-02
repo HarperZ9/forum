@@ -37,13 +37,23 @@ def _submit_body(arguments: dict) -> bytes:
     return _body(body)
 
 
+def _humanize_body(arguments: dict) -> bytes:
+    body = {
+        "text": arguments.get("text", ""),
+        "audience": arguments.get("audience", "operator"),
+    }
+    if "profile" in arguments:
+        body["profile"] = arguments["profile"]
+    return _body(body)
+
+
 # Tool name -> (arguments) -> (http_method, path, body). Each tool is served by
 # the shared HttpSurface, so the MCP and HTTP surfaces cannot drift.
 _TOOL_ROUTES = {
     "submit": lambda a: ("POST", "/submit", _submit_body(a)),
     "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
     "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
-    "humanize": lambda a: ("POST", "/humanize", _body({"text": a.get("text", ""), "audience": a.get("audience", "operator")})),
+    "humanize": lambda a: ("POST", "/humanize", _humanize_body(a)),
     "status": lambda a: ("GET", "/status", b""),
     "verify": lambda a: ("GET", "/verify", b""),
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
@@ -159,6 +169,10 @@ _TOOL_SPECS = [
             "properties": {
                 "text": {"type": "string", "description": "agent or model prose to clarify"},
                 "audience": {"type": "string", "description": "target reader label; defaults to operator"},
+                "profile": {
+                    "type": "string",
+                    "description": "delivery profile: operator, engineer, researcher, executive",
+                },
             },
             "required": ["text"],
         },

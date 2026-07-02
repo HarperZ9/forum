@@ -184,8 +184,11 @@ class HttpSurface:
         audience = data.get("audience", "operator")
         if not isinstance(audience, str) or not audience:
             return error(400, "field 'audience' must be a non-empty string when provided")
+        profile = data.get("profile")
+        if profile is not None and (not isinstance(profile, str) or not profile):
+            return error(400, "field 'profile' must be a non-empty string when provided")
         try:
-            return json_response(humanize_text(text, audience=audience))
+            return json_response(humanize_text(text, audience=audience, profile=profile))
         except ValueError as exc:
             return error(400, str(exc))
 

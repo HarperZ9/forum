@@ -207,3 +207,27 @@ def test_humanize_simplifies_agent_prose():
     assert body["schema"] == "forum.prose-humanization/v1"
     assert body["output"] == "Before launch use the report to help users."
     assert "facts were not independently checked" in body["not_verified"]
+
+
+def test_humanize_accepts_delivery_profile():
+    surface, _ = _surface()
+    resp = asyncio.run(
+        surface.dispatch(
+            "POST",
+            "/humanize",
+            b'{"text":"Prior to launch, utilize the module test output.","profile":"engineer"}',
+        )
+    )
+    assert resp.status == 200
+    body = json.loads(resp.body)
+    assert body["profile"] == "engineer"
+    assert body["profile_check"]["profile"] == "engineer"
+
+
+def test_humanize_rejects_unknown_delivery_profile():
+    surface, _ = _surface()
+    resp = asyncio.run(
+        surface.dispatch("POST", "/humanize", b'{"text":"Use the report.","profile":"poet"}')
+    )
+    assert resp.status == 400
+    assert "unknown delivery profile" in json.loads(resp.body)["error"]
