@@ -122,6 +122,10 @@ def test_submit_answers_and_witnesses():
     assert receipt["request"]["seq"] == 0
     assert receipt["answer"]["seq"] >= receipt["request"]["seq"]
     assert len(receipt["answer"]["payload_hash"]) == 64
+    assert receipt["route_frame"]["schema"] == "forum.route-frame/v1"
+    assert receipt["route_frame"]["domain"] == "implementation"
+    assert receipt["delivery_profile"]["selected"] == "engineer"
+    assert receipt["delivery_profile"]["source"] == "route_frame"
     # the run was witnessed and is deep-verifiable
     assert orch.ledger.verify(deep=True) is True
     assert len(orch.ledger.replay()) > 0
@@ -151,6 +155,8 @@ def test_submit_accepts_delivery_profile_field():
     assert resp.status == 200
     body = json.loads(resp.body)
     assert body["receipt"]["delivery_profile"]["requested"] == "engineer"
+    assert body["receipt"]["delivery_profile"]["selected"] == "engineer"
+    assert body["receipt"]["delivery_profile"]["source"] == "explicit"
     assert body["receipt"]["delivery_profile"]["checks"] == 1
 
 
