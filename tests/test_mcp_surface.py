@@ -135,6 +135,16 @@ def test_call_submit_answers_and_witnesses():
     assert payload["receipt"]["verification"]["verdict"] == "MATCH"
 
 
+def test_prefixed_submit_accepts_context_budget_fields():
+    surface = _mcp()
+    resp = _call(surface, "forum.submit", {
+        "request": "design an api",
+        "context_token_budget": 0,
+    })
+    payload = json.loads(resp["result"]["content"][0]["text"])
+    assert "context_budget" in payload["receipt"]
+
+
 def test_call_status_and_verify_after_submit():
     surface = _mcp()
     _call(surface, "submit", {"request": "design an api"})

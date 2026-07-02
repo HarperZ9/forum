@@ -24,10 +24,23 @@ def _body(obj: dict) -> bytes:
     return json.dumps(obj).encode("utf-8")
 
 
+def _submit_body(arguments: dict) -> bytes:
+    body = {"request": arguments.get("request", "")}
+    for key in (
+        "context_token_budget",
+        "request_context_token_budget",
+        "task_context_token_budget",
+        "upstream_token_budget",
+    ):
+        if key in arguments:
+            body[key] = arguments[key]
+    return _body(body)
+
+
 # Tool name -> (arguments) -> (http_method, path, body). Each tool is served by
 # the shared HttpSurface, so the MCP and HTTP surfaces cannot drift.
 _TOOL_ROUTES = {
-    "submit": lambda a: ("POST", "/submit", _body({"request": a.get("request", "")})),
+    "submit": lambda a: ("POST", "/submit", _submit_body(a)),
     "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
     "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
     "humanize": lambda a: ("POST", "/humanize", _body({"text": a.get("text", ""), "audience": a.get("audience", "operator")})),
@@ -48,13 +61,37 @@ _TOOL_ALIASES = {
     "forum.ledger.summary": "ledger_summary",
 }
 
+_CONTEXT_BUDGET_PROPERTIES = {
+    "context_token_budget": {
+        "type": "integer",
+        "description": "run-wide approximate context token budget",
+    },
+    "request_context_token_budget": {
+        "type": "integer",
+        "description": "request-level context token budget",
+    },
+    "task_context_token_budget": {
+        "type": "integer",
+        "description": "per-task context token budget",
+    },
+    "upstream_token_budget": {
+        "type": "integer",
+        "description": "per-upstream injection token budget",
+    },
+}
+
+_SUBMIT_PROPERTIES = {
+    "request": {"type": "string", "description": "the request to fulfil"},
+    **_CONTEXT_BUDGET_PROPERTIES,
+}
+
 _TOOL_SPECS = [
     {
         "name": "submit",
         "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
         "inputSchema": {
             "type": "object",
-            "properties": {"request": {"type": "string", "description": "the request to fulfil"}},
+            "properties": _SUBMIT_PROPERTIES,
             "required": ["request"],
         },
     },
@@ -100,7 +137,7 @@ _TOOL_SPECS = [
         "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
         "inputSchema": {
             "type": "object",
-            "properties": {"request": {"type": "string", "description": "the request to fulfil"}},
+            "properties": _SUBMIT_PROPERTIES,
             "required": ["request"],
         },
     },

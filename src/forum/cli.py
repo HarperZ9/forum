@@ -49,6 +49,21 @@ def _open_ledger(directory):
     return Ledger(FileStorage(directory))
 
 
+def _make_context_budget(args):
+    values = {
+        "max_total_tokens": getattr(args, "context_token_budget", None),
+        "max_request_tokens": getattr(args, "request_context_token_budget", None),
+        "max_task_tokens": getattr(args, "task_context_token_budget", None),
+        "max_upstream_tokens": getattr(args, "upstream_token_budget", None),
+    }
+    if all(value is None for value in values.values()):
+        return None, {}
+    from forum.context_budget import ContextBudget
+
+    budget = ContextBudget(**values)
+    return budget, budget.configured_limits()
+
+
 
 def _cmd_humanize(args) -> int:
     from forum.humanize import humanize_text
@@ -96,6 +111,11 @@ def _cmd_submit(args) -> int:
             budget_payload["max_model_calls"] = args.max_model_calls
         if args.max_seconds is not None:
             budget_payload["max_seconds"] = args.max_seconds
+    try:
+        context_budget, context_budget_payload = _make_context_budget(args)
+    except ValueError as exc:
+        print(f"invalid context budget: {exc}", file=sys.stderr)
+        return 2
     intent_judge = None
     if getattr(args, "judge_intent", False):
         from forum.control import IntentJudge
@@ -104,7 +124,7 @@ def _cmd_submit(args) -> int:
     orch = build_orchestrator(args.ledger, executor=executor, intent_judge=intent_judge)
     before_seq = orch.ledger.count()
     try:
-        answer = asyncio.run(orch.submit(args.request, budget=budget))
+        answer = asyncio.run(orch.submit(args.request, budget=budget, context_budget=context_budget))
     except ValueError as exc:
         print(f"submit failed: {exc}", file=sys.stderr)
         return 1
@@ -116,6 +136,7 @@ def _cmd_submit(args) -> int:
         answer=answer,
         executor=executor,
         budget=budget_payload,
+        context_budget=context_budget_payload,
     )
     if args.json:
         print(json.dumps({"answer": answer, "checkpoint": checkpoint, "receipt": receipt}, indent=2))
@@ -265,6 +286,10 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("request")
     submit.add_argument("--max-model-calls", type=int, default=None, help="bound the run to N model calls (witnessed budget)")
     submit.add_argument("--max-seconds", type=float, default=None, help="bound the run to S seconds (best-effort)")
+    submit.add_argument("--context-token-budget", type=int, default=None, help="bound admitted context across the run to N approximate tokens")
+    submit.add_argument("--request-context-token-budget", type=int, default=None, help="bound request-level context to N approximate tokens")
+    submit.add_argument("--task-context-token-budget", type=int, default=None, help="bound each per-task context slice to N approximate tokens")
+    submit.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
     submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
     submit.add_argument("--json", action="store_true", help="emit answer, checkpoint, and Project Telos action receipt as JSON")
     _add_ledger(submit)

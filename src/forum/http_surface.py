@@ -112,6 +112,31 @@ class HttpSurface:
         except ValueError:
             return None, error(400, f"{prefix}<seq> requires an integer seq")
 
+    def _context_budget(self, data: dict):
+        from forum.context_budget import ContextBudget
+
+        mapping = {
+            "context_token_budget": "max_total_tokens",
+            "request_context_token_budget": "max_request_tokens",
+            "task_context_token_budget": "max_task_tokens",
+            "upstream_token_budget": "max_upstream_tokens",
+        }
+        kwargs = {}
+        for field, target in mapping.items():
+            if field not in data:
+                continue
+            value = data[field]
+            if type(value) is not int:
+                return None, None, error(400, f"field {field!r} must be an integer")
+            kwargs[target] = value
+        if not kwargs:
+            return None, {}, None
+        try:
+            budget = ContextBudget(**kwargs)
+        except ValueError as exc:
+            return None, None, error(400, str(exc))
+        return budget, budget.configured_limits(), None
+
     # --- handlers ---
 
     def _ledger_get(self, path: str) -> Response:
@@ -190,9 +215,12 @@ class HttpSurface:
         request, err = self._str_field(data, "request")
         if err:
             return err
+        context_budget, context_budget_payload, err = self._context_budget(data)
+        if err:
+            return err
         before_seq = self._orch.ledger.count()
         try:
-            answer = await self._orch.submit(request)
+            answer = await self._orch.submit(request, context_budget=context_budget)
         except ValueError as exc:
             return error(
                 502,
@@ -205,6 +233,7 @@ class HttpSurface:
             request=request,
             answer=answer,
             executor=self._orch.executor,
+            context_budget=context_budget_payload,
         )
         return json_response({
             "answer": answer,

@@ -32,6 +32,27 @@ def _answer_entry(entries: list[LedgerEntry], ledger: Ledger, answer: str) -> Le
     return None
 
 
+def _context_budget_observed(entries: list[LedgerEntry], ledger: Ledger) -> dict[str, int]:
+    payloads = []
+    for entry in entries:
+        if entry.kind != "context_budget":
+            continue
+        try:
+            payloads.append(ledger.get_payload(entry.payload_hash))
+        except KeyError:
+            continue
+    original = sum(int(p.get("original_tokens", 0)) for p in payloads)
+    admitted = sum(int(p.get("admitted_tokens", 0)) for p in payloads)
+    return {
+        "checks": len(payloads),
+        "trimmed": sum(1 for p in payloads if p.get("action") == "trimmed"),
+        "omitted": sum(1 for p in payloads if p.get("action") == "omitted"),
+        "tokens_original": original,
+        "tokens_admitted": admitted,
+        "tokens_saved": original - admitted,
+    }
+
+
 def submit_receipt(
     ledger: Ledger,
     *,
@@ -40,6 +61,7 @@ def submit_receipt(
     answer: str,
     executor: Any,
     budget: dict[str, Any] | None = None,
+    context_budget: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     entries = [entry for entry in ledger.replay() if entry.seq >= before_seq]
     request_entry = next((entry for entry in entries if entry.kind == "request"), entries[0] if entries else None)
@@ -71,6 +93,10 @@ def submit_receipt(
         },
         "model": {"id": executor_id(executor)},
         "budget": budget or {},
+        "context_budget": {
+            "limits": context_budget or {},
+            "observed": _context_budget_observed(entries, ledger),
+        },
         "verification": {
             "verdict": "MATCH" if verified else "DRIFT",
             "ledger_deep_verified": verified,
