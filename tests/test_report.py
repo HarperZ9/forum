@@ -171,3 +171,87 @@ def test_task_result_with_an_answer_key_is_still_a_task_result():
     assert s["task_results"] == 1
     assert s["answers"] == 1
     assert s["model_calls"] == {"m": 1}
+
+
+def test_summary_reports_context_pressure_metrics():
+    led = _led()
+    led.append(
+        actor="context-budget",
+        kind="context_budget",
+        payload={
+            "schema": "forum.context-pressure/v1",
+            "source": "task",
+            "label": "T1",
+            "action": "trimmed",
+            "reason": "max_task_tokens",
+            "original_bytes": 40,
+            "admitted_bytes": 20,
+            "original_tokens": 10,
+            "admitted_tokens": 5,
+            "remaining_total_tokens": 20,
+        },
+    )
+    led.append(
+        actor="context-budget",
+        kind="context_budget",
+        payload={
+            "schema": "forum.context-pressure/v1",
+            "source": "task",
+            "label": "T2",
+            "action": "omitted",
+            "reason": "max_total_tokens",
+            "original_bytes": 16,
+            "admitted_bytes": 0,
+            "original_tokens": 4,
+            "admitted_tokens": 0,
+            "remaining_total_tokens": 0,
+        },
+    )
+    s = summarize(led)
+    assert s["context_budget_checks"] == 2
+    assert s["context_budget_trimmed"] == 1
+    assert s["context_budget_omitted"] == 1
+    assert s["context_tokens_original"] == 14
+    assert s["context_tokens_admitted"] == 5
+    assert s["context_tokens_saved"] == 9
+    assert "context_tokens_saved" in compare(s, s)
+
+
+def test_summary_reports_delivery_profile_metrics():
+    led = _led()
+    led.append(
+        actor="delivery-profile",
+        kind="delivery_profile_check",
+        payload={
+            "schema": "forum.delivery-profile/v1",
+            "profile": "engineer",
+            "words": 9,
+            "sentences": 1,
+            "mean_sentence_words": 9.0,
+            "filler_ratio": 0.0,
+            "flagged": False,
+            "findings": [],
+        },
+    )
+    led.append(
+        actor="delivery-profile",
+        kind="delivery_profile_check",
+        payload={
+            "schema": "forum.delivery-profile/v1",
+            "profile": "executive",
+            "words": 140,
+            "sentences": 2,
+            "mean_sentence_words": 70.0,
+            "filler_ratio": 0.0,
+            "flagged": True,
+            "findings": [{"code": "too_many_words", "detail": "word count 140 exceeds 120"}],
+        },
+    )
+    s = summarize(led)
+    assert s["delivery_profile_checks"] == 2
+    assert s["delivery_profile_flagged"] == 1
+    assert s["delivery_profile_engineer"] == 1
+    assert s["delivery_profile_executive"] == 1
+    assert s["delivery_profile_operator"] == 0
+    assert s["delivery_profile_researcher"] == 0
+    assert "delivery_profile_flagged" in compare(s, s)

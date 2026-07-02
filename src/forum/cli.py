@@ -49,12 +49,27 @@ def _open_ledger(directory):
     return Ledger(FileStorage(directory))
 
 
+def _make_context_budget(args):
+    values = {
+        "max_total_tokens": getattr(args, "context_token_budget", None),
+        "max_request_tokens": getattr(args, "request_context_token_budget", None),
+        "max_task_tokens": getattr(args, "task_context_token_budget", None),
+        "max_upstream_tokens": getattr(args, "upstream_token_budget", None),
+    }
+    if all(value is None for value in values.values()):
+        return None, {}
+    from forum.context_budget import ContextBudget
+
+    budget = ContextBudget(**values)
+    return budget, budget.configured_limits()
+
+
 
 def _cmd_humanize(args) -> int:
     from forum.humanize import humanize_text
 
     try:
-        print(json.dumps(humanize_text(args.text, audience=args.audience)))
+        print(json.dumps(humanize_text(args.text, audience=args.audience, profile=args.profile)))
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -96,15 +111,31 @@ def _cmd_submit(args) -> int:
             budget_payload["max_model_calls"] = args.max_model_calls
         if args.max_seconds is not None:
             budget_payload["max_seconds"] = args.max_seconds
+    try:
+        context_budget, context_budget_payload = _make_context_budget(args)
+    except ValueError as exc:
+        print(f"invalid context budget: {exc}", file=sys.stderr)
+        return 2
     intent_judge = None
     if getattr(args, "judge_intent", False):
         from forum.control import IntentJudge
 
         intent_judge = IntentJudge()
     orch = build_orchestrator(args.ledger, executor=executor, intent_judge=intent_judge)
+    if args.use_capsule_context:
+        from forum.context_capsule import LedgerCapsuleProvider
+
+        orch.context_provider = LedgerCapsuleProvider(orch.ledger)
     before_seq = orch.ledger.count()
     try:
-        answer = asyncio.run(orch.submit(args.request, budget=budget))
+        answer = asyncio.run(
+            orch.submit(
+                args.request,
+                budget=budget,
+                context_budget=context_budget,
+                delivery_profile=args.delivery_profile,
+            )
+        )
     except ValueError as exc:
         print(f"submit failed: {exc}", file=sys.stderr)
         return 1
@@ -116,6 +147,8 @@ def _cmd_submit(args) -> int:
         answer=answer,
         executor=executor,
         budget=budget_payload,
+        context_budget=context_budget_payload,
+        delivery_profile=args.delivery_profile,
     )
     if args.json:
         print(json.dumps({"answer": answer, "checkpoint": checkpoint, "receipt": receipt}, indent=2))
@@ -197,6 +230,21 @@ def _cmd_ledger_summary(args) -> int:
     return 0
 
 
+def _cmd_ledger_capsule(args) -> int:
+    from forum.context_capsule import build_context_capsule, capsule_text
+
+    capsule = build_context_capsule(
+        _open_ledger(args.ledger),
+        max_items=args.max_items,
+        max_text_chars=args.max_text_chars,
+    )
+    if args.text:
+        print(capsule_text(capsule))
+        return 0
+    print(json.dumps(capsule, indent=2))
+    return 0
+
+
 def _cmd_bench(args) -> int:
     from forum.report import compare, summarize
 
@@ -250,6 +298,11 @@ def build_parser() -> argparse.ArgumentParser:
     humanize = sub.add_parser("humanize", help="clarify model or agent prose without adding facts")
     humanize.add_argument("text")
     humanize.add_argument("--audience", default="operator")
+    humanize.add_argument(
+        "--profile",
+        default=None,
+        help="delivery profile to assess: operator, engineer, researcher, executive",
+    )
     humanize.set_defaults(func=_cmd_humanize)
 
     route = sub.add_parser("route", help="route a request to a capability lane (no model needed)")
@@ -265,6 +318,12 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("request")
     submit.add_argument("--max-model-calls", type=int, default=None, help="bound the run to N model calls (witnessed budget)")
     submit.add_argument("--max-seconds", type=float, default=None, help="bound the run to S seconds (best-effort)")
+    submit.add_argument("--context-token-budget", type=int, default=None, help="bound admitted context across the run to N approximate tokens")
+    submit.add_argument("--request-context-token-budget", type=int, default=None, help="bound request-level context to N approximate tokens")
+    submit.add_argument("--task-context-token-budget", type=int, default=None, help="bound each per-task context slice to N approximate tokens")
+    submit.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
+    submit.add_argument("--use-capsule-context", action="store_true", help="feed the current ledger's context capsule into the run before planning")
+    submit.add_argument("--delivery-profile", default=None, help="delivery profile to witness: operator, engineer, researcher, executive")
     submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
     submit.add_argument("--json", action="store_true", help="emit answer, checkpoint, and Project Telos action receipt as JSON")
     _add_ledger(submit)
@@ -304,6 +363,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ledger(summary)
     summary.add_argument("--json", action="store_true", help="emit the summary as JSON")
     summary.set_defaults(func=_cmd_ledger_summary)
+    capsule = lsub.add_parser("capsule", help="compact the ledger into a reusable context capsule")
+    _add_ledger(capsule)
+    capsule.add_argument("--json", action="store_true", help="emit the capsule as JSON (default)")
+    capsule.add_argument("--text", action="store_true", help="emit prompt-safe capsule text")
+    capsule.add_argument("--max-items", type=int, default=8, help="maximum task result items to include")
+    capsule.add_argument("--max-text-chars", type=int, default=240, help="maximum characters copied from any text field")
+    capsule.set_defaults(func=_cmd_ledger_capsule)
     ledger.set_defaults(func=lambda a: _print_help_rc(ledger))
 
     bench = sub.add_parser("bench", help="compare two ledgers (A/B) by their summaries")

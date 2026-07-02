@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Context Capsules: adds deterministic `forum.context-capsule/v1` briefs built from the witnessed ledger, with CLI `forum ledger capsule`, CLI submit `--use-capsule-context`, HTTP `GET /capsule`, and MCP `forum.ledger.capsule`.
+- Expert Delivery Profiles: adds deterministic profile checks for `operator`, `engineer`, `researcher`, and `executive` prose, with `delivery_profile_check` ledger entries, summary/bench metrics, receipt fields, and CLI/HTTP/MCP profile selection for `humanize` and `submit`.
+- Context pressure: adds `ContextBudget`, deterministic approximate-token accounting, witnessed `context_budget` entries, summary/bench metrics, and CLI/HTTP/MCP budget fields for request context, per-task context, and upstream data injection.
 - Proof lanes: adds `forum.lanes`, a closed vocabulary of five proof lanes (observe, execute, validate, synthesize, verify), each with a declared authority and an explicit scope grant. `witness_route` refuses a route that names a lane outside the vocabulary or claims a scope its lane does not grant (over-routing), with a typed reason (`LaneViolation`), and witnesses the rejection as a first-class `lane_rejection` ledger entry, never a silent drop; a well-formed route passes unchanged and is witnessed as `lane_route`. The gate keys off vocabulary membership and scope set arithmetic, not any string the route's author supplies, and negative tests cover both rejection paths.
 - Routing: private-line flagship requests mentioning Seed, Kun, Sofer, ORCA, or behavior-transform now route to `project-telos` without classifier escalation.
 - Routing: broad Project Telos operator requests now use a decisive-hit floor so `project-telos` can win when it has enough raw keyword evidence, while secondary lanes such as `render-pipeline`, `deep-research`, and `function-routing` stay visible instead of forcing escalation.

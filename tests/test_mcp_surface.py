@@ -65,6 +65,12 @@ def test_tools_list_has_the_tools():
         assert tool["inputSchema"]["type"] == "object"
 
 
+def test_tools_list_includes_context_capsule():
+    resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    names = {t["name"] for t in resp["result"]["tools"]}
+    assert "forum.ledger.capsule" in names
+
+
 def test_call_route_decides_a_lane():
     resp = _call(_mcp(), "route", {"text": "build the api database server endpoint"})
     result = resp["result"]
@@ -123,6 +129,18 @@ def test_call_prefixed_humanize_simplifies_agent_prose():
     assert "facts were not independently checked" in payload["not_verified"]
 
 
+def test_call_prefixed_humanize_accepts_delivery_profile():
+    resp = _call(_mcp(), "forum.prose.humanize", {
+        "text": "Prior to launch, utilize the module test output.",
+        "profile": "engineer",
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["profile"] == "engineer"
+    assert payload["profile_check"]["profile"] == "engineer"
+
+
 def test_call_submit_answers_and_witnesses():
     resp = _call(_mcp(), "submit", {"request": "design an api"})
     result = resp["result"]
@@ -133,6 +151,27 @@ def test_call_submit_answers_and_witnesses():
     assert payload["receipt"]["schema"] == "project-telos.action-receipt/v1"
     assert payload["receipt"]["ledger"]["verified"] is True
     assert payload["receipt"]["verification"]["verdict"] == "MATCH"
+
+
+def test_prefixed_submit_accepts_context_budget_fields():
+    surface = _mcp()
+    resp = _call(surface, "forum.submit", {
+        "request": "design an api",
+        "context_token_budget": 0,
+    })
+    payload = json.loads(resp["result"]["content"][0]["text"])
+    assert "context_budget" in payload["receipt"]
+
+
+def test_prefixed_submit_accepts_delivery_profile_field():
+    surface = _mcp()
+    resp = _call(surface, "forum.submit", {
+        "request": "design an api",
+        "delivery_profile": "engineer",
+    })
+    payload = json.loads(resp["result"]["content"][0]["text"])
+    assert payload["receipt"]["delivery_profile"]["requested"] == "engineer"
+    assert payload["receipt"]["delivery_profile"]["checks"] == 1
 
 
 def test_call_status_and_verify_after_submit():
@@ -164,6 +203,14 @@ def test_call_prefixed_ledger_summary_after_submit():
     assert summary["entries"] > 0
     assert summary["verified"] is True
     assert summary["requests"] == 1
+
+
+def test_call_prefixed_ledger_capsule_after_submit():
+    surface = _mcp()
+    _call(surface, "forum.submit", {"request": "design an api"})
+    payload = json.loads(_call(surface, "forum.ledger.capsule")["result"]["content"][0]["text"])
+    assert payload["schema"] == "forum.context-capsule/v1"
+    assert payload["latest_answer"] == "Done."
 
 
 def test_call_ledger_get_returns_an_entry():

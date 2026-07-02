@@ -6,8 +6,15 @@ from collections.abc import Callable
 
 from forum.budget import RunBudget
 from forum.context import ContextProvider, NullContextProvider
+from forum.context_budget import (
+    ContextBudget,
+    ContextBudgetMeter,
+    apply_context_budget,
+    pressure_payload,
+)
 from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Validator
 from forum.delivery import NullReviser, Reviser, assess
+from forum.delivery_profile import assess_profile, get_profile, profile_payload
 from forum.dispatch import augment_with_upstream, dispatch_plan
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.intent import DEFAULT_THRESHOLD, coverage
@@ -112,7 +119,14 @@ class Orchestrator:
             checkpoint_each_wave=checkpoint_each_wave,
         )
 
-    async def submit(self, request: str, *, budget: RunBudget | None = None) -> str:
+    async def submit(
+        self,
+        request: str,
+        *,
+        budget: RunBudget | None = None,
+        context_budget: ContextBudget | None = None,
+        delivery_profile: str | None = None,
+    ) -> str:
         """Plan a plain request, run it, validate each result, and answer.
 
         Pulls organized context from the ContextProvider first (witnessed), then
@@ -124,6 +138,10 @@ class Orchestrator:
         counter = _Counted(self.executor, meter)
         ladder = [_Counted(e, meter) for e in self.escalation_executors]
         start = time.monotonic()
+        context_meter = ContextBudgetMeter()
+        selected_delivery_profile = (
+            get_profile(delivery_profile).name if delivery_profile is not None else None
+        )
 
         def over_budget() -> bool:
             if budget is None:
@@ -137,6 +155,17 @@ class Orchestrator:
         req = self.ledger.append(actor="client", kind="request", payload={"text": request})
         context = self.context_provider.context(request)
         parent = req.seq
+        if context_budget is not None:
+            context, pressure = apply_context_budget(
+                "request", "request", context, context_budget, context_meter
+            )
+            if pressure.original_tokens > 0:
+                self.ledger.append(
+                    actor="context-budget",
+                    kind="context_budget",
+                    payload=pressure_payload(pressure, context_budget, context_meter),
+                    causal_parent=req.seq,
+                )
         if context:
             # Witness the exact context that shaped the plan, and chain
             # request -> context -> plan so the provenance is reconstructable.
@@ -149,6 +178,8 @@ class Orchestrator:
             plan, self.ledger, counter,
             max_parallel=self.policy.max_parallel, parent_seq=parent, over_budget=over_budget,
             context_provider=self.context_provider,
+            context_budget=context_budget,
+            context_meter=context_meter,
         )
         failed: list[Task] = []
         for task in plan.tasks:
@@ -215,6 +246,7 @@ class Orchestrator:
         )
         # delivery first, so intent and verification both see and chain to the delivered answer
         answer, answer_seq = self._resolve_delivery(request, answer, answer_entry.seq)
+        self._witness_delivery_profile(answer, answer_seq, selected_delivery_profile)
         await self._witness_intent(request, answer, answer_seq, counter, over_budget)
         self._witness_verification(request, answer, answer_seq)
         return answer
@@ -241,6 +273,22 @@ class Orchestrator:
             causal_parent=parent_seq,
         )
         return verdict.ok
+
+    def _witness_delivery_profile(
+        self,
+        answer: str,
+        parent_seq: int,
+        profile: str | None,
+    ) -> None:
+        if profile is None:
+            return
+        assessment = assess_profile(answer, profile)
+        self.ledger.append(
+            actor="delivery-profile",
+            kind="delivery_profile_check",
+            payload=profile_payload(assessment),
+            causal_parent=parent_seq,
+        )
 
     async def _witness_intent(
         self, request: str, answer: str, parent_seq: int, executor: Executor,

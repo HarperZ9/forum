@@ -111,6 +111,55 @@ def test_submit_answers_and_witnesses():
     assert len(orch.ledger.replay()) > 0
 
 
+def test_submit_accepts_context_budget_fields():
+    surface, _ = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/submit",
+        b'{"request": "design an api", "context_token_budget": 0}',
+    )
+    assert resp.status == 200
+    body = json.loads(resp.body)
+    assert "context_budget" in body["receipt"]
+
+
+def test_submit_accepts_delivery_profile_field():
+    surface, _ = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/submit",
+        b'{"request": "design an api", "delivery_profile": "engineer"}',
+    )
+    assert resp.status == 200
+    body = json.loads(resp.body)
+    assert body["receipt"]["delivery_profile"]["requested"] == "engineer"
+    assert body["receipt"]["delivery_profile"]["checks"] == 1
+
+
+def test_submit_rejects_unknown_delivery_profile():
+    surface, _ = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/submit",
+        b'{"request": "design an api", "delivery_profile": "poet"}',
+    )
+    assert resp.status == 400
+    assert "unknown delivery profile" in json.loads(resp.body)["error"]
+
+
+def test_capsule_returns_context_capsule():
+    surface, _ = _surface()
+    _do(surface, "POST", "/submit", b'{"request": "design an api"}')
+    resp = _do(surface, "GET", "/capsule")
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["schema"] == "forum.context-capsule/v1"
+    assert body["latest_answer"] == "Done: the api is designed."
+
+
 def test_ledger_get_and_replay_after_submit():
     surface, orch = _surface()
     _do(surface, "POST", "/submit", b'{"request": "design an api"}')
@@ -194,3 +243,27 @@ def test_humanize_simplifies_agent_prose():
     assert body["schema"] == "forum.prose-humanization/v1"
     assert body["output"] == "Before launch use the report to help users."
     assert "facts were not independently checked" in body["not_verified"]
+
+
+def test_humanize_accepts_delivery_profile():
+    surface, _ = _surface()
+    resp = asyncio.run(
+        surface.dispatch(
+            "POST",
+            "/humanize",
+            b'{"text":"Prior to launch, utilize the module test output.","profile":"engineer"}',
+        )
+    )
+    assert resp.status == 200
+    body = json.loads(resp.body)
+    assert body["profile"] == "engineer"
+    assert body["profile_check"]["profile"] == "engineer"
+
+
+def test_humanize_rejects_unknown_delivery_profile():
+    surface, _ = _surface()
+    resp = asyncio.run(
+        surface.dispatch("POST", "/humanize", b'{"text":"Use the report.","profile":"poet"}')
+    )
+    assert resp.status == 400
+    assert "unknown delivery profile" in json.loads(resp.body)["error"]

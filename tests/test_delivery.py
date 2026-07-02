@@ -177,6 +177,51 @@ def test_accepted_revision_is_a_result_entry_and_answers_counts_once():
     assert summarize(led)["answers"] == 1                    # but the run still counts one logical answer
 
 
+def test_submit_witnesses_delivery_profile_check():
+    led = _led()
+    answer = asyncio.run(
+        _orch(led, "The module passes the focused test from the ledger. Ship the API.").submit(
+            REQUEST,
+            delivery_profile="engineer",
+        )
+    )
+    assert "Ship the API" in answer
+    entries = led.query(kind="delivery_profile_check")
+    assert len(entries) == 1
+    payload = led.get_payload(entries[0].payload_hash)
+    assert payload["schema"] == "forum.delivery-profile/v1"
+    assert payload["profile"] == "engineer"
+    assert payload["flagged"] is False
+    parent = led.get(entries[0].causal_parent)
+    assert led.get_payload(parent.payload_hash).get("answer") == answer
+    assert led.verify(deep=True) is True
+
+
+def test_delivery_profile_check_chains_to_accepted_revision():
+    led = _led()
+    answer = asyncio.run(
+        _orch(led, VERBOSE, reviser=_Reviser(REVISED)).submit(
+            REQUEST,
+            delivery_profile="operator",
+        )
+    )
+    assert answer == REVISED
+    check = led.query(kind="delivery_profile_check")[0]
+    parent = led.get(check.causal_parent)
+    assert led.get_payload(parent.payload_hash).get("answer") == REVISED
+
+
+def test_unknown_delivery_profile_fails_before_ledger_write():
+    led = _led()
+    try:
+        asyncio.run(_orch(led, "answer").submit(REQUEST, delivery_profile="poet"))
+    except ValueError as exc:
+        assert "unknown delivery profile" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+    assert led.replay() == []
+
+
 def test_assess_counts_non_ascii_words():
     d = assess("café build the relational schema")
     assert d.words == 5  # unicode-aware tokenization keeps non-ascii words
