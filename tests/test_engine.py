@@ -109,3 +109,44 @@ def test_submit_plans_executes_and_answers():
     assert ledger.query(kind="request")
     assert ledger.query(kind="verdict")  # the result was validated
     assert ledger.verify(deep=True) is True
+
+
+class _DoneCriteriaExecutor:
+    def __init__(self):
+        self.assignments = []
+
+    async def run(self, assignment):
+        from forum.executor import Result
+
+        self.assignments.append(assignment)
+        agent = assignment.agent
+        if agent == "coordinator":
+            out = (
+                '{"tasks": [{'
+                '"id": "T1", "agent": "backend", "instruction": "build", '
+                '"depends_on": [], "done_when": ["tests pass"]'
+                '}]}'
+            )
+        elif agent == "validator":
+            out = '{"ok": true, "score": 0.9, "reason": "good"}'
+        elif agent == "synthesizer":
+            out = "final answer: built"
+        else:
+            out = "did: " + assignment.instruction
+        return Result(assignment.task_id, assignment.agent, out)
+
+
+def test_submit_validates_against_done_criteria():
+    ledger = make_ledger()
+    executor = _DoneCriteriaExecutor()
+    orch = Orchestrator(
+        ROSTER, ledger, executor,
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+    )
+    asyncio.run(orch.submit("build the backend"))
+
+    validator = next(a for a in executor.assignments if a.agent == "validator")
+    instruction_section = validator.instruction.split("\nOutput:", 1)[0]
+    assert "Done criteria:" in instruction_section
+    assert "- tests pass" in instruction_section
+    assert ledger.verify(deep=True) is True

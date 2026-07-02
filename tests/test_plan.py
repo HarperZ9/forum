@@ -49,3 +49,24 @@ def test_order_edge_still_constrains_scheduling():
         )
     )
     assert plan.schedule() == [["T1"], ["T2"]]  # an order edge sequences like any dep
+
+
+def test_task_contract_instruction_defaults_to_instruction():
+    task = Task("T1", "x", "build the api", ())
+    assert task.contract_instruction() == "build the api"
+
+
+def test_task_contract_instruction_includes_done_criteria():
+    task = Task(
+        "T1",
+        "x",
+        "build the api",
+        (),
+        done_when=("unit tests pass", "docs mention the endpoint"),
+    )
+    assert task.contract_instruction() == (
+        "build the api\n\n"
+        "Done criteria:\n"
+        "- unit tests pass\n"
+        "- docs mention the endpoint"
+    )

@@ -10,9 +10,10 @@ from forum.roster import Roster
 _COORDINATOR_PROMPT = """You are a planner. Break the request into a minimal task DAG.
 Available agents: <<AGENTS>>.
 Return ONLY JSON of the form:
-{"tasks": [{"id": "T1", "agent": "<one of the agents>", "instruction": "...", "depends_on": []}]}
+{"tasks": [{"id": "T1", "agent": "<one of the agents>", "instruction": "...", "depends_on": [], "done_when": ["..."]}]}
 Use depends_on to order tasks. A dep may be a task id (the downstream task uses that
 task's output) or {"id": "T1", "type": "order"} for run-after without using its output.
+Use done_when for 1-3 concrete success criteria when the task has a clear stop condition.
 Keep the plan small.
 
 Request: <<REQUEST>>"""
@@ -43,6 +44,17 @@ def _parse_deps(raw: object) -> tuple[tuple[str, ...], frozenset[str]]:
     return tuple(deps), frozenset(order)
 
 
+def _parse_done_when(raw: object) -> tuple[str, ...]:
+    if raw is None or raw == "":
+        return ()
+    if isinstance(raw, str):
+        value = raw.strip()
+        return (value,) if value else ()
+    if not isinstance(raw, list):
+        raise ValueError(f"done_when must be a list or string; got {type(raw).__name__}")
+    return tuple(str(item).strip() for item in raw if str(item).strip())
+
+
 class Coordinator:
     """Turn a plain request into a validated task plan, using a model."""
 
@@ -55,7 +67,13 @@ class Coordinator:
         if "tasks" not in data:
             raise ValueError(f"coordinator response missing 'tasks'; got keys {list(data)}")
         tasks = tuple(
-            Task(str(t["id"]), str(t["agent"]), str(t["instruction"]), *_parse_deps(t.get("depends_on", [])))
+            Task(
+                str(t["id"]),
+                str(t["agent"]),
+                str(t["instruction"]),
+                *_parse_deps(t.get("depends_on", [])),
+                _parse_done_when(t.get("done_when", [])),
+            )
             for t in data["tasks"]
         )
         for t in tasks:

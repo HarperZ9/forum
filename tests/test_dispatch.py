@@ -173,6 +173,33 @@ def test_failed_upstream_is_not_fed_downstream():
     assert ledger.verify(deep=True) is True
 
 
+def test_done_criteria_are_sent_to_worker_and_witnessed():
+    ledger = make_ledger()
+    plan = Plan(
+        (
+            Task(
+                "T1",
+                "backend",
+                "build",
+                (),
+                done_when=("tests pass", "migration documented"),
+            ),
+        )
+    )
+    results = asyncio.run(dispatch_plan(plan, ledger, _EchoSawExecutor(), max_parallel=2))
+
+    assert results["T1"].output == (
+        "build\n\n"
+        "Done criteria:\n"
+        "- tests pass\n"
+        "- migration documented"
+    )
+    body = ledger.get_payload(_task_entry(ledger, "T1").payload_hash)
+    assert body["instruction"] == "build"
+    assert body["done_when"] == ["tests pass", "migration documented"]
+    assert ledger.verify(deep=True) is True
+
+
 def test_plan_entry_witnesses_typed_edges():
     ledger = make_ledger()
     plan = Plan(
