@@ -59,6 +59,7 @@ _TOOL_ROUTES = {
     "status": lambda a: ("GET", "/status", b""),
     "verify": lambda a: ("GET", "/verify", b""),
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
+    "ledger_capsule": lambda a: ("GET", "/capsule", b""),
 }
 
 _TOOL_ALIASES = {
@@ -71,6 +72,7 @@ _TOOL_ALIASES = {
     "forum.verify": "verify",
     "forum.ledger.get": "ledger_get",
     "forum.ledger.summary": "ledger_summary",
+    "forum.ledger.capsule": "ledger_capsule",
 }
 
 _CONTEXT_BUDGET_PROPERTIES = {
@@ -196,6 +198,11 @@ _TOOL_SPECS = [
     {
         "name": "forum.ledger.summary",
         "description": "Summarize the witnessed causal ledger into counts, verification, and payload weight.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.ledger.capsule",
+        "description": "Compact the witnessed ledger into a deterministic context capsule.",
         "inputSchema": {"type": "object", "properties": {}},
     },
 ]

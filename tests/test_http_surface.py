@@ -150,6 +150,16 @@ def test_submit_rejects_unknown_delivery_profile():
     assert "unknown delivery profile" in json.loads(resp.body)["error"]
 
 
+def test_capsule_returns_context_capsule():
+    surface, _ = _surface()
+    _do(surface, "POST", "/submit", b'{"request": "design an api"}')
+    resp = _do(surface, "GET", "/capsule")
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["schema"] == "forum.context-capsule/v1"
+    assert body["latest_answer"] == "Done: the api is designed."
+
+
 def test_ledger_get_and_replay_after_submit():
     surface, orch = _surface()
     _do(surface, "POST", "/submit", b'{"request": "design an api"}')

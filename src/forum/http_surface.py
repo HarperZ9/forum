@@ -20,7 +20,17 @@ _REASONS = {
     502: "Bad Gateway",
 }
 
-_KNOWN_PATHS = {"/health", "/status", "/verify", "/checkpoint", "/route", "/plan", "/submit", "/humanize"}
+_KNOWN_PATHS = {
+    "/health",
+    "/status",
+    "/verify",
+    "/checkpoint",
+    "/capsule",
+    "/route",
+    "/plan",
+    "/submit",
+    "/humanize",
+}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -70,6 +80,8 @@ class HttpSurface:
             return json_response({"chain": led.verify(), "deep": led.verify(deep=True)})
         if method == "GET" and path == "/checkpoint":
             return json_response({"checkpoint": self._orch.ledger.checkpoint()})
+        if method == "GET" and path == "/capsule":
+            return self._capsule()
         if method == "GET" and path.startswith("/ledger/"):
             return self._ledger_get(path)
         if method == "GET" and path.startswith("/replay/"):
@@ -155,6 +167,11 @@ class HttpSurface:
             return err
         entries = self._orch.ledger.replay(until=seq)
         return json_response({"entries": [dataclasses.asdict(e) for e in entries]})
+
+    def _capsule(self) -> Response:
+        from forum.context_capsule import build_context_capsule
+
+        return json_response(build_context_capsule(self._orch.ledger))
 
     def _route_text(self, body: bytes) -> Response:
         data, err = self._read_json(body)
