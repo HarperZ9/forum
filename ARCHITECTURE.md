@@ -222,13 +222,14 @@ contract for how the answer was delivered.
 
 Submit now connects routing and delivery by default. After the request entry is
 witnessed, `Orchestrator.submit` derives and witnesses a `route_frame` entry for the
-request. If the caller did not pass a delivery profile, the frame's
+request. The frame's human contract is passed into the synthesis prompt before the
+final answer is written. If the caller did not pass a delivery profile, the frame's
 `delivery_profile` becomes the selected profile for the final answer check; an
 explicit profile still wins. Submit receipts read those witnessed entries back and
 report the route frame, the selected profile, and whether the selection came from the
 route frame or the caller. The mechanism is deliberately local: Forum is not imitating
-a named writer and not adding facts, it is selecting and checking a prose contract
-that matches the work posture.
+a named writer and not adding facts, it is selecting, prompting with, and checking a
+prose contract that matches the work posture.
 
 ## Reading the record
 
