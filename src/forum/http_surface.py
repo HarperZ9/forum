@@ -191,7 +191,7 @@ class HttpSurface:
         if err:
             return err
         result = self._orch.route(text)
-        frame = derive_route_frame(text, result)
+        frame = derive_route_frame(text, result, self._orch.roster)
         return json_response({
             "decided": result.decided,
             "confidence": result.confidence,

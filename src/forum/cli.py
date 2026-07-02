@@ -80,8 +80,9 @@ def _cmd_route(args) -> int:
     from forum.roster import load_default
     from forum.routing import LexicalRouter
 
-    result = LexicalRouter().score(args.text, load_default())
-    frame = derive_route_frame(args.text, result)
+    roster = load_default()
+    result = LexicalRouter().score(args.text, roster)
+    frame = derive_route_frame(args.text, result, roster)
     print(json.dumps({
         "decided": result.decided,
         "confidence": result.confidence,
