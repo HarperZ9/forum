@@ -139,9 +139,7 @@ class Orchestrator:
         ladder = [_Counted(e, meter) for e in self.escalation_executors]
         start = time.monotonic()
         context_meter = ContextBudgetMeter()
-        selected_delivery_profile = (
-            get_profile(delivery_profile).name if delivery_profile is not None else None
-        )
+        selected_delivery_profile = get_profile(delivery_profile).name if delivery_profile is not None else None
 
         def over_budget() -> bool:
             if budget is None:
@@ -153,6 +151,17 @@ class Orchestrator:
             return False
 
         req = self.ledger.append(actor="client", kind="request", payload={"text": request})
+        from forum.route_frame import derive_route_frame, frame_payload
+
+        route_frame = derive_route_frame(request, self.route(request))
+        self.ledger.append(
+            actor="router",
+            kind="route_frame",
+            payload=frame_payload(route_frame),
+            causal_parent=req.seq,
+        )
+        if selected_delivery_profile is None:
+            selected_delivery_profile = get_profile(route_frame.delivery_profile).name
         context = self.context_provider.context(request)
         parent = req.seq
         if context_budget is not None:

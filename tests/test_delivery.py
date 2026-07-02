@@ -197,6 +197,42 @@ def test_submit_witnesses_delivery_profile_check():
     assert led.verify(deep=True) is True
 
 
+def test_submit_uses_route_frame_delivery_profile_by_default():
+    led = _led()
+    answer = asyncio.run(
+        _orch(led, "The module passes the focused test from the ledger. Ship the API.").submit(
+            "build eval gated model promotion for a self improving daemon"
+        )
+    )
+    route_frame = led.query(kind="route_frame")
+    assert len(route_frame) == 1
+    frame = led.get_payload(route_frame[0].payload_hash)
+    assert frame["schema"] == "forum.route-frame/v1"
+    assert frame["domain"] == "model-foundry"
+    assert frame["delivery_profile"] == "engineer"
+    entries = led.query(kind="delivery_profile_check")
+    assert len(entries) == 1
+    payload = led.get_payload(entries[0].payload_hash)
+    assert payload["profile"] == "engineer"
+    assert payload["flagged"] is False
+    parent = led.get(entries[0].causal_parent)
+    assert led.get_payload(parent.payload_hash).get("answer") == answer
+
+
+def test_explicit_delivery_profile_overrides_route_frame():
+    led = _led()
+    asyncio.run(
+        _orch(led, "Ship the model review.").submit(
+            "build eval gated model promotion for a self improving daemon",
+            delivery_profile="operator",
+        )
+    )
+    frame = led.get_payload(led.query(kind="route_frame")[0].payload_hash)
+    assert frame["delivery_profile"] == "engineer"
+    payload = led.get_payload(led.query(kind="delivery_profile_check")[0].payload_hash)
+    assert payload["profile"] == "operator"
+
+
 def test_delivery_profile_check_chains_to_accepted_revision():
     led = _led()
     answer = asyncio.run(
