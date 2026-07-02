@@ -421,6 +421,74 @@ def _cmd_ledger_room(args) -> int:
     return 0
 
 
+def _pending_gates(led) -> list[dict]:
+    """Unresolved gate_pending entries in the ledger, newest last."""
+    from forum.gates import gate_resolution
+
+    pending: list[dict] = []
+    for entry in led.query(kind="gate_pending"):
+        body = led.get_payload(entry.payload_hash)
+        run_seq = body.get("run_seq")
+        wave = body.get("wave")
+        if gate_resolution(led, run_seq, wave) == "pending":
+            pending.append({
+                "seq": entry.seq,
+                "run_seq": run_seq,
+                "wave": wave,
+                "tasks": list(body.get("tasks") or []),
+                "question": body.get("question", ""),
+            })
+    return pending
+
+
+def _cmd_gate_list(args) -> int:
+    led = _open_ledger(args.ledger)
+    pending = _pending_gates(led)
+    if args.json:
+        print(json.dumps({"pending": pending}, indent=2))
+        return 0
+    if not pending:
+        print("no pending gates")
+        return 0
+    for gate in pending:
+        print(f"run_seq={gate['run_seq']} wave={gate['wave']} tasks={gate['tasks']}: {gate['question']}")
+    return 0
+
+
+def _parse_edits(pairs) -> tuple[dict, str | None]:
+    edits: dict[str, str] = {}
+    for pair in pairs or []:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            return {}, f"invalid --edit {pair!r}; expected TASK_ID=INSTRUCTION"
+        edits[key] = value
+    return edits, None
+
+
+def _cmd_gate_resolve(args, kind: str) -> int:
+    from forum.gates import resolve_gate
+
+    led = _open_ledger(args.ledger)
+    edits: dict[str, str] = {}
+    if kind == "gate_edited":
+        edits, edit_error = _parse_edits(getattr(args, "edit", None))
+        if edit_error is not None:
+            print(edit_error, file=sys.stderr)
+            return 2
+        if not edits:
+            print("gate edit needs at least one --edit TASK_ID=INSTRUCTION", file=sys.stderr)
+            return 2
+    entry = resolve_gate(
+        led, args.run_seq, args.wave, kind,
+        approver=args.approver,
+        note=getattr(args, "note", "") or "",
+        reason=getattr(args, "reason", "") or "",
+        edits=edits,
+    )
+    print(json.dumps({"resolved": kind, "seq": entry.seq, "run_seq": args.run_seq, "wave": args.wave}))
+    return 0
+
+
 def _cmd_bench(args) -> int:
     from forum.report import compare, summarize
 
@@ -593,6 +661,36 @@ def build_parser() -> argparse.ArgumentParser:
     room.add_argument("--max-text-chars", type=int, default=240, help="maximum characters copied from any text field")
     room.set_defaults(func=_cmd_ledger_room)
     ledger.set_defaults(func=lambda a: _print_help_rc(ledger))
+
+    gate = sub.add_parser("gate", help="list and resolve human-in-the-loop approval gates")
+    gsub = gate.add_subparsers(dest="gate_command")
+    gate_list = gsub.add_parser("list", help="list pending (unresolved) gates")
+    _add_ledger(gate_list)
+    gate_list.add_argument("--json", action="store_true", help="emit pending gates as JSON")
+    gate_list.set_defaults(func=_cmd_gate_list)
+    gate_approve = gsub.add_parser("approve", help="approve a pending gate so its wave runs on resume")
+    _add_ledger(gate_approve)
+    gate_approve.add_argument("--run-seq", type=int, required=True, help="the plan (run) seq the gate belongs to")
+    gate_approve.add_argument("--wave", type=int, required=True, help="the gated wave index")
+    gate_approve.add_argument("--approver", required=True, help="who approved (witnessed)")
+    gate_approve.add_argument("--note", default="", help="optional approval note")
+    gate_approve.set_defaults(func=lambda a: _cmd_gate_resolve(a, "gate_approved"))
+    gate_edit = gsub.add_parser("edit", help="approve a gate and rewrite its tasks' instructions")
+    _add_ledger(gate_edit)
+    gate_edit.add_argument("--run-seq", type=int, required=True, help="the plan (run) seq the gate belongs to")
+    gate_edit.add_argument("--wave", type=int, required=True, help="the gated wave index")
+    gate_edit.add_argument("--approver", required=True, help="who approved (witnessed)")
+    gate_edit.add_argument("--edit", action="append", help="TASK_ID=INSTRUCTION replacement (repeatable)")
+    gate_edit.add_argument("--note", default="", help="optional edit note")
+    gate_edit.set_defaults(func=lambda a: _cmd_gate_resolve(a, "gate_edited"))
+    gate_reject = gsub.add_parser("reject", help="reject a pending gate so its wave never runs")
+    _add_ledger(gate_reject)
+    gate_reject.add_argument("--run-seq", type=int, required=True, help="the plan (run) seq the gate belongs to")
+    gate_reject.add_argument("--wave", type=int, required=True, help="the gated wave index")
+    gate_reject.add_argument("--approver", required=True, help="who rejected (witnessed)")
+    gate_reject.add_argument("--reason", default="", help="why the wave was rejected")
+    gate_reject.set_defaults(func=lambda a: _cmd_gate_resolve(a, "gate_rejected"))
+    gate.set_defaults(func=lambda a: _print_help_rc(gate))
 
     bench = sub.add_parser("bench", help="compare two ledgers (A/B) by their summaries")
     bench.add_argument("a", help="ledger directory A")
