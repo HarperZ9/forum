@@ -139,7 +139,7 @@ def _request(payloads: list[tuple[LedgerEntry, dict[str, Any]]], max_text_chars:
     for entry, payload in reversed(payloads):
         if entry.kind != "request":
             continue
-        result = {"seq": entry.seq}
+        result: dict[str, Any] = {"seq": entry.seq}
         if "text" in payload:
             result["text"] = _clip(payload.get("text", ""), max_text_chars)
         if "tasks" in payload:
