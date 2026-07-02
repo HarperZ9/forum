@@ -100,8 +100,9 @@ Cheap and certain first, expensive and clever only when it's earned.
 A route now carries a human frame as well as a lane. `forum.route_frame` derives a
 deterministic `forum.route-frame/v1` payload from the request text and the route:
 domain, intent, posture, delivery profile, selected model tier/executor,
-proof/domain lane hints, a short human-facing answer contract, and the matched
-local signals. The runtime fields are joined from the roster only when a route
+proof/domain lane hints, a short human-facing answer contract, a nested
+`forum.communication-contract/v1` payload, and the matched local signals. The
+runtime fields are joined from the roster only when a route
 decisively selects an agent; weak or escalated routes do not invent a model
 policy. This is not semantic understanding and not a model judgment. It is a
 local routing contract that tells the surfaces how the work should present
@@ -268,8 +269,8 @@ contract for how the answer was delivered.
 
 Submit now connects routing and delivery by default. After the request entry is
 witnessed, `Orchestrator.submit` derives and witnesses a `route_frame` entry for the
-request. The frame's human contract is passed into the synthesis prompt before the
-final answer is written. If the caller did not pass a delivery profile, the frame's
+request. The frame's human and communication contracts are passed into the
+synthesis prompt before the final answer is written. If the caller did not pass a delivery profile, the frame's
 `delivery_profile` becomes the selected profile for the final answer check; an
 explicit profile still wins. Submit receipts read those witnessed entries back and
 report the route frame, the selected profile, and whether the selection came from the

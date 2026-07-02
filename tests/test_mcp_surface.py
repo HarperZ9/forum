@@ -76,6 +76,7 @@ def test_tools_list_includes_runtime_and_context_preflight():
     names = {t["name"] for t in resp["result"]["tools"]}
     assert "forum.runtime.inspect" in names
     assert "forum.context.preflight" in names
+    assert "forum.prose.contract" in names
 
 
 def test_call_route_decides_a_lane():
@@ -158,6 +159,19 @@ def test_call_prefixed_humanize_accepts_delivery_profile():
     payload = json.loads(result["content"][0]["text"])
     assert payload["profile"] == "engineer"
     assert payload["profile_check"]["profile"] == "engineer"
+
+
+def test_call_prefixed_prose_contract():
+    resp = _call(_mcp(), "forum.prose.contract", {
+        "text": "capture browser evidence from a source page with provenance",
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["schema"] == "forum.communication-contract/v1"
+    assert payload["domain"] == "evidence"
+    assert payload["posture"] == "investigator"
+    assert payload["profile"] == "researcher"
 
 
 def test_call_submit_answers_and_witnesses():

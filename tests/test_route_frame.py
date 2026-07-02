@@ -66,3 +66,8 @@ def test_frame_payload_is_json_ready():
     assert isinstance(payload["signals"], list)
     assert payload["model_tier"] == "cheap"
     assert payload["executor"] == "cli"
+    contract = payload["communication_contract"]
+    assert contract["schema"] == "forum.communication-contract/v1"
+    assert contract["posture"] == payload["posture"]
+    assert contract["profile"] == payload["delivery_profile"]
+    assert "model preambles" in contract["avoid"]

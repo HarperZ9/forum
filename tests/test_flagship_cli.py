@@ -10,11 +10,13 @@ def test_status_json_is_action_envelope(capsys):
     assert payload["tool"] == "forum"
     assert payload["native"]["role"] == "orchestration-routing"
     assert "forum.ledger.summary" in payload["native"]["mcp_tools"]
+    assert "forum.prose.contract" in payload["native"]["mcp_tools"]
     contracts = payload["native"]["telos_contracts"]
     assert "MCP stdio" in contracts["host_surfaces"]
     assert "project-telos.action-receipt/v1" in contracts["schemas"]
+    assert "forum.communication-contract/v1" in contracts["schemas"]
     assert "education" in contracts["workflow_domains"]
-    assert "humanize outputs" in contracts["second_brain_role"]
+    assert "shape communication contracts" in contracts["second_brain_role"]
 
 
 def test_doctor_human_prints_next_action(capsys):

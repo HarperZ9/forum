@@ -13,11 +13,12 @@ TELOS_CONTRACTS = {
         "project-telos.flagship-action/v1",
         "project-telos.context-envelope/v1",
         "project-telos.action-receipt/v1",
+        "forum.communication-contract/v1",
     ],
     "workflow_domains": ["enterprise", "research", "creative", "scientific", "education"],
     "second_brain_role": (
         "route agents, preserve ledger state, route model-foundry daemon work, "
-        "and humanize outputs without adding unsupported facts"
+        "shape communication contracts, and humanize outputs without adding unsupported facts"
     ),
     "privacy_boundary": "hosts receive receipts, hashes, redacted refs, and verdicts; raw private payloads stay in local adapters",
 }
@@ -62,6 +63,7 @@ def status_payload() -> dict:
             "mcp_tools": [
                 "forum.route",
                 "forum.prose.humanize",
+                "forum.prose.contract",
                 "forum.status",
                 "forum.doctor",
                 "forum.ledger.summary",

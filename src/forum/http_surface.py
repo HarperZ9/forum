@@ -33,6 +33,7 @@ _KNOWN_PATHS = {
     "/plan",
     "/submit",
     "/humanize",
+    "/prose/contract",
 }
 
 
@@ -103,6 +104,8 @@ class HttpSurface:
             return self._context_preflight(body)
         if method == "POST" and path == "/humanize":
             return self._humanize(body)
+        if method == "POST" and path == "/prose/contract":
+            return self._prose_contract(body)
 
         if path in _KNOWN_PATHS or path.startswith("/ledger/") or path.startswith("/replay/"):
             return error(405, f"method {method} not allowed for {path}")
@@ -282,6 +285,37 @@ class HttpSurface:
             return error(400, "field 'profile' must be a non-empty string when provided")
         try:
             return json_response(humanize_text(text, audience=audience, profile=profile))
+        except ValueError as exc:
+            return error(400, str(exc))
+
+    def _prose_contract(self, body: bytes) -> Response:
+        from forum.communication_contract import build_communication_contract
+        from forum.route_frame import derive_route_frame
+
+        data, err = self._read_json(body)
+        if err:
+            return err
+        text, err = self._str_field(data, "text")
+        if err:
+            return err
+        profile = data.get("profile")
+        if profile is not None and (not isinstance(profile, str) or not profile):
+            return error(400, "field 'profile' must be a non-empty string when provided")
+
+        result = self._orch.route(text)
+        frame = derive_route_frame(text, result, self._orch.roster)
+        try:
+            return json_response(
+                build_communication_contract(
+                    domain=frame.domain,
+                    intent=frame.intent,
+                    posture=frame.posture,
+                    profile=profile or frame.delivery_profile,
+                    human_contract=frame.human_contract,
+                    proof_lane=frame.proof_lane,
+                    domain_lane=frame.domain_lane,
+                )
+            )
         except ValueError as exc:
             return error(400, str(exc))
 

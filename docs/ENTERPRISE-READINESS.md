@@ -44,6 +44,6 @@ Enterprise agent output should be easier for the next agent and a human reviewer
 
 ## Platform Boundary
 
-The flagship remains usable alone through CLI JSON, HTTP JSON, and as part of a larger surface through MCP. OpenAI, Anthropic, IDE, CLI, TUI, and application hosts should consume the same tool outputs and receipt fields rather than reimplementing flagship behavior.
+The flagship remains usable alone through CLI JSON, HTTP JSON, and as part of a larger surface through MCP. OpenAI, Anthropic, IDE, CLI, TUI, and application hosts should consume the same tool outputs, communication contracts, and receipt fields rather than reimplementing flagship behavior.
 
-See Project Telos `project-telos.context-envelope/v1` and `project-telos.action-receipt/v1` for the shared cross-tool contract.
+See Project Telos `project-telos.context-envelope/v1`, `project-telos.action-receipt/v1`, and Forum `forum.communication-contract/v1` for the shared cross-tool contract.

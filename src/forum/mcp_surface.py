@@ -67,6 +67,13 @@ def _humanize_body(arguments: dict) -> bytes:
     return _body(body)
 
 
+def _prose_contract_body(arguments: dict) -> bytes:
+    body = {"text": arguments.get("text", "")}
+    if "profile" in arguments:
+        body["profile"] = arguments["profile"]
+    return _body(body)
+
+
 # Tool name -> (arguments) -> (http_method, path, body). Each tool is served by
 # the shared HttpSurface, so the MCP and HTTP surfaces cannot drift.
 _TOOL_ROUTES = {
@@ -74,6 +81,7 @@ _TOOL_ROUTES = {
     "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
     "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
     "humanize": lambda a: ("POST", "/humanize", _humanize_body(a)),
+    "prose_contract": lambda a: ("POST", "/prose/contract", _prose_contract_body(a)),
     "status": lambda a: ("GET", "/status", b""),
     "verify": lambda a: ("GET", "/verify", b""),
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
@@ -88,6 +96,7 @@ _TOOL_ALIASES = {
     "forum.route": "route",
     "forum.plan": "plan",
     "forum.prose.humanize": "humanize",
+    "forum.prose.contract": "prose_contract",
     "forum.status": "flagship_status",
     "forum.doctor": "flagship_doctor",
     "forum.verify": "verify",
@@ -225,6 +234,21 @@ _TOOL_SPECS = [
                 "profile": {
                     "type": "string",
                     "description": "delivery profile: operator, engineer, researcher, executive",
+                },
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "forum.prose.contract",
+        "description": "Return the deterministic communication contract for a request route.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "request text to route into a communication contract"},
+                "profile": {
+                    "type": "string",
+                    "description": "optional delivery profile override: operator, engineer, researcher, executive",
                 },
             },
             "required": ["text"],
