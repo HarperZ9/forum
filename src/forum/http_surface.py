@@ -20,7 +20,17 @@ _REASONS = {
     502: "Bad Gateway",
 }
 
-_KNOWN_PATHS = {"/health", "/status", "/verify", "/checkpoint", "/route", "/plan", "/submit", "/humanize"}
+_KNOWN_PATHS = {
+    "/health",
+    "/status",
+    "/verify",
+    "/checkpoint",
+    "/capsule",
+    "/route",
+    "/plan",
+    "/submit",
+    "/humanize",
+}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -70,6 +80,8 @@ class HttpSurface:
             return json_response({"chain": led.verify(), "deep": led.verify(deep=True)})
         if method == "GET" and path == "/checkpoint":
             return json_response({"checkpoint": self._orch.ledger.checkpoint()})
+        if method == "GET" and path == "/capsule":
+            return self._capsule()
         if method == "GET" and path.startswith("/ledger/"):
             return self._ledger_get(path)
         if method == "GET" and path.startswith("/replay/"):
@@ -112,6 +124,31 @@ class HttpSurface:
         except ValueError:
             return None, error(400, f"{prefix}<seq> requires an integer seq")
 
+    def _context_budget(self, data: dict):
+        from forum.context_budget import ContextBudget
+
+        mapping = {
+            "context_token_budget": "max_total_tokens",
+            "request_context_token_budget": "max_request_tokens",
+            "task_context_token_budget": "max_task_tokens",
+            "upstream_token_budget": "max_upstream_tokens",
+        }
+        kwargs = {}
+        for field, target in mapping.items():
+            if field not in data:
+                continue
+            value = data[field]
+            if type(value) is not int:
+                return None, None, error(400, f"field {field!r} must be an integer")
+            kwargs[target] = value
+        if not kwargs:
+            return None, {}, None
+        try:
+            budget = ContextBudget(**kwargs)
+        except ValueError as exc:
+            return None, None, error(400, str(exc))
+        return budget, budget.configured_limits(), None
+
     # --- handlers ---
 
     def _ledger_get(self, path: str) -> Response:
@@ -130,6 +167,11 @@ class HttpSurface:
             return err
         entries = self._orch.ledger.replay(until=seq)
         return json_response({"entries": [dataclasses.asdict(e) for e in entries]})
+
+    def _capsule(self) -> Response:
+        from forum.context_capsule import build_context_capsule
+
+        return json_response(build_context_capsule(self._orch.ledger))
 
     def _route_text(self, body: bytes) -> Response:
         data, err = self._read_json(body)
@@ -159,8 +201,11 @@ class HttpSurface:
         audience = data.get("audience", "operator")
         if not isinstance(audience, str) or not audience:
             return error(400, "field 'audience' must be a non-empty string when provided")
+        profile = data.get("profile")
+        if profile is not None and (not isinstance(profile, str) or not profile):
+            return error(400, "field 'profile' must be a non-empty string when provided")
         try:
-            return json_response(humanize_text(text, audience=audience))
+            return json_response(humanize_text(text, audience=audience, profile=profile))
         except ValueError as exc:
             return error(400, str(exc))
 
@@ -190,10 +235,25 @@ class HttpSurface:
         request, err = self._str_field(data, "request")
         if err:
             return err
+        delivery_profile = data.get("delivery_profile")
+        if delivery_profile is not None and (
+            not isinstance(delivery_profile, str) or not delivery_profile
+        ):
+            return error(400, "field 'delivery_profile' must be a non-empty string when provided")
+        context_budget, context_budget_payload, err = self._context_budget(data)
+        if err:
+            return err
         before_seq = self._orch.ledger.count()
         try:
-            answer = await self._orch.submit(request)
+            answer = await self._orch.submit(
+                request,
+                context_budget=context_budget,
+                delivery_profile=delivery_profile,
+            )
         except ValueError as exc:
+            message = str(exc)
+            if "unknown delivery profile" in message:
+                return error(400, message)
             return error(
                 502,
                 "the configured executor did not return valid JSON; point the "
@@ -205,6 +265,8 @@ class HttpSurface:
             request=request,
             answer=answer,
             executor=self._orch.executor,
+            context_budget=context_budget_payload,
+            delivery_profile=delivery_profile,
         )
         return json_response({
             "answer": answer,

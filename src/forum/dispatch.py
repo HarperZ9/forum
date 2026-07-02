@@ -5,6 +5,13 @@ import dataclasses
 from collections.abc import Callable
 
 from forum.context import ContextProvider
+from forum.context_budget import (
+    ContextBudget,
+    ContextBudgetMeter,
+    ContextPressure,
+    apply_context_budget,
+    pressure_payload,
+)
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
@@ -52,6 +59,39 @@ def augment_with_upstream(
     return task.instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from
 
 
+def augment_with_upstream_budgeted(
+    task: Task,
+    results: dict[str, Result],
+    *,
+    context_budget: ContextBudget,
+    context_meter: ContextBudgetMeter,
+) -> tuple[str, list[str], list[ContextPressure]]:
+    parts: list[str] = []
+    data_from: list[str] = []
+    pressures: list[ContextPressure] = []
+    for dep in task.data_deps:
+        up = results.get(dep)
+        if up is None or not up.ok or dep in data_from:
+            continue
+        output, pressure = apply_context_budget(
+            "upstream", f"{dep}->{task.id}", up.output, context_budget, context_meter
+        )
+        pressures.append(pressure)
+        if not output:
+            continue
+        if pressure.action == "trimmed":
+            omitted = pressure.original_bytes - pressure.admitted_bytes
+            output = output + (
+                f"\n... [truncated for prompt efficiency, {omitted} bytes omitted; "
+                "full output is witnessed]"
+            )
+        parts.append(f"- {dep}: {output}")
+        data_from.append(dep)
+    if not parts:
+        return task.instruction, [], pressures
+    return task.instruction + "\n\nUpstream results you build on:\n" + "\n".join(parts), data_from, pressures
+
+
 def _completed_results(ledger: Ledger, ids: set[str]) -> dict[str, tuple[str, int]]:
     """Map each task id with a witnessed successful result to (output, that result's seq).
 
@@ -85,6 +125,8 @@ async def dispatch_plan(
     checkpoint_each_wave: bool = False,
     max_upstream_chars: int = DEFAULT_MAX_UPSTREAM_CHARS,
     context_provider: ContextProvider | None = None,
+    context_budget: ContextBudget | None = None,
+    context_meter: ContextBudgetMeter | None = None,
 ) -> dict[str, Result]:
     """Run a plan's waves through the executor, witnessing every step.
 
@@ -111,6 +153,8 @@ async def dispatch_plan(
     savepoint and the durability point for batched storage.
     """
     results: dict[str, Result] = {}
+    if context_budget is not None and context_meter is None:
+        context_meter = ContextBudgetMeter()
     sem = asyncio.Semaphore(max_parallel)
     by_id = {t.id: t for t in plan.tasks}
     waves = plan.schedule()
@@ -138,7 +182,19 @@ async def dispatch_plan(
                 results[task.id] = Result(task.id, task.agent, output, ok=True, witnessed_seq=seq)
                 return
             # a data edge feeds its upstream's output into this task; an order edge does not
-            instruction, data_from = augment_with_upstream(task, results, max_chars=max_upstream_chars)
+            if context_budget is not None and context_meter is not None:
+                instruction, data_from, upstream_pressures = augment_with_upstream_budgeted(
+                    task, results, context_budget=context_budget, context_meter=context_meter
+                )
+                for pressure in upstream_pressures:
+                    ledger.append(
+                        actor="context-budget",
+                        kind="context_budget",
+                        payload=pressure_payload(pressure, context_budget, context_meter),
+                        causal_parent=plan_entry.seq,
+                    )
+            else:
+                instruction, data_from = augment_with_upstream(task, results, max_chars=max_upstream_chars)
             # fresh, task-specific context pulled from the brain, capped and witnessed; the
             # task is chained to it so the record shows what shaped it (Forum routes the
             # context to the agent, it never generates it)
@@ -149,11 +205,20 @@ async def dispatch_plan(
                 # the two appends stay one atomic, no-yield window; an await here would let
                 # concurrent run_tasks interleave and corrupt seq/prev_hash.
                 ctx = context_provider.context(task.instruction)
+                if context_budget is not None and context_meter is not None:
+                    ctx, pressure = apply_context_budget("task", task.id, ctx, context_budget, context_meter)
+                    if pressure.original_tokens > 0:
+                        ledger.append(
+                            actor="context-budget",
+                            kind="context_budget",
+                            payload=pressure_payload(pressure, context_budget, context_meter),
+                            causal_parent=plan_entry.seq,
+                        )
+                elif ctx and len(ctx) > max_upstream_chars:
+                    # A barer marker than upstream's on purpose: the full context is NOT
+                    # witnessed (only this capped slice is), so do not claim it is.
+                    ctx = ctx[:max_upstream_chars] + "\n... [truncated for prompt efficiency]"
                 if ctx:
-                    if len(ctx) > max_upstream_chars:
-                        # a barer marker than upstream's on purpose: the full context is NOT
-                        # witnessed (only this capped slice is), so do not claim it is
-                        ctx = ctx[:max_upstream_chars] + "\n... [truncated for prompt efficiency]"
                     task_parent = ledger.append(
                         actor="context", kind="context",
                         payload={"task": task.id, "context": ctx}, causal_parent=plan_entry.seq,
