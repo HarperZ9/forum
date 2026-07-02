@@ -134,8 +134,13 @@ shows what shaped each step. This is the Forum-native half of context management
 the seam honest: Forum times, routes, and witnesses the context, but it never generates it.
 The brain supplies it, the injection is verified (witnessed) and fresh (pulled per task), and
 neither side is clever about timing. The pull is synchronous and runs once per task, so a brain
-that does heavy I/O serializes the wave; it is meant to be fast and offline. A context budget
-and compaction on a limit are the next rung, composing with the brain the same way.
+that does heavy I/O serializes the wave; it is meant to be fast and offline.
+
+The context-pressure layer makes that budget explicit. A `ContextBudget` applies
+model-agnostic approximate-token limits to request-level context, per-task context,
+and upstream data injection. Each admitted, trimmed, or omitted slice is witnessed as
+`context_budget`; the normal context entries store only admitted text, and omitted text
+is represented by counts and a reason rather than raw content.
 
 A `RunBudget` bounds the run. It caps model calls (deterministic, the cost-relevant
 dimension) and, best-effort, wall-clock seconds. The call cap is checked as each task
@@ -196,10 +201,11 @@ A record you cannot read is only half of accountability. `forum.report` closes
 that half without adding any trust. `summarize(ledger)` reads the ledger and
 aggregates it into a run summary: counts by kind (requests, plans, tasks, results,
 verdicts), task failures and verdict pass and fail, escalations, budget stops, the
-model calls broken out per model, the Merkle checkpoint, and the verify result. It
-reads only what was witnessed and re-derives nothing, so the summary is exactly as
-trustworthy as the ledger underneath it, and it ships the checkpoint and verify flag
-alongside the numbers so a reader can confirm that.
+model calls broken out per model, context-pressure checks and saved approximate tokens,
+the Merkle checkpoint, and the verify result. It reads only what was witnessed and
+re-derives nothing, so the summary is exactly as trustworthy as the ledger underneath
+it, and it ships the checkpoint and verify flag alongside the numbers so a reader can
+confirm that.
 
 `compare(a, b)` takes two such summaries and reports the delta on the numeric
 fields, and `forum bench A B` runs it over two ledgers. This is the measurement

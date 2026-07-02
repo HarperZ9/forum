@@ -31,7 +31,20 @@ Example scripts:
 python examples/demo.py
 python examples/run_request.py
 python examples/run_resume.py
+python examples/run_context_pressure.py
 ```
+
+## Context Pressure
+
+```bash
+forum submit "ship the api" --cmd "ollama run llama3" --context-token-budget 4000
+forum submit "ship the api" --cmd "ollama run llama3" --request-context-token-budget 1000 --task-context-token-budget 800 --upstream-token-budget 800
+```
+
+Forum treats these as approximate tokens using the same 4 bytes/token accounting used
+by Index context envelopes. The ledger records `context_budget` entries for retained,
+trimmed, and omitted context, and `forum ledger summary --json` reports original,
+admitted, and saved context tokens.
 
 ## MCP
 
