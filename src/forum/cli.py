@@ -76,15 +76,18 @@ def _cmd_humanize(args) -> int:
     return 0
 
 def _cmd_route(args) -> int:
+    from forum.route_frame import derive_route_frame, frame_payload
     from forum.roster import load_default
     from forum.routing import LexicalRouter
 
     result = LexicalRouter().score(args.text, load_default())
+    frame = derive_route_frame(args.text, result)
     print(json.dumps({
         "decided": result.decided,
         "confidence": result.confidence,
         "needs_escalation": result.needs_escalation,
         "candidates": [{"agent": c.agent, "score": c.score} for c in result.candidates],
+        "frame": frame_payload(frame),
     }, indent=2))
     return 0
 

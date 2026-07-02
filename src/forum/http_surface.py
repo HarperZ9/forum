@@ -174,6 +174,8 @@ class HttpSurface:
         return json_response(build_context_capsule(self._orch.ledger))
 
     def _route_text(self, body: bytes) -> Response:
+        from forum.route_frame import derive_route_frame, frame_payload
+
         data, err = self._read_json(body)
         if err:
             return err
@@ -181,11 +183,13 @@ class HttpSurface:
         if err:
             return err
         result = self._orch.route(text)
+        frame = derive_route_frame(text, result)
         return json_response({
             "decided": result.decided,
             "confidence": result.confidence,
             "needs_escalation": result.needs_escalation,
             "candidates": [{"agent": c.agent, "score": c.score} for c in result.candidates],
+            "frame": frame_payload(frame),
         })
 
 
