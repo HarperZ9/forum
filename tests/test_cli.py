@@ -246,6 +246,78 @@ def test_tier_command_flags_can_supply_default_without_cmd():
     )._command == ["capable-model"]
 
 
+def test_tier_chat_flags_build_chat_executors():
+    from forum.chat_executor import ChatExecutor
+    from forum.executor import Assignment
+    from forum.runtime import TieredExecutor
+
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--cmd",
+        "base-model",
+        "--cheap-chat-url",
+        "http://cheap/v1/chat/completions",
+        "--cheap-model",
+        "phi3",
+        "--capable-chat-url",
+        "http://capable/v1/chat/completions",
+        "--capable-model",
+        "llama3",
+    ])
+    executor = _make_executor(args)
+
+    cheap = executor.select(Assignment("T1", "technical-writing", "docs"))
+    capable = executor.select(Assignment("T2", "backend", "build"))
+    control = executor.select(Assignment("control:coordinator", "coordinator", "plan"))
+    assert isinstance(executor, TieredExecutor)
+    assert isinstance(cheap, ChatExecutor)
+    assert isinstance(capable, ChatExecutor)
+    assert cheap._base_url == "http://cheap/v1/chat/completions"
+    assert cheap.model_id == "phi3"
+    assert capable._base_url == "http://capable/v1/chat/completions"
+    assert capable.model_id == "llama3"
+    assert control._command == ["base-model"]
+
+
+def test_tier_chat_defaults_model_to_tier_name_and_overrides_tier_cmd():
+    from forum.chat_executor import ChatExecutor
+    from forum.executor import Assignment
+
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--capable-cmd",
+        "capable-cli",
+        "--capable-chat-url",
+        "http://capable/v1/chat/completions",
+    ])
+    executor = _make_executor(args)
+
+    capable = executor.select(Assignment("T1", "backend", "build"))
+    assert isinstance(capable, ChatExecutor)
+    assert capable.model_id == "capable"
+    assert capable._base_url == "http://capable/v1/chat/completions"
+
+
+def test_tier_chat_flags_are_available_on_serve_and_mcp():
+    serve = build_parser().parse_args([
+        "serve",
+        "--capable-chat-url",
+        "http://capable/v1/chat/completions",
+    ])
+    mcp = build_parser().parse_args([
+        "mcp",
+        "--frontier-chat-url",
+        "http://frontier/v1/chat/completions",
+        "--frontier-model",
+        "qwen",
+    ])
+
+    assert serve.capable_chat_url.endswith("/chat/completions")
+    assert mcp.frontier_model == "qwen"
+
+
 def test_submit_flags_parse():
     args = build_parser().parse_args(["submit", "do x", "--api", "--model", "claude-opus-4-8"])
     assert args.api is True and args.model == "claude-opus-4-8"

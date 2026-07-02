@@ -20,6 +20,12 @@ def _command_executor(cmd: str):
     return SubprocessExecutor(shlex.split(cmd, posix=os.name != "nt"))
 
 
+def _chat_executor(model: str, base_url: str, api_key_env: str | None = None):
+    from forum.chat_executor import ChatExecutor
+
+    return ChatExecutor(model, base_url=base_url, api_key_env=api_key_env)
+
+
 def _make_base_executor(args):
     """Pick an executor from flags (the first present wins): --chat-url, --api, --cmd, else None.
 
@@ -46,13 +52,29 @@ def _make_base_executor(args):
     return None
 
 
+def _tier_chat_executor(args, tier: str):
+    chat_url = getattr(args, f"{tier}_chat_url", None)
+    if not chat_url:
+        return None
+    model = getattr(args, f"{tier}_model", None) or tier
+    api_key_env = getattr(args, f"{tier}_api_key_env", None)
+    return _chat_executor(model, chat_url, api_key_env)
+
+
 def _tier_executors(args) -> dict:
     commands = {
         "cheap": getattr(args, "cheap_cmd", None),
         "capable": getattr(args, "capable_cmd", None),
         "frontier": getattr(args, "frontier_cmd", None),
     }
-    return {tier: _command_executor(cmd) for tier, cmd in commands.items() if cmd}
+    tiers = {}
+    for tier, cmd in commands.items():
+        chat = _tier_chat_executor(args, tier)
+        if chat is not None:
+            tiers[tier] = chat
+        elif cmd:
+            tiers[tier] = _command_executor(cmd)
+    return tiers
 
 
 def _default_executor(base, tiers: dict):
@@ -321,6 +343,15 @@ def _add_executor(sp) -> None:
     sp.add_argument("--cheap-cmd", default=None, help="command for cheap roster-tier task agents")
     sp.add_argument("--capable-cmd", default=None, help="command for capable roster-tier task agents")
     sp.add_argument("--frontier-cmd", default=None, help="command for frontier roster-tier task agents")
+    sp.add_argument("--cheap-chat-url", default=None, help="OpenAI-compatible chat-completions URL for cheap roster-tier task agents")
+    sp.add_argument("--cheap-model", default=None, help="model id for --cheap-chat-url")
+    sp.add_argument("--cheap-api-key-env", default=None, help="env var holding a Bearer key for --cheap-chat-url")
+    sp.add_argument("--capable-chat-url", default=None, help="OpenAI-compatible chat-completions URL for capable roster-tier task agents")
+    sp.add_argument("--capable-model", default=None, help="model id for --capable-chat-url")
+    sp.add_argument("--capable-api-key-env", default=None, help="env var holding a Bearer key for --capable-chat-url")
+    sp.add_argument("--frontier-chat-url", default=None, help="OpenAI-compatible chat-completions URL for frontier roster-tier task agents")
+    sp.add_argument("--frontier-model", default=None, help="model id for --frontier-chat-url")
+    sp.add_argument("--frontier-api-key-env", default=None, help="env var holding a Bearer key for --frontier-chat-url")
     sp.add_argument("--chat-url", default=None, help="an OpenAI-compatible chat-completions URL, e.g. a local Ollama or LM Studio server (no account needed)")
     sp.add_argument("--api", action="store_true", help="use the Anthropic API executor (reads ANTHROPIC_API_KEY)")
     sp.add_argument("--model", default=None, help="model id for --chat-url or --api")
