@@ -59,8 +59,10 @@ REVISED = "the login api and the schema"
 class _Exec:
     def __init__(self, answer: str) -> None:
         self._answer = answer
+        self.assignments = []
 
     async def run(self, a):
+        self.assignments.append(a)
         agent = a.agent
         if agent == "coordinator":
             return Result(a.task_id, agent, '{"tasks": [{"id": "T1", "agent": "backend", "instruction": "build", "depends_on": []}]}')
@@ -87,6 +89,14 @@ def _led():
 def _orch(led, answer, **kw):
     return Orchestrator(
         ROSTER, led, _Exec(answer),
+        Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
+        **kw,
+    )
+
+
+def _orch_with_executor(led, executor, **kw):
+    return Orchestrator(
+        ROSTER, led, executor,
         Policy(allowed_categories=frozenset({"engineering"}), max_parallel=2),
         **kw,
     )
@@ -231,6 +241,22 @@ def test_explicit_delivery_profile_overrides_route_frame():
     assert frame["delivery_profile"] == "engineer"
     payload = led.get_payload(led.query(kind="delivery_profile_check")[0].payload_hash)
     assert payload["profile"] == "operator"
+
+
+def test_submit_passes_route_frame_contract_to_synthesizer():
+    led = _led()
+    executor = _Exec("The module passes the focused test from the ledger. Ship the API.")
+    asyncio.run(
+        _orch_with_executor(led, executor).submit(
+            "build eval gated model promotion for a self improving daemon"
+        )
+    )
+    synth = next(a for a in executor.assignments if a.agent == "synthesizer")
+    assert "Delivery contract:" in synth.instruction
+    assert "posture=architect" in synth.instruction
+    assert "profile=engineer" in synth.instruction
+    assert "domain=model-foundry" in synth.instruction
+    assert "gating evidence" in synth.instruction
 
 
 def test_delivery_profile_check_chains_to_accepted_revision():
