@@ -136,6 +136,18 @@ def campaign_room_text(room: dict[str, Any]) -> str:
         f"(failed {progress.get('failed', 0)}, blocked {progress.get('blocked', 0)}, "
         f"unwitnessed {progress.get('unwitnessed', 0)})"
     )
+    reported = [
+        p for p in (room.get("projects") or [])
+        if p.get("reported_status")
+    ]
+    if reported:
+        lines.append("reported project status:")
+        for p in reported:
+            src = p.get("reported_source") or ""
+            suffix = f" [{src}]" if src else ""
+            lines.append(
+                f"- {p.get('project_id', '')}: {p.get('reported_status', '')}{suffix}"
+            )
     actions = room.get("next_actions") or []
     if actions:
         lines.append("next actions:")

@@ -50,6 +50,15 @@ def _latest_campaign_declared(ledger: Ledger, campaign_id: str) -> dict[str, Any
     return latest
 
 
+def load_declared_campaign(ledger: Ledger, campaign_id: str) -> dict[str, Any] | None:
+    """Public accessor for the latest campaign_declared payload, or None.
+
+    Callers outside this module (e.g. the CLI) should use this rather than reaching
+    into the private ``_latest_campaign_declared`` helper.
+    """
+    return _latest_campaign_declared(ledger, campaign_id)
+
+
 def _latest_feature_statuses(
     ledger: Ledger, campaign_id: str
 ) -> dict[str, dict[str, Any]]:
@@ -62,6 +71,26 @@ def _latest_feature_statuses(
         fid = body.get("feature_id")
         if isinstance(fid, str):
             latest[fid] = body
+    return latest
+
+
+def _latest_project_statuses(
+    ledger: Ledger, campaign_id: str
+) -> dict[str, dict[str, Any]]:
+    """Latest-wins-by-seq project_status payload per project id, for this campaign.
+
+    These are ingested from outside systems (e.g. external:telos) and reported at
+    the project level, WITHOUT executing anything. They are folded into the derived
+    projects output so an ingested status actually surfaces to an operator.
+    """
+    latest: dict[str, dict[str, Any]] = {}
+    for entry in ledger.query(kind="project_status"):
+        body = ledger.get_payload(entry.payload_hash)
+        if not isinstance(body, dict) or body.get("campaign_id") != campaign_id:
+            continue
+        pid = body.get("project_id")
+        if isinstance(pid, str):
+            latest[pid] = body
     return latest
 
 
@@ -79,6 +108,7 @@ def derive_campaign_status(ledger: Ledger, campaign_id: str) -> dict[str, Any]:
         raise KeyError(f"no campaign_declared for {campaign_id!r}")
     campaign = campaign_from_payload(declared)
     statuses = _latest_feature_statuses(ledger, campaign_id)
+    project_statuses = _latest_project_statuses(ledger, campaign_id)
 
     # First pass: resolve each feature's own status (honesty gate applied to done).
     resolved: dict[str, dict[str, Any]] = {}
@@ -158,15 +188,22 @@ def derive_campaign_status(ledger: Ledger, campaign_id: str) -> dict[str, Any]:
         and no_violations
     )
 
-    projects_out = [
-        {
-            "project_id": p.project_id,
-            "owner": p.owner,
-            "priority": p.priority,
-            "feature_ids": [f.feature_id for f in p.features],
-        }
-        for p in campaign.projects
-    ]
+    projects_out = []
+    for p in campaign.projects:
+        reported = project_statuses.get(p.project_id)
+        projects_out.append(
+            {
+                "project_id": p.project_id,
+                "owner": p.owner,
+                "priority": p.priority,
+                "feature_ids": [f.feature_id for f in p.features],
+                "reported_status": reported.get("status") if reported else None,
+                "reported_source": reported.get("source") if reported else None,
+                "reported_reason": (
+                    str(reported.get("reason", "")) if reported else None
+                ),
+            }
+        )
 
     return {
         "campaign_id": campaign.campaign_id,

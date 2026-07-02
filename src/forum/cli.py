@@ -568,7 +568,7 @@ def _cmd_campaign_run(args) -> int:
     from forum.campaign import campaign_from_payload
     from forum.campaign_dispatch import run_campaign
     from forum.campaign_room import build_campaign_room
-    from forum.campaign_status import _latest_campaign_declared
+    from forum.campaign_status import load_declared_campaign
 
     executor, executor_error = _make_executor_or_error(args)
     if executor_error is not None:
@@ -582,7 +582,7 @@ def _cmd_campaign_run(args) -> int:
         )
         return 2
     led = _open_ledger(args.ledger)
-    declared = _latest_campaign_declared(led, args.campaign_id)
+    declared = load_declared_campaign(led, args.campaign_id)
     if declared is None:
         print(f"no campaign {args.campaign_id!r} in this ledger", file=sys.stderr)
         return 1
