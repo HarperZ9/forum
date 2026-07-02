@@ -4,6 +4,7 @@ from collections import Counter
 from typing import Any
 
 from forum.ledger import Ledger, LedgerEntry
+from forum.run_actions import derive_next_actions
 
 RUN_ROOM_SCHEMA = "forum.run-room/v1"
 
@@ -22,19 +23,33 @@ def build_run_room(
     entries = [entry for entry in all_entries if start_seq is None or entry.seq >= start_seq]
     payloads = [(entry, _payload(ledger, entry.payload_hash)) for entry in entries]
     counts = Counter(entry.kind for entry in entries)
+    request = _request(payloads, max_text_chars)
+    route_frame = _latest_kind(payloads, "route_frame")
+    plan = _plan(payloads)
+    tasks = _tasks(payloads, max_text_chars)
+    checkpoints = _checkpoints(payloads)
+    answer = _answer(payloads, max_text_chars)
+    signals = _signals(payloads, counts)
     return {
         "schema": RUN_ROOM_SCHEMA,
         "checkpoint": ledger.checkpoint(),
         "verified": ledger.verify(deep=True),
         "entry_range": [entries[0].seq, entries[-1].seq] if entries else [None, None],
         "counts": dict(counts),
-        "request": _request(payloads, max_text_chars),
-        "route_frame": _latest_kind(payloads, "route_frame"),
-        "plan": _plan(payloads),
-        "tasks": _tasks(payloads, max_text_chars),
-        "checkpoints": _checkpoints(payloads),
-        "answer": _answer(payloads, max_text_chars),
-        "signals": _signals(payloads, counts),
+        "request": request,
+        "route_frame": route_frame,
+        "plan": plan,
+        "tasks": tasks,
+        "checkpoints": checkpoints,
+        "answer": answer,
+        "signals": signals,
+        "next_actions": derive_next_actions(
+            request=request,
+            tasks=tasks,
+            checkpoints=checkpoints,
+            answer=answer,
+            signals=signals,
+        ),
     }
 
 
@@ -69,6 +84,14 @@ def room_text(room: dict) -> str:
     answer = room.get("answer") or {}
     if answer.get("text"):
         lines.append(f"answer: {answer['text']}")
+    next_actions = room.get("next_actions") or []
+    if next_actions:
+        lines.append("next actions:")
+        for action in next_actions:
+            lines.append(
+                f"- {action.get('priority', '')}/{action.get('kind', '')}: "
+                f"{action.get('label', '')}"
+            )
     return "\n".join(lines)
 
 
