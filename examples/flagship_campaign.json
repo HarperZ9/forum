@@ -1,0 +1,150 @@
+{
+  "campaign_id": "flagship-uplift",
+  "title": "Flagship ecosystem uplift",
+  "projects": [
+    {
+      "project_id": "crucible",
+      "owner": "forum",
+      "priority": 9,
+      "features": [
+        {
+          "feature_id": "crucible-verifier-can-fail",
+          "title": "Make the verifier able to fail",
+          "agent": "backend",
+          "instruction": "Ensure Crucible refutations actually execute so a MATCH can turn into a DRIFT.",
+          "priority": 9,
+          "depends_on": [],
+          "done_when": ["a refutation path executes", "a deliberate drift is caught"]
+        }
+      ]
+    },
+    {
+      "project_id": "emet",
+      "owner": "forum",
+      "priority": 7,
+      "features": [
+        {
+          "feature_id": "emet-rederivability",
+          "title": "Prove re-derivability of the 35 vectors",
+          "agent": "backend",
+          "instruction": "Add a re-derivability check across emet's frozen vectors.",
+          "priority": 7,
+          "depends_on": [],
+          "done_when": ["each vector re-derives from source"]
+        }
+      ]
+    },
+    {
+      "project_id": "learn",
+      "owner": "forum",
+      "priority": 5,
+      "features": [
+        {
+          "feature_id": "learn-card-canon",
+          "title": "Apply the flagship card canon",
+          "agent": "frontend",
+          "instruction": "Generate learn's flagship card from the shared BRAND.md template.",
+          "priority": 5,
+          "depends_on": [],
+          "done_when": ["card matches BRAND.md"]
+        }
+      ]
+    },
+    {
+      "project_id": "studio-engine",
+      "owner": "forum",
+      "priority": 6,
+      "features": [
+        {
+          "feature_id": "studio-witnessed-scene",
+          "title": "Emit a witnessed Scene",
+          "agent": "backend",
+          "instruction": "Ensure studio-engine emits a witnessed Scene through perceive->generate->critique->refine.",
+          "priority": 6,
+          "depends_on": [],
+          "done_when": ["a Scene is emitted with a witness"]
+        }
+      ]
+    },
+    {
+      "project_id": "accountable-surface",
+      "owner": "forum",
+      "priority": 6,
+      "features": [
+        {
+          "feature_id": "surface-three-channel",
+          "title": "Verify 3-channel actuation",
+          "agent": "backend",
+          "instruction": "Confirm accountable-surface's perceive/gate/memory/actuation channels round-trip.",
+          "priority": 6,
+          "depends_on": [],
+          "done_when": ["all three channels round-trip witnessed"]
+        }
+      ]
+    },
+    {
+      "project_id": "index",
+      "owner": "forum",
+      "priority": 8,
+      "features": [
+        {
+          "feature_id": "index-verified-wiki",
+          "title": "Ship the verified-wiki wedge",
+          "agent": "backend",
+          "instruction": "Land index's smart+faithful verified-wiki wedge (index wiki).",
+          "priority": 8,
+          "depends_on": [],
+          "done_when": ["a verified wiki page is produced and re-checkable"]
+        }
+      ]
+    },
+    {
+      "project_id": "buildlang",
+      "owner": "forum",
+      "priority": 4,
+      "features": [
+        {
+          "feature_id": "buildlang-effect-fields",
+          "title": "Effect-witnessed fields (Phase B)",
+          "agent": "backend",
+          "instruction": "Advance buildlang master-plan Phase B: effect-witnessed fields, gated on review.",
+          "priority": 4,
+          "depends_on": ["index-verified-wiki"],
+          "done_when": ["Phase B lands behind a review gate"]
+        }
+      ]
+    },
+    {
+      "project_id": "telos",
+      "owner": "external:telos",
+      "priority": 10,
+      "features": [
+        {
+          "feature_id": "telos-engine-showcase",
+          "title": "First Integral engine showcase",
+          "agent": "external",
+          "instruction": "Telos ships the First Integral engine showcase (owned by telos; forum only records status).",
+          "priority": 10,
+          "depends_on": [],
+          "done_when": ["showcase live on the site"]
+        }
+      ]
+    },
+    {
+      "project_id": "gather",
+      "owner": "external:gather",
+      "priority": 3,
+      "features": [
+        {
+          "feature_id": "gather-federation",
+          "title": "Federated research intake",
+          "agent": "external",
+          "instruction": "Gather advances federated research intake (owned by gather; forum only records status).",
+          "priority": 3,
+          "depends_on": [],
+          "done_when": ["a federated corpus is witnessed"]
+        }
+      ]
+    }
+  ]
+}
