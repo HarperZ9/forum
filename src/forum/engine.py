@@ -249,9 +249,12 @@ class Orchestrator:
             self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
             return answer
 
+        synthesis_results = self._budget_synthesis_results(
+            results, context_budget, context_meter, req.seq
+        )
         answer = await self.synthesizer.synthesize(
             request,
-            results,
+            synthesis_results,
             counter,
             delivery_contract=self._delivery_contract(route_frame, selected_delivery_profile),
         )
@@ -287,6 +290,44 @@ class Orchestrator:
             causal_parent=parent_seq,
         )
         return verdict.ok
+
+    def _budget_synthesis_results(
+        self,
+        results: dict[str, Result],
+        context_budget: ContextBudget | None,
+        context_meter: ContextBudgetMeter,
+        fallback_parent_seq: int,
+    ) -> dict[str, Result]:
+        """Apply the run context budget to final synthesis inputs only.
+
+        The witnessed task results remain full-fidelity in the ledger. This helper
+        builds a prompt copy so the last model call is bounded by the same budget
+        contract as inter-task upstream injection.
+        """
+        if context_budget is None:
+            return results
+        budgeted: dict[str, Result] = {}
+        for task_id, result in results.items():
+            output, pressure = apply_context_budget(
+                "upstream",
+                f"{task_id}->synthesizer",
+                result.output,
+                context_budget,
+                context_meter,
+            )
+            if pressure.original_tokens > 0:
+                self.ledger.append(
+                    actor="context-budget",
+                    kind="context_budget",
+                    payload=pressure_payload(pressure, context_budget, context_meter),
+                    causal_parent=(
+                        result.witnessed_seq
+                        if result.witnessed_seq is not None
+                        else fallback_parent_seq
+                    ),
+                )
+            budgeted[task_id] = dataclasses.replace(result, output=output)
+        return budgeted
 
     def _witness_delivery_profile(
         self,

@@ -124,3 +124,36 @@ def test_request_context_budget_can_omit_context_and_keep_planning():
     assert bodies[0]["reason"] == "max_total_tokens"
     assert "Context (organized knowledge to use)" not in rec.prompts["coordinator"]
     assert led.verify(deep=True) is True
+
+
+def test_synthesis_result_budget_trims_prompt_but_keeps_full_result():
+    from forum.context_budget import ContextBudget
+
+    class _LongResultRecorder(_Recorder):
+        async def run(self, assignment):
+            self.prompts[assignment.agent] = assignment.instruction
+            if assignment.agent == "backend":
+                return Result(assignment.task_id, assignment.agent, "abcdefghijklmnop")
+            return await super().run(assignment)
+
+    rec = _LongResultRecorder()
+    led, orch = _orch(rec)
+    asyncio.run(orch.submit("build the api", context_budget=ContextBudget(max_upstream_tokens=2)))
+
+    synth_prompt = rec.prompts["synthesizer"]
+    assert "- T1: abcdefgh" in synth_prompt
+    assert "abcdefghijklmnop" not in synth_prompt
+
+    task_result = next(
+        led.get_payload(e.payload_hash)
+        for e in led.query(kind="result")
+        if led.get_payload(e.payload_hash).get("id") == "T1"
+    )
+    assert task_result["output"] == "abcdefghijklmnop"
+
+    budget_bodies = [led.get_payload(e.payload_hash) for e in led.query(kind="context_budget")]
+    synth_budget = next(body for body in budget_bodies if body["label"] == "T1->synthesizer")
+    assert synth_budget["source"] == "upstream"
+    assert synth_budget["action"] == "trimmed"
+    assert synth_budget["reason"] == "max_upstream_tokens"
+    assert led.verify(deep=True) is True

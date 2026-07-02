@@ -148,9 +148,11 @@ that does heavy I/O serializes the wave; it is meant to be fast and offline.
 
 The context-pressure layer makes that budget explicit. A `ContextBudget` applies
 model-agnostic approximate-token limits to request-level context, per-task context,
-and upstream data injection. Each admitted, trimmed, or omitted slice is witnessed as
-`context_budget`; the normal context entries store only admitted text, and omitted text
-is represented by counts and a reason rather than raw content.
+upstream data injection, and the task result inputs handed to final synthesis. Each
+admitted, trimmed, or omitted slice is witnessed as `context_budget`; the normal
+context entries store only admitted text, final synthesis receives a prompt-only copy
+of admitted result text, and omitted text is represented by counts and a reason rather
+than raw content. The original task result entries stay full-fidelity in the ledger.
 
 Context Capsules make prior run state compact before it becomes context. The capsule
 builder reads the ledger locally and extracts a deterministic brief: checkpoint,
