@@ -249,7 +249,12 @@ class Orchestrator:
             self.ledger.append(actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq)
             return answer
 
-        answer = await self.synthesizer.synthesize(request, results, counter)
+        answer = await self.synthesizer.synthesize(
+            request,
+            results,
+            counter,
+            delivery_contract=self._delivery_contract(route_frame, selected_delivery_profile),
+        )
         answer_entry = self.ledger.append(
             actor="synthesizer", kind="result", payload={"answer": answer}, causal_parent=req.seq
         )
@@ -439,6 +444,22 @@ class Orchestrator:
             payload={"ok": verification.ok, "detail": verification.detail, "source": verification.source},
             causal_parent=parent_seq,
         )
+
+    @staticmethod
+    def _delivery_contract(route_frame, selected_profile: str | None) -> str:
+        profile = selected_profile or route_frame.delivery_profile
+        parts = [
+            f"posture={route_frame.posture}",
+            f"profile={profile}",
+            f"domain={route_frame.domain}",
+            f"intent={route_frame.intent}",
+        ]
+        if route_frame.proof_lane is not None:
+            parts.append(f"proof_lane={route_frame.proof_lane}")
+        if route_frame.domain_lane is not None:
+            parts.append(f"domain_lane={route_frame.domain_lane}")
+        parts.append(route_frame.human_contract)
+        return "\n".join(parts)
 
     async def assign(self, task: str, *, parent_seq: int | None = None) -> str:
         """Resolve one task's agent through the routing ladder, witnessed.
