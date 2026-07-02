@@ -72,6 +72,8 @@ def test_route_decides_a_lane():
     assert resp.status == 200
     assert body["decided"] == "backend"
     assert body["candidates"][0]["agent"] == "backend"
+    assert body["frame"]["model_tier"] == "capable"
+    assert body["frame"]["executor"] == "cli"
 
 
 def test_route_includes_human_frame():
@@ -106,7 +108,7 @@ def test_plan_returns_tasks():
 
 def test_submit_answers_and_witnesses():
     surface, orch = _surface()
-    resp = _do(surface, "POST", "/submit", b'{"request": "design an api"}')
+    resp = _do(surface, "POST", "/submit", b'{"request": "build api database server endpoint"}')
     body = _json(resp)
     assert resp.status == 200
     assert body["answer"] == "Done: the api is designed."
@@ -124,6 +126,8 @@ def test_submit_answers_and_witnesses():
     assert len(receipt["answer"]["payload_hash"]) == 64
     assert receipt["route_frame"]["schema"] == "forum.route-frame/v1"
     assert receipt["route_frame"]["domain"] == "implementation"
+    assert receipt["route_frame"]["model_tier"] == "capable"
+    assert receipt["route_frame"]["executor"] == "cli"
     assert receipt["delivery_profile"]["selected"] == "engineer"
     assert receipt["delivery_profile"]["source"] == "route_frame"
     # the run was witnessed and is deep-verifiable
@@ -209,12 +213,14 @@ def test_capsule_returns_context_capsule():
 
 def test_room_returns_run_room_snapshot():
     surface, _ = _surface()
-    _do(surface, "POST", "/submit", b'{"request": "design an api"}')
+    _do(surface, "POST", "/submit", b'{"request": "build api database server endpoint"}')
     resp = _do(surface, "GET", "/room")
     body = json.loads(resp.body)
     assert resp.status == 200
     assert body["schema"] == "forum.run-room/v1"
-    assert body["request"]["text"] == "design an api"
+    assert body["request"]["text"] == "build api database server endpoint"
+    assert body["route_frame"]["model_tier"] == "capable"
+    assert body["route_frame"]["executor"] == "cli"
     assert body["answer"]["text"] == "Done: the api is designed."
     assert body["tasks"][0]["id"] == "T1"
 

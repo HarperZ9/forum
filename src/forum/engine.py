@@ -154,7 +154,7 @@ class Orchestrator:
         req = self.ledger.append(actor="client", kind="request", payload={"text": request})
         from forum.route_frame import derive_route_frame, frame_payload
 
-        route_frame = derive_route_frame(request, self.route(request))
+        route_frame = derive_route_frame(request, self.route(request), self.roster)
         self.ledger.append(
             actor="router",
             kind="route_frame",
@@ -513,7 +513,7 @@ class Orchestrator:
         from forum.route_frame import derive_route_frame, frame_payload
 
         routed = self.route(task)
-        frame = derive_route_frame(task, routed)
+        frame = derive_route_frame(task, routed, self.roster)
         route_entry = self.ledger.append(
             actor="router",
             kind="route",

@@ -4,6 +4,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from forum.roster import Roster
 from forum.routing import RouteResult
 
 ROUTE_FRAME_SCHEMA = "forum.route-frame/v1"
@@ -19,6 +20,8 @@ class RouteFrame:
     intent: str
     posture: str
     delivery_profile: str
+    model_tier: str | None
+    executor: str | None
     proof_lane: str | None
     domain_lane: str | None
     human_contract: str
@@ -203,9 +206,14 @@ _RULES: tuple[_FrameRule, ...] = (
 )
 
 
-def derive_route_frame(text: str, route: RouteResult) -> RouteFrame:
+def derive_route_frame(
+    text: str,
+    route: RouteResult,
+    roster: Roster | None = None,
+) -> RouteFrame:
     """Derive the human-facing contract for a route from local signals only."""
     agent = route.decided if not route.needs_escalation else None
+    model_tier, executor = _runtime_policy(agent, roster)
     tokens = frozenset(_TOKEN.findall(text.lower()))
     for rule in _RULES:
         signals = _signals(tokens, rule.keywords)
@@ -217,6 +225,8 @@ def derive_route_frame(text: str, route: RouteResult) -> RouteFrame:
                 intent=rule.intent,
                 posture=rule.posture,
                 delivery_profile=rule.delivery_profile,
+                model_tier=model_tier,
+                executor=executor,
                 proof_lane=rule.proof_lane,
                 domain_lane=rule.domain_lane,
                 human_contract=rule.contract,
@@ -229,6 +239,8 @@ def derive_route_frame(text: str, route: RouteResult) -> RouteFrame:
         intent="coordinate",
         posture="operator",
         delivery_profile="operator",
+        model_tier=model_tier,
+        executor=executor,
         proof_lane=None,
         domain_lane=None,
         human_contract=_GENERAL_CONTRACT,
@@ -244,6 +256,8 @@ def frame_payload(frame: RouteFrame) -> dict:
         "intent": frame.intent,
         "posture": frame.posture,
         "delivery_profile": frame.delivery_profile,
+        "model_tier": frame.model_tier,
+        "executor": frame.executor,
         "proof_lane": frame.proof_lane,
         "domain_lane": frame.domain_lane,
         "human_contract": frame.human_contract,
@@ -253,3 +267,12 @@ def frame_payload(frame: RouteFrame) -> dict:
 
 def _signals(tokens: frozenset[str], keywords: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(tokens.intersection(keywords)))
+
+
+def _runtime_policy(agent: str | None, roster: Roster | None) -> tuple[str | None, str | None]:
+    if agent is None or roster is None:
+        return None, None
+    spec = roster.by_name(agent)
+    if spec is None:
+        return None, None
+    return spec.model_tier, spec.executor

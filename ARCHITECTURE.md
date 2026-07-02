@@ -99,13 +99,16 @@ Cheap and certain first, expensive and clever only when it's earned.
 
 A route now carries a human frame as well as a lane. `forum.route_frame` derives a
 deterministic `forum.route-frame/v1` payload from the request text and the route:
-domain, intent, posture, delivery profile, proof/domain lane hints, a short
-human-facing answer contract, and the matched local signals. This is not semantic
-understanding and not a model judgment. It is a local routing contract that tells
-the surfaces how the work should present itself while preserving the old route
-fields for compatibility. `Orchestrator.assign` witnesses the same frame into the
-route entry, so future routing and delivery improvements can train or evaluate
-against the exact contract the run carried.
+domain, intent, posture, delivery profile, selected model tier/executor,
+proof/domain lane hints, a short human-facing answer contract, and the matched
+local signals. The runtime fields are joined from the roster only when a route
+decisively selects an agent; weak or escalated routes do not invent a model
+policy. This is not semantic understanding and not a model judgment. It is a
+local routing contract that tells the surfaces how the work should present
+itself and what class of local runtime should handle it while preserving the old
+route fields for compatibility. `Orchestrator.assign` witnesses the same frame
+into the route entry, so future routing, delivery, and model-endpoint
+improvements can train or evaluate against the exact contract the run carried.
 
 ## Roster, plan, policy
 
