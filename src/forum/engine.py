@@ -14,6 +14,7 @@ from forum.context_budget import (
 )
 from forum.control import Classifier, Coordinator, IntentJudge, Synthesizer, Validator
 from forum.delivery import NullReviser, Reviser, assess
+from forum.delivery_profile import assess_profile, get_profile, profile_payload
 from forum.dispatch import augment_with_upstream, dispatch_plan
 from forum.executor import Assignment, Executor, Result, executor_id
 from forum.intent import DEFAULT_THRESHOLD, coverage
@@ -124,6 +125,7 @@ class Orchestrator:
         *,
         budget: RunBudget | None = None,
         context_budget: ContextBudget | None = None,
+        delivery_profile: str | None = None,
     ) -> str:
         """Plan a plain request, run it, validate each result, and answer.
 
@@ -137,6 +139,9 @@ class Orchestrator:
         ladder = [_Counted(e, meter) for e in self.escalation_executors]
         start = time.monotonic()
         context_meter = ContextBudgetMeter()
+        selected_delivery_profile = (
+            get_profile(delivery_profile).name if delivery_profile is not None else None
+        )
 
         def over_budget() -> bool:
             if budget is None:
@@ -241,6 +246,7 @@ class Orchestrator:
         )
         # delivery first, so intent and verification both see and chain to the delivered answer
         answer, answer_seq = self._resolve_delivery(request, answer, answer_entry.seq)
+        self._witness_delivery_profile(answer, answer_seq, selected_delivery_profile)
         await self._witness_intent(request, answer, answer_seq, counter, over_budget)
         self._witness_verification(request, answer, answer_seq)
         return answer
@@ -267,6 +273,22 @@ class Orchestrator:
             causal_parent=parent_seq,
         )
         return verdict.ok
+
+    def _witness_delivery_profile(
+        self,
+        answer: str,
+        parent_seq: int,
+        profile: str | None,
+    ) -> None:
+        if profile is None:
+            return
+        assessment = assess_profile(answer, profile)
+        self.ledger.append(
+            actor="delivery-profile",
+            kind="delivery_profile_check",
+            payload=profile_payload(assessment),
+            causal_parent=parent_seq,
+        )
 
     async def _witness_intent(
         self, request: str, answer: str, parent_seq: int, executor: Executor,
