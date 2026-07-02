@@ -157,6 +157,17 @@ def test_prefixed_submit_accepts_context_budget_fields():
     assert "context_budget" in payload["receipt"]
 
 
+def test_prefixed_submit_accepts_delivery_profile_field():
+    surface = _mcp()
+    resp = _call(surface, "forum.submit", {
+        "request": "design an api",
+        "delivery_profile": "engineer",
+    })
+    payload = json.loads(resp["result"]["content"][0]["text"])
+    assert payload["receipt"]["delivery_profile"]["requested"] == "engineer"
+    assert payload["receipt"]["delivery_profile"]["checks"] == 1
+
+
 def test_call_status_and_verify_after_submit():
     surface = _mcp()
     _call(surface, "submit", {"request": "design an api"})

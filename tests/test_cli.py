@@ -105,6 +105,7 @@ def test_submit_json_returns_answer_and_receipt(capsys, tmp_path):
     rc = main([
         "submit", "design an api", "--ledger", str(tmp_path / "ledger"),
         "--cmd", f'{sys.executable} {model}', "--json",
+        "--delivery-profile", "engineer",
     ])
     body = json.loads(capsys.readouterr().out)
 
@@ -112,6 +113,8 @@ def test_submit_json_returns_answer_and_receipt(capsys, tmp_path):
     assert body["answer"] == "Done from cli."
     assert body["receipt"]["schema"] == "project-telos.action-receipt/v1"
     assert body["receipt"]["model"]["id"] == "SubprocessExecutor"
+    assert body["receipt"]["delivery_profile"]["requested"] == "engineer"
+    assert body["receipt"]["delivery_profile"]["checks"] == 1
     assert body["receipt"]["verification"]["verdict"] == "MATCH"
 
 def test_ledger_verify(capsys, tmp_path):
@@ -219,6 +222,18 @@ def test_context_budget_flags_parse():
     assert args.request_context_token_budget == 50
     assert args.task_context_token_budget == 25
     assert args.upstream_token_budget == 10
+
+
+def test_delivery_profile_submit_flag_parses():
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--cmd",
+        "echo",
+        "--delivery-profile",
+        "engineer",
+    ])
+    assert args.delivery_profile == "engineer"
 
 
 def test_ledger_summary_json(capsys, tmp_path):

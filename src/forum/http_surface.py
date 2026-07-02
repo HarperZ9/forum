@@ -218,13 +218,25 @@ class HttpSurface:
         request, err = self._str_field(data, "request")
         if err:
             return err
+        delivery_profile = data.get("delivery_profile")
+        if delivery_profile is not None and (
+            not isinstance(delivery_profile, str) or not delivery_profile
+        ):
+            return error(400, "field 'delivery_profile' must be a non-empty string when provided")
         context_budget, context_budget_payload, err = self._context_budget(data)
         if err:
             return err
         before_seq = self._orch.ledger.count()
         try:
-            answer = await self._orch.submit(request, context_budget=context_budget)
+            answer = await self._orch.submit(
+                request,
+                context_budget=context_budget,
+                delivery_profile=delivery_profile,
+            )
         except ValueError as exc:
+            message = str(exc)
+            if "unknown delivery profile" in message:
+                return error(400, message)
             return error(
                 502,
                 "the configured executor did not return valid JSON; point the "
@@ -237,6 +249,7 @@ class HttpSurface:
             answer=answer,
             executor=self._orch.executor,
             context_budget=context_budget_payload,
+            delivery_profile=delivery_profile,
         )
         return json_response({
             "answer": answer,

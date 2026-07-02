@@ -34,6 +34,8 @@ def _submit_body(arguments: dict) -> bytes:
     ):
         if key in arguments:
             body[key] = arguments[key]
+    if "delivery_profile" in arguments:
+        body["delivery_profile"] = arguments["delivery_profile"]
     return _body(body)
 
 
@@ -92,6 +94,10 @@ _CONTEXT_BUDGET_PROPERTIES = {
 
 _SUBMIT_PROPERTIES = {
     "request": {"type": "string", "description": "the request to fulfil"},
+    "delivery_profile": {
+        "type": "string",
+        "description": "delivery profile: operator, engineer, researcher, executive",
+    },
     **_CONTEXT_BUDGET_PROPERTIES,
 }
 

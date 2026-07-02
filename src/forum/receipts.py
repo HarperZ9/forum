@@ -53,6 +53,21 @@ def _context_budget_observed(entries: list[LedgerEntry], ledger: Ledger) -> dict
     }
 
 
+def _delivery_profile_observed(entries: list[LedgerEntry], ledger: Ledger) -> dict[str, int]:
+    payloads = []
+    for entry in entries:
+        if entry.kind != "delivery_profile_check":
+            continue
+        try:
+            payloads.append(ledger.get_payload(entry.payload_hash))
+        except KeyError:
+            continue
+    return {
+        "checks": len(payloads),
+        "flagged": sum(1 for payload in payloads if payload.get("flagged")),
+    }
+
+
 def submit_receipt(
     ledger: Ledger,
     *,
@@ -62,6 +77,7 @@ def submit_receipt(
     executor: Any,
     budget: dict[str, Any] | None = None,
     context_budget: dict[str, Any] | None = None,
+    delivery_profile: str | None = None,
 ) -> dict[str, Any]:
     entries = [entry for entry in ledger.replay() if entry.seq >= before_seq]
     request_entry = next((entry for entry in entries if entry.kind == "request"), entries[0] if entries else None)
@@ -96,6 +112,10 @@ def submit_receipt(
         "context_budget": {
             "limits": context_budget or {},
             "observed": _context_budget_observed(entries, ledger),
+        },
+        "delivery_profile": {
+            "requested": delivery_profile,
+            **_delivery_profile_observed(entries, ledger),
         },
         "verification": {
             "verdict": "MATCH" if verified else "DRIFT",

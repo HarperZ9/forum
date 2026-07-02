@@ -124,7 +124,14 @@ def _cmd_submit(args) -> int:
     orch = build_orchestrator(args.ledger, executor=executor, intent_judge=intent_judge)
     before_seq = orch.ledger.count()
     try:
-        answer = asyncio.run(orch.submit(args.request, budget=budget, context_budget=context_budget))
+        answer = asyncio.run(
+            orch.submit(
+                args.request,
+                budget=budget,
+                context_budget=context_budget,
+                delivery_profile=args.delivery_profile,
+            )
+        )
     except ValueError as exc:
         print(f"submit failed: {exc}", file=sys.stderr)
         return 1
@@ -137,6 +144,7 @@ def _cmd_submit(args) -> int:
         executor=executor,
         budget=budget_payload,
         context_budget=context_budget_payload,
+        delivery_profile=args.delivery_profile,
     )
     if args.json:
         print(json.dumps({"answer": answer, "checkpoint": checkpoint, "receipt": receipt}, indent=2))
@@ -295,6 +303,7 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--request-context-token-budget", type=int, default=None, help="bound request-level context to N approximate tokens")
     submit.add_argument("--task-context-token-budget", type=int, default=None, help="bound each per-task context slice to N approximate tokens")
     submit.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
+    submit.add_argument("--delivery-profile", default=None, help="delivery profile to witness: operator, engineer, researcher, executive")
     submit.add_argument("--judge-intent", action="store_true", help="when the lexical intent floor flags drift, escalate to a model intent-judge (uses the run's executor, counts against the budget)")
     submit.add_argument("--json", action="store_true", help="emit answer, checkpoint, and Project Telos action receipt as JSON")
     _add_ledger(submit)
