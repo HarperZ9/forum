@@ -65,6 +65,12 @@ def test_tools_list_has_the_tools():
         assert tool["inputSchema"]["type"] == "object"
 
 
+def test_tools_list_includes_context_capsule():
+    resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    names = {t["name"] for t in resp["result"]["tools"]}
+    assert "forum.ledger.capsule" in names
+
+
 def test_call_route_decides_a_lane():
     resp = _call(_mcp(), "route", {"text": "build the api database server endpoint"})
     result = resp["result"]
@@ -197,6 +203,14 @@ def test_call_prefixed_ledger_summary_after_submit():
     assert summary["entries"] > 0
     assert summary["verified"] is True
     assert summary["requests"] == 1
+
+
+def test_call_prefixed_ledger_capsule_after_submit():
+    surface = _mcp()
+    _call(surface, "forum.submit", {"request": "design an api"})
+    payload = json.loads(_call(surface, "forum.ledger.capsule")["result"]["content"][0]["text"])
+    assert payload["schema"] == "forum.context-capsule/v1"
+    assert payload["latest_answer"] == "Done."
 
 
 def test_call_ledger_get_returns_an_entry():
