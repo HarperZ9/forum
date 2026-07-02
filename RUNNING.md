@@ -87,6 +87,18 @@ forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
 forum mcp --cmd "ollama run llama3"
 ```
 
+The daemon exposes pre-submit inspection endpoints over the same durable ledger:
+
+```bash
+curl http://127.0.0.1:8000/runtime
+curl -X POST http://127.0.0.1:8000/context/preflight \
+  -H "content-type: application/json" \
+  -d '{"request":"continue the run","use_capsule_context":true,"context_token_budget":0}'
+```
+
+MCP hosts get the same payloads through `forum.runtime.inspect` and
+`forum.context.preflight`.
+
 Without an executor flag, routing and the ledger commands still work; planning and
 submitting return a clear message asking for a model.
 

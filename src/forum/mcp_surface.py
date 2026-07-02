@@ -41,6 +41,22 @@ def _submit_body(arguments: dict) -> bytes:
     return _body(body)
 
 
+def _context_preflight_body(arguments: dict) -> bytes:
+    body = {"request": arguments.get("request", "")}
+    for key in (
+        "context_token_budget",
+        "request_context_token_budget",
+        "task_context_token_budget",
+        "upstream_token_budget",
+        "use_capsule_context",
+        "max_items",
+        "max_text_chars",
+    ):
+        if key in arguments:
+            body[key] = arguments[key]
+    return _body(body)
+
+
 def _humanize_body(arguments: dict) -> bytes:
     body = {
         "text": arguments.get("text", ""),
@@ -63,6 +79,8 @@ _TOOL_ROUTES = {
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
     "ledger_capsule": lambda a: ("GET", "/capsule", b""),
     "run_room": lambda a: ("GET", "/room", b""),
+    "runtime_inspect": lambda a: ("GET", "/runtime", b""),
+    "context_preflight": lambda a: ("POST", "/context/preflight", _context_preflight_body(a)),
 }
 
 _TOOL_ALIASES = {
@@ -77,6 +95,8 @@ _TOOL_ALIASES = {
     "forum.ledger.summary": "ledger_summary",
     "forum.ledger.capsule": "ledger_capsule",
     "forum.run.room": "run_room",
+    "forum.runtime.inspect": "runtime_inspect",
+    "forum.context.preflight": "context_preflight",
 }
 
 _CONTEXT_BUDGET_PROPERTIES = {
@@ -107,6 +127,23 @@ _SUBMIT_PROPERTIES = {
     "checkpoint_each_wave": {
         "type": "boolean",
         "description": "witness a checkpoint after each execution wave",
+    },
+    **_CONTEXT_BUDGET_PROPERTIES,
+}
+
+_CONTEXT_PREFLIGHT_PROPERTIES = {
+    "request": {"type": "string", "description": "the request to estimate"},
+    "use_capsule_context": {
+        "type": "boolean",
+        "description": "include the current ledger capsule in the preflight calculation",
+    },
+    "max_items": {
+        "type": "integer",
+        "description": "maximum capsule task/result items to inspect",
+    },
+    "max_text_chars": {
+        "type": "integer",
+        "description": "maximum text characters retained per capsule field",
     },
     **_CONTEXT_BUDGET_PROPERTIES,
 }
@@ -217,6 +254,20 @@ _TOOL_SPECS = [
         "name": "forum.run.room",
         "description": "Project the latest witnessed run into an operator run-room snapshot.",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.runtime.inspect",
+        "description": "Inspect the active Forum executor policy without running a model.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.context.preflight",
+        "description": "Estimate request and optional capsule context pressure before submit.",
+        "inputSchema": {
+            "type": "object",
+            "properties": _CONTEXT_PREFLIGHT_PROPERTIES,
+            "required": ["request"],
+        },
     },
 ]
 

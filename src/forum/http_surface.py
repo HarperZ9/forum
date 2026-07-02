@@ -27,6 +27,8 @@ _KNOWN_PATHS = {
     "/checkpoint",
     "/capsule",
     "/room",
+    "/runtime",
+    "/context/preflight",
     "/route",
     "/plan",
     "/submit",
@@ -85,6 +87,8 @@ class HttpSurface:
             return self._capsule()
         if method == "GET" and path == "/room":
             return self._room()
+        if method == "GET" and path == "/runtime":
+            return self._runtime()
         if method == "GET" and path.startswith("/ledger/"):
             return self._ledger_get(path)
         if method == "GET" and path.startswith("/replay/"):
@@ -95,6 +99,8 @@ class HttpSurface:
             return await self._plan(body)
         if method == "POST" and path == "/submit":
             return await self._submit(body)
+        if method == "POST" and path == "/context/preflight":
+            return self._context_preflight(body)
         if method == "POST" and path == "/humanize":
             return self._humanize(body)
 
@@ -152,6 +158,14 @@ class HttpSurface:
             return None, None, error(400, str(exc))
         return budget, budget.configured_limits(), None
 
+    def _non_negative_int_field(self, data: dict, name: str, *, default: int):
+        value = data.get(name, default)
+        if type(value) is not int:
+            return None, error(400, f"field {name!r} must be an integer when provided")
+        if value < 0:
+            return None, error(400, f"field {name!r} must be >= 0")
+        return value, None
+
     # --- handlers ---
 
     def _ledger_get(self, path: str) -> Response:
@@ -180,6 +194,56 @@ class HttpSurface:
         from forum.run_room import build_run_room
 
         return json_response(build_run_room(self._orch.ledger))
+
+    def _runtime(self) -> Response:
+        from forum.runtime_descriptor import descriptors_from_executor
+        from forum.runtime_inspect import inspect_runtime
+
+        default, tiers = descriptors_from_executor(self._orch.executor)
+        return json_response(inspect_runtime(default, tiers, self._orch.roster))
+
+    def _context_preflight(self, body: bytes) -> Response:
+        from forum.context_capsule import build_context_capsule, capsule_text
+        from forum.context_preflight import build_context_preflight
+
+        data, err = self._read_json(body)
+        if err:
+            return err
+        request, err = self._str_field(data, "request")
+        if err:
+            return err
+        context_budget, _, err = self._context_budget(data)
+        if err:
+            return err
+        use_capsule_context = data.get("use_capsule_context", False)
+        if not isinstance(use_capsule_context, bool):
+            return error(400, "field 'use_capsule_context' must be a boolean when provided")
+
+        context = ""
+        context_source = "none"
+        if use_capsule_context:
+            max_items, err = self._non_negative_int_field(data, "max_items", default=8)
+            if err:
+                return err
+            max_text_chars, err = self._non_negative_int_field(data, "max_text_chars", default=240)
+            if err:
+                return err
+            capsule = build_context_capsule(
+                self._orch.ledger,
+                max_items=max_items,
+                max_text_chars=max_text_chars,
+            )
+            context = capsule_text(capsule)
+            context_source = "capsule"
+
+        return json_response(
+            build_context_preflight(
+                request,
+                context=context,
+                context_source=context_source,
+                budget=context_budget,
+            )
+        )
 
     def _route_text(self, body: bytes) -> Response:
         from forum.route_frame import derive_route_frame, frame_payload
