@@ -5,8 +5,17 @@ from typing import Any
 
 from forum.ledger import Ledger, LedgerEntry
 from forum.run_actions import derive_next_actions
+from forum.run_brief import BRIEF_SCHEMA, build_room_brief, room_brief_text
 
 RUN_ROOM_SCHEMA = "forum.run-room/v1"
+__all__ = [
+    "BRIEF_SCHEMA",
+    "RUN_ROOM_SCHEMA",
+    "build_room_brief",
+    "build_run_room",
+    "room_brief_text",
+    "room_text",
+]
 
 
 def build_run_room(
@@ -30,7 +39,14 @@ def build_run_room(
     checkpoints = _checkpoints(payloads)
     answer = _answer(payloads, max_text_chars)
     signals = _signals(payloads, counts)
-    return {
+    next_actions = derive_next_actions(
+        request=request,
+        tasks=tasks,
+        checkpoints=checkpoints,
+        answer=answer,
+        signals=signals,
+    )
+    room = {
         "schema": RUN_ROOM_SCHEMA,
         "checkpoint": ledger.checkpoint(),
         "verified": ledger.verify(deep=True),
@@ -43,14 +59,10 @@ def build_run_room(
         "checkpoints": checkpoints,
         "answer": answer,
         "signals": signals,
-        "next_actions": derive_next_actions(
-            request=request,
-            tasks=tasks,
-            checkpoints=checkpoints,
-            answer=answer,
-            signals=signals,
-        ),
+        "next_actions": next_actions,
     }
+    room["brief"] = build_room_brief(room)
+    return room
 
 
 def room_text(room: dict) -> str:

@@ -1,5 +1,11 @@
 from forum.ledger import InMemoryStorage, Ledger
-from forum.run_room import RUN_ROOM_SCHEMA, build_run_room, room_text
+from forum.run_room import (
+    BRIEF_SCHEMA,
+    RUN_ROOM_SCHEMA,
+    build_run_room,
+    room_brief_text,
+    room_text,
+)
 
 
 def _ledger():
@@ -121,7 +127,26 @@ def test_build_run_room_joins_current_run_state():
             "target": {"answer_seq": answer.seq},
         }
     ]
+    assert room["brief"] == {
+        "schema": BRIEF_SCHEMA,
+        "state": "complete",
+        "title": "Run complete: build the...",
+        "posture": "architect",
+        "delivery_profile": "engineer",
+        "summary": (
+            "The latest run is verified, has a final answer, "
+            "and has no blocking signals."
+        ),
+        "risk": "No blocking signals detected.",
+        "next_step": "Export run receipt.",
+        "bullets": [
+            "Route: implementation / execute / architect",
+            "Tasks: 1 total, 1 with results, 1 accepted",
+            "Answer: present",
+        ],
+    }
     assert "Forum run room" in room_text(room)
+    assert "Forum operator brief" in room_brief_text(room)
 
 
 def test_build_run_room_defaults_to_latest_request():
@@ -177,6 +202,11 @@ def test_run_room_next_actions_retry_failed_task_once():
         "reason": "latest task result failed",
         "target": {"task_id": "T1", "result_seq": result.seq},
     }
+    assert room["brief"]["state"] == "action_required"
+    assert room["brief"]["title"] == "Action required: fix failing parser"
+    assert room["brief"]["risk"] == "Execution has 1 failed result and 1 failed verdict."
+    assert room["brief"]["next_step"] == "Retry T1."
+    assert "Status: Action required" in room_brief_text(room)
 
 
 def test_run_room_next_actions_surface_quality_and_resume_signals():

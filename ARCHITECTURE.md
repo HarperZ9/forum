@@ -281,15 +281,18 @@ confirm that.
 Run rooms are the operator read model over the same ledger. `forum.run_room` starts
 from the latest request by default and projects that run into `forum.run-room/v1`:
 request, route frame, plan waves, task contracts, latest results, verdicts,
-checkpoints, answer, quality signals, and deterministic `next_actions`. Those
-actions are advisory policy over the witnessed state: retry failed tasks, raise a
-spent budget, resume from a checkpoint, review delivery or verifier signals, judge
-intent drift, export a receipt, or submit the first request when the room is empty.
-This is not a second state store and not a model summary. It is a clipped,
-structured view over witnessed entries, exposed through `forum ledger room --json`,
-`GET /room`, and MCP `forum.run.room` so UI and peer tools have a platform endpoint
-without learning every raw ledger entry shape or reimplementing the same action
-derivation logic.
+checkpoints, answer, quality signals, deterministic `next_actions`, and a
+`forum.run-room.brief/v1` operator brief. Those actions are advisory policy over
+the witnessed state: retry failed tasks, raise a spent budget, resume from a
+checkpoint, review delivery or verifier signals, judge intent drift, export a
+receipt, or submit the first request when the room is empty. The brief is the
+human readout over the same state: status, route posture, risk, next step, and a
+few compact signals, all derived locally without asking a model to summarize the
+ledger. This is not a second state store and not an invented narrative. It is a
+clipped, structured view over witnessed entries, exposed through `forum ledger
+room --json`, `forum ledger room --brief`, `GET /room`, and MCP `forum.run.room`
+so UI and peer tools have a platform endpoint without learning every raw ledger
+entry shape or reimplementing the same action derivation logic.
 
 `compare(a, b)` takes two such summaries and reports the delta on the numeric
 fields, and `forum bench A B` runs it over two ledgers. This is the measurement

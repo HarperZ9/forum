@@ -510,6 +510,17 @@ def test_ledger_room_json(capsys, tmp_path):
     assert payload["verified"] is True
 
 
+def test_ledger_room_brief(capsys, tmp_path):
+    _seed(str(tmp_path))
+    rc = main(["ledger", "room", "--ledger", str(tmp_path), "--brief"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Forum operator brief" in out
+    assert "Status:" in out
+    assert "Next:" in out
+
+
 def test_ledger_capsule_text(capsys, tmp_path):
     _seed(str(tmp_path))
     rc = main(["ledger", "capsule", "--ledger", str(tmp_path), "--text"])
