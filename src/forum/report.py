@@ -62,6 +62,12 @@ def summarize(ledger: Ledger) -> dict:
     delivery_flagged = sum(1 for e in delivery_checks if ledger.get_payload(e.payload_hash).get("flagged"))
     revisions = ledger.query(kind="revision")
     revisions_accepted = sum(1 for e in revisions if ledger.get_payload(e.payload_hash).get("accepted"))
+    context_budget_entries = ledger.query(kind="context_budget")
+    context_budget_payloads = [ledger.get_payload(e.payload_hash) for e in context_budget_entries]
+    context_budget_trimmed = sum(1 for p in context_budget_payloads if p.get("action") == "trimmed")
+    context_budget_omitted = sum(1 for p in context_budget_payloads if p.get("action") == "omitted")
+    context_tokens_original = sum(int(p.get("original_tokens", 0)) for p in context_budget_payloads)
+    context_tokens_admitted = sum(int(p.get("admitted_tokens", 0)) for p in context_budget_payloads)
 
     # The UTF-8 byte weight of the witnessed content (distinct payloads; the content
     # store already dedups identical bodies). An efficiency signal, not a token count:
@@ -104,6 +110,12 @@ def summarize(ledger: Ledger) -> dict:
         "escalations": kinds.get("tier_escalation", 0),
         "budget_stops": kinds.get("budget", 0),
         "contexts": kinds.get("context", 0),
+        "context_budget_checks": len(context_budget_entries),
+        "context_budget_trimmed": context_budget_trimmed,
+        "context_budget_omitted": context_budget_omitted,
+        "context_tokens_original": context_tokens_original,
+        "context_tokens_admitted": context_tokens_admitted,
+        "context_tokens_saved": context_tokens_original - context_tokens_admitted,
         "answers": answers,
         "model_calls": dict(model_calls),
         # scalar total so a model-call change flows through compare()/bench; equals
@@ -121,7 +133,10 @@ _NUMERIC = (
     "intent_judgments", "intent_drift_judged", "verifications", "verifications_refuted",
     "delivery_checks", "delivery_flagged", "revisions", "revisions_accepted",
     "checkpoints", "resumes",
-    "escalations", "budget_stops", "contexts", "answers", "model_calls_total",
+    "escalations", "budget_stops", "contexts",
+    "context_budget_checks", "context_budget_trimmed", "context_budget_omitted",
+    "context_tokens_original", "context_tokens_admitted", "context_tokens_saved",
+    "answers", "model_calls_total",
     "payload_bytes",
 )
 

@@ -171,3 +171,47 @@ def test_task_result_with_an_answer_key_is_still_a_task_result():
     assert s["task_results"] == 1
     assert s["answers"] == 1
     assert s["model_calls"] == {"m": 1}
+
+
+def test_summary_reports_context_pressure_metrics():
+    led = _led()
+    led.append(
+        actor="context-budget",
+        kind="context_budget",
+        payload={
+            "schema": "forum.context-pressure/v1",
+            "source": "task",
+            "label": "T1",
+            "action": "trimmed",
+            "reason": "max_task_tokens",
+            "original_bytes": 40,
+            "admitted_bytes": 20,
+            "original_tokens": 10,
+            "admitted_tokens": 5,
+            "remaining_total_tokens": 20,
+        },
+    )
+    led.append(
+        actor="context-budget",
+        kind="context_budget",
+        payload={
+            "schema": "forum.context-pressure/v1",
+            "source": "task",
+            "label": "T2",
+            "action": "omitted",
+            "reason": "max_total_tokens",
+            "original_bytes": 16,
+            "admitted_bytes": 0,
+            "original_tokens": 4,
+            "admitted_tokens": 0,
+            "remaining_total_tokens": 0,
+        },
+    )
+    s = summarize(led)
+    assert s["context_budget_checks"] == 2
+    assert s["context_budget_trimmed"] == 1
+    assert s["context_budget_omitted"] == 1
+    assert s["context_tokens_original"] == 14
+    assert s["context_tokens_admitted"] == 5
+    assert s["context_tokens_saved"] == 9
+    assert "context_tokens_saved" in compare(s, s)
