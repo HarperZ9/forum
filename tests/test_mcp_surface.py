@@ -123,6 +123,18 @@ def test_call_prefixed_humanize_simplifies_agent_prose():
     assert "facts were not independently checked" in payload["not_verified"]
 
 
+def test_call_prefixed_humanize_accepts_delivery_profile():
+    resp = _call(_mcp(), "forum.prose.humanize", {
+        "text": "Prior to launch, utilize the module test output.",
+        "profile": "engineer",
+    })
+    result = resp["result"]
+    assert result["isError"] is False
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["profile"] == "engineer"
+    assert payload["profile_check"]["profile"] == "engineer"
+
+
 def test_call_submit_answers_and_witnesses():
     resp = _call(_mcp(), "submit", {"request": "design an api"})
     result = resp["result"]

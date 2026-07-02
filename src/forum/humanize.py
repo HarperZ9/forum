@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from forum.delivery_profile import assess_profile, profile_payload
+
 HUMANIZE_SCHEMA = "forum.prose-humanization/v1"
 
 _REPLACEMENTS = (
@@ -22,7 +24,7 @@ _PREAMBLES = (
 )
 
 
-def humanize_text(text: str, audience: str = "operator") -> dict:
+def humanize_text(text: str, audience: str = "operator", profile: str | None = None) -> dict:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("text must be a non-empty string")
 
@@ -49,9 +51,13 @@ def humanize_text(text: str, audience: str = "operator") -> dict:
     if output and output[-1] not in ".!?":
         output += "."
 
+    assessment = assess_profile(output, profile)
+
     return {
         "schema": HUMANIZE_SCHEMA,
         "audience": audience or "operator",
+        "profile": assessment.profile,
+        "profile_check": profile_payload(assessment),
         "input_chars": len(text),
         "output_chars": len(output),
         "output": output,

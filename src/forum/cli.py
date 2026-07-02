@@ -69,7 +69,7 @@ def _cmd_humanize(args) -> int:
     from forum.humanize import humanize_text
 
     try:
-        print(json.dumps(humanize_text(args.text, audience=args.audience)))
+        print(json.dumps(humanize_text(args.text, audience=args.audience, profile=args.profile)))
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -271,6 +271,11 @@ def build_parser() -> argparse.ArgumentParser:
     humanize = sub.add_parser("humanize", help="clarify model or agent prose without adding facts")
     humanize.add_argument("text")
     humanize.add_argument("--audience", default="operator")
+    humanize.add_argument(
+        "--profile",
+        default=None,
+        help="delivery profile to assess: operator, engineer, researcher, executive",
+    )
     humanize.set_defaults(func=_cmd_humanize)
 
     route = sub.add_parser("route", help="route a request to a capability lane (no model needed)")
