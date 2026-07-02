@@ -51,6 +51,19 @@ def test_assign_uses_router_when_keywords_decide():
     assert ledger.query(kind="classification") == []
 
 
+def test_assign_witnesses_route_frame():
+    ledger = _ledger()
+    ex = _Exec()
+    agent = asyncio.run(_orch(ledger, ex).assign("build the api database schema"))
+    assert agent == "backend"
+    route = ledger.query(kind="route")[0]
+    payload = ledger.get_payload(route.payload_hash)
+    assert payload["frame"]["schema"] == "forum.route-frame/v1"
+    assert payload["frame"]["domain"] == "implementation"
+    assert payload["frame"]["posture"] == "architect"
+    assert payload["frame"]["delivery_profile"] == "engineer"
+
+
 def test_assign_escalates_to_classifier_when_keywords_cannot_decide():
     ledger = _ledger()
     ex = _Exec()
