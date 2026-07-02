@@ -183,6 +183,10 @@ admitted, trimmed, or omitted slice is witnessed as `context_budget`; the normal
 context entries store only admitted text, final synthesis receives a prompt-only copy
 of admitted result text, and omitted text is represented by counts and a reason rather
 than raw content. The original task result entries stay full-fidelity in the ledger.
+`forum.context_preflight` is the read-only half of that mechanism: before submit,
+it estimates request size and optional capsule context against the same
+`ContextBudget` rules, reporting retained, trimmed, or omitted context without
+writing ledger entries or copying raw capsule text into JSON.
 
 Context Capsules make prior run state compact before it becomes context. The capsule
 builder reads the ledger locally and extracts a deterministic brief: checkpoint,

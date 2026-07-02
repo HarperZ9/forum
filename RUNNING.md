@@ -50,6 +50,7 @@ forum submit "ship a login API with docs" --runtime-config forum-runtime.toml
 forum serve --runtime-config forum-runtime.toml
 forum mcp --runtime-config forum-runtime.toml
 forum runtime inspect --runtime-config forum-runtime.toml
+forum context preflight "ship a login API with docs" --use-capsule-context --request-context-token-budget 80
 ```
 
 Config files name environment variables with `api_key_env`; they do not store key
@@ -57,6 +58,9 @@ values. Command-line executor flags still override the file for a single run.
 `forum runtime inspect` accepts those same flags and prints the merged runtime
 policy, roster tier coverage, and missing executor issues without running any
 command or probing any endpoint.
+`forum context preflight` uses the same approximate-token budget logic as submit
+to show whether optional capsule context would be retained, trimmed, or omitted
+before planning starts.
 
 ## A hosted model
 
