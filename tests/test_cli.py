@@ -318,6 +318,105 @@ def test_tier_chat_flags_are_available_on_serve_and_mcp():
     assert mcp.frontier_model == "qwen"
 
 
+def test_runtime_config_flag_builds_tiered_executor(tmp_path):
+    from forum.chat_executor import ChatExecutor
+    from forum.executor import Assignment
+    from forum.runtime import TieredExecutor
+
+    config = tmp_path / "forum-runtime.toml"
+    config.write_text(
+        """
+[runtime.default]
+chat_url = "http://base/v1/chat/completions"
+model = "base-local"
+
+[runtime.tiers.cheap]
+chat_url = "http://cheap/v1/chat/completions"
+model = "phi3"
+
+[runtime.tiers.capable]
+chat_url = "http://capable/v1/chat/completions"
+model = "llama3"
+""",
+        encoding="utf-8",
+    )
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--runtime-config",
+        str(config),
+    ])
+
+    executor = _make_executor(args)
+
+    cheap = executor.select(Assignment("T1", "technical-writing", "docs"))
+    capable = executor.select(Assignment("T2", "backend", "build"))
+    control = executor.select(Assignment("control:coordinator", "coordinator", "plan"))
+    assert isinstance(executor, TieredExecutor)
+    assert isinstance(cheap, ChatExecutor)
+    assert cheap.model_id == "phi3"
+    assert isinstance(capable, ChatExecutor)
+    assert capable.model_id == "llama3"
+    assert isinstance(control, ChatExecutor)
+    assert control.model_id == "base-local"
+
+
+def test_runtime_config_cli_tier_overrides_file(tmp_path):
+    from forum.executor import Assignment
+
+    config = tmp_path / "forum-runtime.toml"
+    config.write_text(
+        """
+[runtime.default]
+cmd = "base-model"
+
+[runtime.tiers.capable]
+chat_url = "http://from-file/v1/chat/completions"
+model = "from-file"
+""",
+        encoding="utf-8",
+    )
+    args = build_parser().parse_args([
+        "submit",
+        "do x",
+        "--runtime-config",
+        str(config),
+        "--capable-chat-url",
+        "http://from-cli/v1/chat/completions",
+        "--capable-model",
+        "from-cli",
+    ])
+
+    executor = _make_executor(args)
+
+    capable = executor.select(Assignment("T1", "backend", "build"))
+    control = executor.select(Assignment("control:coordinator", "coordinator", "plan"))
+    assert capable.model_id == "from-cli"
+    assert capable._base_url == "http://from-cli/v1/chat/completions"
+    assert control._command == ["base-model"]
+
+
+def test_runtime_config_flag_available_on_serve_and_mcp(tmp_path):
+    config = tmp_path / "forum-runtime.toml"
+    config.write_text("[runtime.default]\ncmd = \"base-model\"\n", encoding="utf-8")
+
+    serve = build_parser().parse_args(["serve", "--runtime-config", str(config)])
+    mcp = build_parser().parse_args(["mcp", "--runtime-config", str(config)])
+
+    assert serve.runtime_config == str(config)
+    assert mcp.runtime_config == str(config)
+
+
+def test_submit_invalid_runtime_config_returns_2(capsys, tmp_path):
+    config = tmp_path / "forum-runtime.toml"
+    config.write_text("[runtime.tiers.premium]\ncmd = \"model\"\n", encoding="utf-8")
+
+    rc = main(["submit", "do x", "--runtime-config", str(config)])
+
+    assert rc == 2
+    assert "invalid runtime config" in capsys.readouterr().err
+
+
 def test_submit_flags_parse():
     args = build_parser().parse_args(["submit", "do x", "--api", "--model", "claude-opus-4-8"])
     assert args.api is True and args.model == "claude-opus-4-8"
