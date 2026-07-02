@@ -1,6 +1,7 @@
 import pytest
 
 from forum.lanes import (
+    DOMAIN_LANES,
     PROOF_LANES,
     SCOPES,
     LaneRoute,
@@ -90,6 +91,97 @@ def test_well_formed_route_passes_unchanged_and_is_witnessed():
     accepted = ledger.query(kind="lane_route")
     assert len(accepted) == 1
     body = ledger.get_payload(accepted[0].payload_hash)
-    assert body == {"task": "run the build", "lane": "execute", "scopes": ["read", "run"]}
+    assert body == {
+        "task": "run the build",
+        "lane": "execute",
+        "domain": None,
+        "scopes": ["read", "run"],
+        "confidence": None,
+    }
     assert ledger.query(kind="lane_rejection") == []
     assert ledger.verify(deep=True) is True
+
+
+def test_domain_vocabulary_is_closed_and_frozen():
+    # the domain axis is a second closed vocabulary; widening it is a code change
+    with pytest.raises(TypeError):
+        DOMAIN_LANES["shadow-lane"] = None  # type: ignore[index]
+    assert len(DOMAIN_LANES) == 10
+    assert "source-federation" in DOMAIN_LANES  # the 0143 gap, now named
+    for name, spec in DOMAIN_LANES.items():
+        assert spec.name == name
+        assert spec.charter  # every domain lane declares what it is for
+
+
+def test_unknown_domain_lane_is_rejected_and_witnessed():
+    ledger = _ledger()
+    req = ledger.append(
+        actor="client", kind="request", payload={"text": "federate the archives"}
+    )
+    route = LaneRoute(
+        task="federate the archives",
+        lane="observe",
+        scopes=frozenset({"read"}),
+        domain="archive-federation",  # not in the closed domain set
+        confidence=0.12,
+    )
+    with pytest.raises(LaneRouteError) as excinfo:
+        witness_route(ledger, route, causal_parent=req.seq)
+    rejection = excinfo.value.rejection
+    assert rejection.violation is LaneViolation.UNKNOWN_DOMAIN
+    assert rejection.domain == "archive-federation"
+    rejections = ledger.query(kind="lane_rejection")
+    assert len(rejections) == 1
+    body = ledger.get_payload(rejections[0].payload_hash)
+    # the supervision contract: both axes, confidence, and a typed reason code
+    assert set(body) == {
+        "task", "lane", "domain", "scopes", "confidence", "violation", "excess", "granted",
+    }
+    assert body["violation"] == "unknown_domain"
+    assert body["lane"] == "observe"
+    assert body["domain"] == "archive-federation"
+    assert body["confidence"] == 0.12
+    assert rejections[0].causal_parent == req.seq
+    assert ledger.verify(deep=True) is True
+
+
+def test_well_formed_two_axis_route_passes_and_is_witnessed():
+    ledger = _ledger()
+    route = LaneRoute(
+        task="run the simulation suite",
+        lane="execute",
+        scopes=frozenset({"read", "run"}),
+        domain="scientific-runtime",
+        confidence=0.91,
+    )
+    out = witness_route(ledger, route)
+    assert out is route
+    accepted = ledger.query(kind="lane_route")
+    assert len(accepted) == 1
+    body = ledger.get_payload(accepted[0].payload_hash)
+    assert body == {
+        "task": "run the simulation suite",
+        "lane": "execute",
+        "domain": "scientific-runtime",
+        "scopes": ["read", "run"],
+        "confidence": 0.91,
+    }
+    assert ledger.query(kind="lane_rejection") == []
+    assert ledger.verify(deep=True) is True
+
+
+def test_domain_axis_is_orthogonal_to_scopes():
+    # a valid domain never launders an over-routed scope claim
+    route = LaneRoute(
+        task="mutate under a formal-proof banner",
+        lane="observe",
+        scopes=frozenset({"read", "run"}),
+        domain="formal-proof",
+    )
+    rejection = check_route(route)
+    assert rejection is not None
+    assert rejection.violation is LaneViolation.OVER_ROUTED
+    assert rejection.excess == ("run",)
+    # and no domain lane grants any scope: the axes stay orthogonal
+    for spec in DOMAIN_LANES.values():
+        assert not hasattr(spec, "scopes")
