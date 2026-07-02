@@ -125,12 +125,16 @@ local server/model and frontier work at another without changing the plan shape.
 `forum.runtime_config` is the durable local policy adapter for that same seam:
 it reads a TOML file into the default executor and tier executor map, stores only
 environment-variable names for bearer keys, and leaves explicit CLI flags as
-one-run overrides. Control roles and unknown agents fall back to the default
-executor, so the planner, validator, and synthesizer keep the same stable path
-unless the operator chooses otherwise. The dispatcher asks an executor for the
-model id of the specific assignment it is witnessing, so a wrapper can route
-internally while the ledger still records `capable-local` or `frontier-local`
-on the task result rather than a generic wrapper name.
+one-run overrides. `forum.runtime_descriptor` and `forum.runtime_inspect` are
+the read-only side of that boundary: they parse the same config and flags into
+safe descriptors, join them to roster tier demand, and report default, tier,
+fallback, or missing executor policy without running commands or touching model
+endpoints. Control roles and unknown agents fall back to the default executor,
+so the planner, validator, and synthesizer keep the same stable path unless the
+operator chooses otherwise. The dispatcher asks an executor for the model id of
+the specific assignment it is witnessing, so a wrapper can route internally
+while the ledger still records `capable-local` or `frontier-local` on the task
+result rather than a generic wrapper name.
 
 ## Surfaces
 

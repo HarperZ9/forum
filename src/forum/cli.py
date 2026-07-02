@@ -86,6 +86,22 @@ def _config_executors(args):
     return executors_from_runtime_config(path)
 
 
+def _runtime_descriptors(args):
+    from forum.runtime_descriptor import (
+        cli_default_descriptor,
+        cli_tier_descriptors,
+        descriptor_from_config,
+    )
+
+    config_base, config_tiers = (None, {})
+    path = getattr(args, "runtime_config", None)
+    if path:
+        config_base, config_tiers = descriptor_from_config(path)
+    base = cli_default_descriptor(args) or config_base
+    tiers = {**config_tiers, **cli_tier_descriptors(args)}
+    return base, tiers
+
+
 def _default_executor(base, tiers: dict):
     if base is not None:
         return base
@@ -112,6 +128,13 @@ def _make_executor_or_error(args):
         return _make_executor(args), None
     except ValueError as exc:
         return None, f"invalid runtime config: {exc}"
+
+
+def _runtime_descriptors_or_error(args):
+    try:
+        return (*_runtime_descriptors(args), None)
+    except ValueError as exc:
+        return None, {}, f"invalid runtime config: {exc}"
 
 
 def _open_ledger(directory):
@@ -261,6 +284,22 @@ def _cmd_mcp(args) -> int:
         return 2
     orch = build_orchestrator(args.ledger, executor=executor)
     asyncio.run(serve_stdio(orch))
+    return 0
+
+
+def _cmd_runtime_inspect(args) -> int:
+    from forum.roster import load_default
+    from forum.runtime_inspect import inspect_runtime, runtime_inspect_text
+
+    default, tiers, descriptor_error = _runtime_descriptors_or_error(args)
+    if descriptor_error is not None:
+        print(descriptor_error, file=sys.stderr)
+        return 2
+    payload = inspect_runtime(default, tiers, load_default())
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(runtime_inspect_text(payload))
     return 0
 
 
@@ -460,6 +499,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ledger(mcp)
     _add_executor(mcp)
     mcp.set_defaults(func=_cmd_mcp)
+
+    runtime = sub.add_parser("runtime", help="inspect runtime executor policy")
+    rsub = runtime.add_subparsers(dest="runtime_command")
+    inspect = rsub.add_parser("inspect", help="explain default and tier executors")
+    inspect.add_argument("--json", action="store_true", help="emit runtime inspection as JSON")
+    _add_executor(inspect)
+    inspect.set_defaults(func=_cmd_runtime_inspect)
+    runtime.set_defaults(func=lambda a: _print_help_rc(runtime))
 
     ledger = sub.add_parser("ledger", help="inspect the ledger")
     lsub = ledger.add_subparsers(dest="ledger_command")

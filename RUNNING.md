@@ -49,10 +49,14 @@ model = "qwen2.5-coder"
 forum submit "ship a login API with docs" --runtime-config forum-runtime.toml
 forum serve --runtime-config forum-runtime.toml
 forum mcp --runtime-config forum-runtime.toml
+forum runtime inspect --runtime-config forum-runtime.toml
 ```
 
 Config files name environment variables with `api_key_env`; they do not store key
 values. Command-line executor flags still override the file for a single run.
+`forum runtime inspect` accepts those same flags and prints the merged runtime
+policy, roster tier coverage, and missing executor issues without running any
+command or probing any endpoint.
 
 ## A hosted model
 

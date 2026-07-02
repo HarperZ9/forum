@@ -396,6 +396,68 @@ model = "from-file"
     assert control._command == ["base-model"]
 
 
+def test_runtime_inspect_json_reports_merged_config_and_cli(capsys, tmp_path):
+    config = tmp_path / "forum-runtime.toml"
+    config.write_text(
+        """
+[runtime.default]
+chat_url = "http://base/v1/chat/completions"
+model = "base-local"
+
+[runtime.tiers.cheap]
+chat_url = "http://cheap/v1/chat/completions"
+model = "phi3"
+
+[runtime.tiers.capable]
+chat_url = "http://from-file/v1/chat/completions"
+model = "from-file"
+""",
+        encoding="utf-8",
+    )
+
+    rc = main([
+        "runtime",
+        "inspect",
+        "--runtime-config",
+        str(config),
+        "--capable-chat-url",
+        "http://from-cli/v1/chat/completions",
+        "--capable-model",
+        "from-cli",
+        "--json",
+    ])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["schema"] == "forum.runtime.inspect/v1"
+    assert payload["ready"] is True
+    assert payload["default"]["id"] == "base-local"
+    assert payload["tiers"]["cheap"]["id"] == "phi3"
+    assert payload["tiers"]["capable"]["id"] == "from-cli"
+    assert payload["tiers"]["capable"]["source"] == "cli"
+
+
+def test_runtime_inspect_text_reports_fallbacks(capsys):
+    rc = main(["runtime", "inspect", "--cmd", "base-model"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Forum runtime inspection" in out
+    assert "ready: True" in out
+    assert "default: cmd SubprocessExecutor (cli)" in out
+    assert "capable: fallback SubprocessExecutor (default)" in out
+
+
+def test_runtime_inspect_invalid_config_returns_2(capsys, tmp_path):
+    config = tmp_path / "forum-runtime.toml"
+    config.write_text("[runtime.tiers.premium]\ncmd = \"model\"\n", encoding="utf-8")
+
+    rc = main(["runtime", "inspect", "--runtime-config", str(config)])
+
+    assert rc == 2
+    assert "invalid runtime config" in capsys.readouterr().err
+
+
 def test_runtime_config_flag_available_on_serve_and_mcp(tmp_path):
     config = tmp_path / "forum-runtime.toml"
     config.write_text("[runtime.default]\ncmd = \"base-model\"\n", encoding="utf-8")
