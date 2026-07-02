@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import os
-import shlex
 import tomllib
 from pathlib import Path
 from typing import Any
 
 from forum.chat_executor import ChatExecutor
+from forum.command_split import split_command
 from forum.executor import Executor, SubprocessExecutor
 from forum.roster import VALID_TIERS
 
@@ -79,7 +79,7 @@ def _executor_from_spec(
     if cmd is not None:
         if not cmd:
             raise ValueError(f"{label}.cmd must not be empty")
-        command = shlex.split(cmd, posix=os.name != "nt")
+        command = split_command(cmd)
         if not command:
             raise ValueError(f"{label}.cmd must include a command")
         return SubprocessExecutor(command)
