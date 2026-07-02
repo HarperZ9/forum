@@ -199,6 +199,28 @@ def test_budget_flags_parse():
     assert args.max_seconds == 30.0
 
 
+def test_context_budget_flags_parse():
+    parser = build_parser()
+    args = parser.parse_args([
+        "submit",
+        "build",
+        "--cmd",
+        "echo",
+        "--context-token-budget",
+        "100",
+        "--request-context-token-budget",
+        "50",
+        "--task-context-token-budget",
+        "25",
+        "--upstream-token-budget",
+        "10",
+    ])
+    assert args.context_token_budget == 100
+    assert args.request_context_token_budget == 50
+    assert args.task_context_token_budget == 25
+    assert args.upstream_token_budget == 10
+
+
 def test_ledger_summary_json(capsys, tmp_path):
     _seed(str(tmp_path))
     rc = main(["ledger", "summary", "--ledger", str(tmp_path), "--json"])

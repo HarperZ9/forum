@@ -111,6 +111,19 @@ def test_submit_answers_and_witnesses():
     assert len(orch.ledger.replay()) > 0
 
 
+def test_submit_accepts_context_budget_fields():
+    surface, _ = _surface()
+    resp = _do(
+        surface,
+        "POST",
+        "/submit",
+        b'{"request": "design an api", "context_token_budget": 0}',
+    )
+    assert resp.status == 200
+    body = json.loads(resp.body)
+    assert "context_budget" in body["receipt"]
+
+
 def test_ledger_get_and_replay_after_submit():
     surface, orch = _surface()
     _do(surface, "POST", "/submit", b'{"request": "design an api"}')
