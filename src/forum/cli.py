@@ -287,6 +287,39 @@ def _cmd_mcp(args) -> int:
     return 0
 
 
+def _cmd_context_preflight(args) -> int:
+    from forum.context_preflight import build_context_preflight, context_preflight_text
+
+    try:
+        budget, _ = _make_context_budget(args)
+    except ValueError as exc:
+        print(f"invalid context budget: {exc}", file=sys.stderr)
+        return 2
+    context = ""
+    context_source = "none"
+    if args.use_capsule_context:
+        from forum.context_capsule import build_context_capsule, capsule_text
+
+        capsule = build_context_capsule(
+            _open_ledger(args.ledger),
+            max_items=args.max_items,
+            max_text_chars=args.max_text_chars,
+        )
+        context = capsule_text(capsule)
+        context_source = "capsule"
+    payload = build_context_preflight(
+        args.request,
+        context=context,
+        context_source=context_source,
+        budget=budget,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(context_preflight_text(payload))
+    return 0
+
+
 def _cmd_runtime_inspect(args) -> int:
     from forum.roster import load_default
     from forum.runtime_inspect import inspect_runtime, runtime_inspect_text
@@ -429,6 +462,13 @@ def _add_executor(sp) -> None:
     sp.add_argument("--api-key-env", default=None, help="env var holding a Bearer key for --chat-url (optional; local servers need none)")
 
 
+def _add_context_budget(sp) -> None:
+    sp.add_argument("--context-token-budget", type=int, default=None, help="bound admitted context across the run to N approximate tokens")
+    sp.add_argument("--request-context-token-budget", type=int, default=None, help="bound request-level context to N approximate tokens")
+    sp.add_argument("--task-context-token-budget", type=int, default=None, help="bound each per-task context slice to N approximate tokens")
+    sp.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
+
+
 def _print_help_rc(parser: argparse.ArgumentParser) -> int:
     parser.print_help()
     return 1
@@ -475,10 +515,7 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("request")
     submit.add_argument("--max-model-calls", type=int, default=None, help="bound the run to N model calls (witnessed budget)")
     submit.add_argument("--max-seconds", type=float, default=None, help="bound the run to S seconds (best-effort)")
-    submit.add_argument("--context-token-budget", type=int, default=None, help="bound admitted context across the run to N approximate tokens")
-    submit.add_argument("--request-context-token-budget", type=int, default=None, help="bound request-level context to N approximate tokens")
-    submit.add_argument("--task-context-token-budget", type=int, default=None, help="bound each per-task context slice to N approximate tokens")
-    submit.add_argument("--upstream-token-budget", type=int, default=None, help="bound each upstream result injection to N approximate tokens")
+    _add_context_budget(submit)
     submit.add_argument("--use-capsule-context", action="store_true", help="feed the current ledger's context capsule into the run before planning")
     submit.add_argument("--delivery-profile", default=None, help="delivery profile to witness: operator, engineer, researcher, executive")
     submit.add_argument("--checkpoint-each-wave", action="store_true", help="witness a checkpoint after each execution wave")
@@ -499,6 +536,19 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ledger(mcp)
     _add_executor(mcp)
     mcp.set_defaults(func=_cmd_mcp)
+
+    context = sub.add_parser("context", help="inspect and preflight context pressure")
+    csub = context.add_subparsers(dest="context_command")
+    preflight = csub.add_parser("preflight", help="estimate request and capsule context pressure")
+    preflight.add_argument("request")
+    preflight.add_argument("--json", action="store_true", help="emit context preflight as JSON")
+    preflight.add_argument("--use-capsule-context", action="store_true", help="include the current ledger capsule in the preflight")
+    preflight.add_argument("--max-items", type=int, default=8, help="maximum capsule task result items to include")
+    preflight.add_argument("--max-text-chars", type=int, default=240, help="maximum capsule characters copied from any text field")
+    _add_ledger(preflight)
+    _add_context_budget(preflight)
+    preflight.set_defaults(func=_cmd_context_preflight)
+    context.set_defaults(func=lambda a: _print_help_rc(context))
 
     runtime = sub.add_parser("runtime", help="inspect runtime executor policy")
     rsub = runtime.add_subparsers(dest="runtime_command")

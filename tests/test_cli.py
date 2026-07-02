@@ -520,6 +520,39 @@ def test_context_budget_flags_parse():
     assert args.upstream_token_budget == 10
 
 
+def test_context_preflight_json(capsys):
+    rc = main(["context", "preflight", "build api", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["schema"] == "forum.context-preflight/v1"
+    assert payload["ready"] is True
+    assert payload["request"] == {"bytes": 9, "tokens": 3}
+    assert payload["context"]["action"] == "none"
+
+
+def test_context_preflight_capsule_text_reports_omitted(capsys, tmp_path):
+    _seed(str(tmp_path))
+
+    rc = main([
+        "context",
+        "preflight",
+        "next request",
+        "--ledger",
+        str(tmp_path),
+        "--use-capsule-context",
+        "--context-token-budget",
+        "0",
+    ])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Forum context preflight" in out
+    assert "ready: False" in out
+    assert "context: capsule omitted" in out
+    assert "capsule context would be omitted" in out
+
+
 def test_delivery_profile_submit_flag_parses():
     args = build_parser().parse_args([
         "submit",
