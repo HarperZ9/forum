@@ -220,6 +220,16 @@ profile-specific shape. The check is witnessed as `delivery_profile_check`; it d
 rewrite facts and it does not fail the run. It gives the operator a local, replayable
 contract for how the answer was delivered.
 
+Submit now connects routing and delivery by default. After the request entry is
+witnessed, `Orchestrator.submit` derives and witnesses a `route_frame` entry for the
+request. If the caller did not pass a delivery profile, the frame's
+`delivery_profile` becomes the selected profile for the final answer check; an
+explicit profile still wins. Submit receipts read those witnessed entries back and
+report the route frame, the selected profile, and whether the selection came from the
+route frame or the caller. The mechanism is deliberately local: Forum is not imitating
+a named writer and not adding facts, it is selecting and checking a prose contract
+that matches the work posture.
+
 ## Reading the record
 
 A record you cannot read is only half of accountability. `forum.report` closes
