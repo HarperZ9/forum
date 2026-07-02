@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from forum.ledger import Ledger
+from forum.ledger import Ledger, LedgerEntry
 
 # The decision entry kinds an operator can append to resolve a pending gate, and
 # the resolution string each maps to. gate_pending on its own (no decision) reads
@@ -29,7 +29,7 @@ class GatePolicy:
     question: str = "Approve this wave before it runs?"
 
 
-def _matches(body: object, run_seq: int, wave: int) -> bool:
+def _matches(body: object, run_seq: object, wave: object) -> bool:
     """True if a payload body targets this (run_seq, wave). Pure dict read, no await."""
     if not isinstance(body, dict):
         return False
@@ -37,7 +37,7 @@ def _matches(body: object, run_seq: int, wave: int) -> bool:
 
 
 def gate_resolution(
-    ledger: Ledger, run_seq: int, wave: int
+    ledger: Ledger, run_seq: object, wave: object
 ) -> str | None:
     """Read the ledger for this gate's state: 'approved'|'edited'|'rejected'|'pending'|None.
 
@@ -62,7 +62,7 @@ def gate_resolution(
     return None
 
 
-def gate_edits(ledger: Ledger, run_seq: int, wave: int) -> dict[str, str]:
+def gate_edits(ledger: Ledger, run_seq: object, wave: object) -> dict[str, str]:
     """Task-id -> replacement instruction from the latest gate_edited for this gate.
 
     Pure ledger read, no await. Returns {} when no gate_edited resolves this
@@ -88,7 +88,7 @@ def resolve_gate(
     note: str = "",
     reason: str = "",
     edits: dict[str, str] | None = None,
-) -> object:
+) -> LedgerEntry:
     """Append an operator's decision for a pending gate and sync the ledger.
 
     ``kind`` is one of 'gate_approved', 'gate_edited', 'gate_rejected'. The entry

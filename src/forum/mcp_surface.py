@@ -74,6 +74,18 @@ def _prose_contract_body(arguments: dict) -> bytes:
     return _body(body)
 
 
+def _gate_resolve_body(arguments: dict) -> bytes:
+    body: dict = {
+        "run_seq": arguments.get("run_seq"),
+        "wave": arguments.get("wave"),
+        "approver": arguments.get("approver", ""),
+    }
+    for key in ("note", "reason", "edits"):
+        if key in arguments:
+            body[key] = arguments[key]
+    return _body(body)
+
+
 # Tool name -> (arguments) -> (http_method, path, body). Each tool is served by
 # the shared HttpSurface, so the MCP and HTTP surfaces cannot drift.
 _TOOL_ROUTES = {
@@ -89,6 +101,10 @@ _TOOL_ROUTES = {
     "run_room": lambda a: ("GET", "/room", b""),
     "runtime_inspect": lambda a: ("GET", "/runtime", b""),
     "context_preflight": lambda a: ("POST", "/context/preflight", _context_preflight_body(a)),
+    "gate_list": lambda a: ("GET", "/gates", b""),
+    "gate_approve": lambda a: ("POST", "/gate/approve", _gate_resolve_body(a)),
+    "gate_edit": lambda a: ("POST", "/gate/edit", _gate_resolve_body(a)),
+    "gate_reject": lambda a: ("POST", "/gate/reject", _gate_resolve_body(a)),
 }
 
 _TOOL_ALIASES = {
@@ -106,6 +122,16 @@ _TOOL_ALIASES = {
     "forum.run.room": "run_room",
     "forum.runtime.inspect": "runtime_inspect",
     "forum.context.preflight": "context_preflight",
+    "forum.gate.list": "gate_list",
+    "forum.gate.approve": "gate_approve",
+    "forum.gate.edit": "gate_edit",
+    "forum.gate.reject": "gate_reject",
+}
+
+_GATE_DECISION_PROPERTIES = {
+    "run_seq": {"type": "integer", "description": "the plan (run) seq the gate belongs to"},
+    "wave": {"type": "integer", "description": "the gated wave index"},
+    "approver": {"type": "string", "description": "who resolved the gate (witnessed)"},
 }
 
 _CONTEXT_BUDGET_PROPERTIES = {
@@ -291,6 +317,51 @@ _TOOL_SPECS = [
             "type": "object",
             "properties": _CONTEXT_PREFLIGHT_PROPERTIES,
             "required": ["request"],
+        },
+    },
+    {
+        "name": "gate_list",
+        "description": "List pending human-in-the-loop approval gates (waves paused for review).",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "gate_approve",
+        "description": "Approve a paused gate so its wave runs when the plan is resumed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_GATE_DECISION_PROPERTIES,
+                "note": {"type": "string", "description": "optional approval note"},
+            },
+            "required": ["run_seq", "wave", "approver"],
+        },
+    },
+    {
+        "name": "gate_edit",
+        "description": "Approve a paused gate and rewrite its tasks' instructions before the wave runs.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_GATE_DECISION_PROPERTIES,
+                "edits": {
+                    "type": "object",
+                    "description": "map of task id -> replacement instruction",
+                },
+                "note": {"type": "string", "description": "optional edit note"},
+            },
+            "required": ["run_seq", "wave", "approver", "edits"],
+        },
+    },
+    {
+        "name": "gate_reject",
+        "description": "Reject a paused gate so its wave never runs.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_GATE_DECISION_PROPERTIES,
+                "reason": {"type": "string", "description": "why the wave was rejected"},
+            },
+            "required": ["run_seq", "wave", "approver"],
         },
     },
 ]

@@ -34,6 +34,17 @@ _KNOWN_PATHS = {
     "/submit",
     "/humanize",
     "/prose/contract",
+    "/gates",
+    "/gate/approve",
+    "/gate/edit",
+    "/gate/reject",
+}
+
+# HTTP gate-decision path suffix -> the gate ledger entry kind it appends.
+_GATE_DECISION_KINDS = {
+    "approve": "gate_approved",
+    "edit": "gate_edited",
+    "reject": "gate_rejected",
 }
 
 
@@ -88,6 +99,10 @@ class HttpSurface:
             return self._capsule()
         if method == "GET" and path == "/room":
             return self._room()
+        if method == "GET" and path == "/gates":
+            return self._gates()
+        if method == "POST" and path in ("/gate/approve", "/gate/edit", "/gate/reject"):
+            return self._gate_resolve(path.rsplit("/", 1)[1], body)
         if method == "GET" and path == "/runtime":
             return self._runtime()
         if method == "GET" and path.startswith("/ledger/"):
@@ -197,6 +212,60 @@ class HttpSurface:
         from forum.run_room import build_run_room
 
         return json_response(build_run_room(self._orch.ledger))
+
+    def _gates(self) -> Response:
+        from forum.gates import gate_resolution
+
+        led = self._orch.ledger
+        pending = []
+        for entry in led.query(kind="gate_pending"):
+            body = led.get_payload(entry.payload_hash)
+            run_seq = body.get("run_seq")
+            wave = body.get("wave")
+            if gate_resolution(led, run_seq, wave) == "pending":
+                pending.append({
+                    "seq": entry.seq,
+                    "run_seq": run_seq,
+                    "wave": wave,
+                    "tasks": list(body.get("tasks") or []),
+                    "question": body.get("question", ""),
+                })
+        return json_response({"pending": pending})
+
+    def _gate_resolve(self, action: str, body: bytes) -> Response:
+        from forum.gates import resolve_gate
+
+        kind = _GATE_DECISION_KINDS[action]
+        data, err = self._read_json(body)
+        if err:
+            return err
+        run_seq = data.get("run_seq")
+        wave = data.get("wave")
+        if type(run_seq) is not int:
+            return error(400, "field 'run_seq' (an integer) is required")
+        if type(wave) is not int:
+            return error(400, "field 'wave' (an integer) is required")
+        approver, err = self._str_field(data, "approver")
+        if err:
+            return err
+        edits: dict[str, str] = {}
+        if kind == "gate_edited":
+            raw = data.get("edits")
+            if not isinstance(raw, dict) or not raw:
+                return error(400, "field 'edits' (a non-empty object of task_id -> instruction) is required")
+            for tid, instruction in raw.items():
+                if not isinstance(tid, str) or not isinstance(instruction, str):
+                    return error(400, "field 'edits' must map string task ids to string instructions")
+                edits[tid] = instruction
+        note = data.get("note", "")
+        reason = data.get("reason", "")
+        if not isinstance(note, str) or not isinstance(reason, str):
+            return error(400, "fields 'note' and 'reason' must be strings when provided")
+        entry = resolve_gate(
+            self._orch.ledger, run_seq, wave, kind,
+            approver=approver, note=note, reason=reason, edits=edits,
+        )
+        return json_response({"resolved": kind, "seq": entry.seq, "run_seq": run_seq, "wave": wave})
 
     def _runtime(self) -> Response:
         from forum.runtime_descriptor import descriptors_from_executor
