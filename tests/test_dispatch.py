@@ -382,3 +382,85 @@ def test_resume_and_checkpoint_together():
     assert len(ledger.query(kind="resume")) == 1
     assert len(ledger.query(kind="checkpoint")) == 2  # both waves of the resume run checkpointed
     assert ledger.verify(deep=True) is True
+
+
+def test_per_task_context_budget_trims_and_witnesses_pressure():
+    from forum.context_budget import ContextBudget
+
+    ledger = make_ledger()
+
+    class _Big:
+        def context(self, text):
+            return "abcdefghijklmnop"
+
+    plan = Plan((Task("T1", "x", "go", ()),))
+    results = asyncio.run(
+        dispatch_plan(
+            plan,
+            ledger,
+            _EchoSawExecutor(),
+            context_provider=_Big(),
+            context_budget=ContextBudget(max_task_tokens=2),
+        )
+    )
+    assert "Context for this task:" in results["T1"].output
+    assert "abcdefgh" in results["T1"].output
+    assert "abcdefghijklmnop" not in results["T1"].output
+    bodies = [ledger.get_payload(e.payload_hash) for e in ledger.query(kind="context_budget")]
+    assert any(b["source"] == "task" and b["action"] == "trimmed" for b in bodies)
+    assert ledger.verify(deep=True) is True
+
+
+def test_per_task_context_budget_omits_context_when_total_is_spent():
+    from forum.context_budget import ContextBudget
+
+    ledger = make_ledger()
+
+    class _Big:
+        def context(self, text):
+            return "abcd"
+
+    plan = Plan((Task("T1", "x", "go", ()),))
+    results = asyncio.run(
+        dispatch_plan(
+            plan,
+            ledger,
+            _EchoSawExecutor(),
+            context_provider=_Big(),
+            context_budget=ContextBudget(max_total_tokens=0),
+        )
+    )
+    assert "Context for this task:" not in results["T1"].output
+    budget_body = ledger.get_payload(ledger.query(kind="context_budget")[0].payload_hash)
+    assert budget_body["source"] == "task"
+    assert budget_body["action"] == "omitted"
+    assert budget_body["reason"] == "max_total_tokens"
+    assert ledger.get(_task_entry(ledger, "T1").causal_parent).kind == "plan"
+    assert ledger.verify(deep=True) is True
+
+
+def test_upstream_context_budget_trims_prompt_but_keeps_full_result():
+    from forum.context_budget import ContextBudget
+
+    ledger = make_ledger()
+    plan = Plan((Task("T1", "x", "a", ()), Task("T2", "x", "b", ("T1",))))
+    results = asyncio.run(
+        dispatch_plan(
+            plan,
+            ledger,
+            _BigT1(),
+            max_parallel=2,
+            context_budget=ContextBudget(max_upstream_tokens=2),
+        )
+    )
+    assert "truncated for prompt efficiency" in results["T2"].output
+    assert "x" * 8 in results["T2"].output
+    assert "x" * 10000 not in results["T2"].output
+    budget_bodies = [ledger.get_payload(e.payload_hash) for e in ledger.query(kind="context_budget")]
+    assert any(b["source"] == "upstream" and b["label"] == "T1->T2" for b in budget_bodies)
+    t1_result = next(
+        ledger.get_payload(e.payload_hash)
+        for e in ledger.query(kind="result")
+        if ledger.get_payload(e.payload_hash).get("id") == "T1"
+    )
+    assert t1_result["output"] == "x" * 10000
