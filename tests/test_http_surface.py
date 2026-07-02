@@ -207,6 +207,18 @@ def test_capsule_returns_context_capsule():
     assert body["latest_answer"] == "Done: the api is designed."
 
 
+def test_room_returns_run_room_snapshot():
+    surface, _ = _surface()
+    _do(surface, "POST", "/submit", b'{"request": "design an api"}')
+    resp = _do(surface, "GET", "/room")
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["schema"] == "forum.run-room/v1"
+    assert body["request"]["text"] == "design an api"
+    assert body["answer"]["text"] == "Done: the api is designed."
+    assert body["tasks"][0]["id"] == "T1"
+
+
 def test_ledger_get_and_replay_after_submit():
     surface, orch = _surface()
     _do(surface, "POST", "/submit", b'{"request": "design an api"}')

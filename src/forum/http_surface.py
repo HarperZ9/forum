@@ -26,6 +26,7 @@ _KNOWN_PATHS = {
     "/verify",
     "/checkpoint",
     "/capsule",
+    "/room",
     "/route",
     "/plan",
     "/submit",
@@ -82,6 +83,8 @@ class HttpSurface:
             return json_response({"checkpoint": self._orch.ledger.checkpoint()})
         if method == "GET" and path == "/capsule":
             return self._capsule()
+        if method == "GET" and path == "/room":
+            return self._room()
         if method == "GET" and path.startswith("/ledger/"):
             return self._ledger_get(path)
         if method == "GET" and path.startswith("/replay/"):
@@ -172,6 +175,11 @@ class HttpSurface:
         from forum.context_capsule import build_context_capsule
 
         return json_response(build_context_capsule(self._orch.ledger))
+
+    def _room(self) -> Response:
+        from forum.run_room import build_run_room
+
+        return json_response(build_run_room(self._orch.ledger))
 
     def _route_text(self, body: bytes) -> Response:
         from forum.route_frame import derive_route_frame, frame_payload

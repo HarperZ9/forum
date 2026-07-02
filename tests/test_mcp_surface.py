@@ -239,6 +239,15 @@ def test_call_prefixed_ledger_capsule_after_submit():
     assert payload["latest_answer"] == "Done."
 
 
+def test_call_prefixed_run_room_after_submit():
+    surface = _mcp()
+    _call(surface, "forum.submit", {"request": "design an api"})
+    room = json.loads(_call(surface, "forum.run.room")["result"]["content"][0]["text"])
+    assert room["schema"] == "forum.run-room/v1"
+    assert room["answer"]["text"] == "Done."
+    assert room["tasks"][0]["id"] == "T1"
+
+
 def test_call_ledger_get_returns_an_entry():
     surface = _mcp()
     _call(surface, "submit", {"request": "design an api"})

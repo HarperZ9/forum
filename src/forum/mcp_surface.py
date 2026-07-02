@@ -62,6 +62,7 @@ _TOOL_ROUTES = {
     "verify": lambda a: ("GET", "/verify", b""),
     "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
     "ledger_capsule": lambda a: ("GET", "/capsule", b""),
+    "run_room": lambda a: ("GET", "/room", b""),
 }
 
 _TOOL_ALIASES = {
@@ -75,6 +76,7 @@ _TOOL_ALIASES = {
     "forum.ledger.get": "ledger_get",
     "forum.ledger.summary": "ledger_summary",
     "forum.ledger.capsule": "ledger_capsule",
+    "forum.run.room": "run_room",
 }
 
 _CONTEXT_BUDGET_PROPERTIES = {
@@ -209,6 +211,11 @@ _TOOL_SPECS = [
     {
         "name": "forum.ledger.capsule",
         "description": "Compact the witnessed ledger into a deterministic context capsule.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.run.room",
+        "description": "Project the latest witnessed run into an operator run-room snapshot.",
         "inputSchema": {"type": "object", "properties": {}},
     },
 ]
