@@ -48,12 +48,17 @@ def gate_resolution(
     the gate is 'pending' (the run is blocked). With nothing, None (no gate has
     fired yet, so dispatch should raise one).
     """
+    best_seq: int | None = None
     resolution: str | None = None
     for kind, name in _DECISION_KINDS.items():
         for entry in ledger.query(kind=kind):
             if _matches(ledger.get_payload(entry.payload_hash), run_seq, wave):
-                # a later decision (higher seq) supersedes an earlier one
-                resolution = name
+                # a later decision (higher seq) supersedes an earlier one,
+                # across kinds: the single highest-seq decision wins so a
+                # changed-mind (e.g. reject then approve) resolves correctly.
+                if best_seq is None or entry.seq > best_seq:
+                    best_seq = entry.seq
+                    resolution = name
     if resolution is not None:
         return resolution
     for entry in ledger.query(kind="gate_pending"):

@@ -63,6 +63,35 @@ def test_resolve_gate_rejects_unknown_kind():
         raise AssertionError("expected ValueError for unknown kind")
 
 
+def test_later_approval_supersedes_earlier_rejection():
+    # An operator rejects a gate, then changes their mind and approves it. The
+    # later decision (higher seq) is authoritative regardless of decision kind.
+    led = _ledger()
+    run_seq, _ = _seed_pending(led)
+    resolve_gate(led, run_seq, 1, "gate_rejected", approver="op", reason="on second thought no")
+    resolve_gate(led, run_seq, 1, "gate_approved", approver="op", note="actually yes")
+    assert gate_resolution(led, run_seq, 1) == "approved"
+    assert led.verify(deep=True) is True
+
+
+def test_later_rejection_supersedes_earlier_approval():
+    led = _ledger()
+    run_seq, _ = _seed_pending(led)
+    resolve_gate(led, run_seq, 1, "gate_approved", approver="op", note="looks fine")
+    resolve_gate(led, run_seq, 1, "gate_rejected", approver="op", reason="caught a problem")
+    assert gate_resolution(led, run_seq, 1) == "rejected"
+    assert led.verify(deep=True) is True
+
+
+def test_later_approval_supersedes_earlier_edit():
+    led = _ledger()
+    run_seq, _ = _seed_pending(led)
+    resolve_gate(led, run_seq, 1, "gate_edited", approver="op", edits={"T2": "NEW"}, note="tweak")
+    resolve_gate(led, run_seq, 1, "gate_approved", approver="op", note="run as-is after all")
+    assert gate_resolution(led, run_seq, 1) == "approved"
+    assert led.verify(deep=True) is True
+
+
 def test_resolve_gate_chains_to_run_seq_when_no_pending():
     led = _ledger()
     req = led.append(actor="client", kind="request", payload={"tasks": ["T1"]})
