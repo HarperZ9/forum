@@ -489,6 +489,117 @@ def _cmd_gate_resolve(args, kind: str) -> int:
     return 0
 
 
+def _cmd_campaign_declare(args) -> int:
+    from forum.campaign import campaign_from_payload, declare_campaign
+
+    try:
+        with open(args.file, encoding="utf-8") as fh:
+            body = json.load(fh)
+    except (OSError, ValueError) as exc:
+        print(f"cannot read campaign file: {exc}", file=sys.stderr)
+        return 2
+    try:
+        campaign = campaign_from_payload(body)
+    except (KeyError, TypeError, ValueError) as exc:
+        print(f"invalid campaign file: {exc}", file=sys.stderr)
+        return 2
+    led = _open_ledger(args.ledger)
+    try:
+        entry = declare_campaign(led, campaign)
+    except ValueError as exc:
+        print(f"campaign rejected: {exc}", file=sys.stderr)
+        return 1
+    led.sync()
+    print(json.dumps({"declared": campaign.campaign_id, "seq": entry.seq}))
+    return 0
+
+
+def _cmd_campaign_status(args) -> int:
+    from forum.campaign_room import build_campaign_room, campaign_room_text
+
+    led = _open_ledger(args.ledger)
+    try:
+        room = build_campaign_room(led, args.campaign_id)
+    except KeyError:
+        print(f"no campaign {args.campaign_id!r} in this ledger", file=sys.stderr)
+        return 1
+    if args.text:
+        print(campaign_room_text(room))
+        return 0
+    print(json.dumps(room, indent=2))
+    return 0
+
+
+def _cmd_campaign_next(args) -> int:
+    from forum.campaign_room import derive_campaign_next_actions
+    from forum.campaign_status import derive_campaign_status
+
+    led = _open_ledger(args.ledger)
+    try:
+        status = derive_campaign_status(led, args.campaign_id)
+    except KeyError:
+        print(f"no campaign {args.campaign_id!r} in this ledger", file=sys.stderr)
+        return 1
+    actions = derive_campaign_next_actions(status)
+    print(json.dumps({"next_actions": actions}, indent=2))
+    return 0
+
+
+def _cmd_campaign_ingest_status(args) -> int:
+    from forum.campaign_ingest import ingest_feature_status, ingest_project_status
+
+    led = _open_ledger(args.ledger)
+    if args.feature:
+        entry = ingest_feature_status(
+            led, args.campaign_id, args.project, args.feature, args.status,
+            source=args.source, reason=args.reason or "",
+        )
+    else:
+        entry = ingest_project_status(
+            led, args.campaign_id, args.project, args.status,
+            source=args.source, reason=args.reason or "",
+        )
+    led.sync()
+    print(json.dumps({"ingested": entry.kind, "seq": entry.seq}))
+    return 0
+
+
+def _cmd_campaign_run(args) -> int:
+    from forum.campaign import campaign_from_payload
+    from forum.campaign_dispatch import run_campaign
+    from forum.campaign_room import build_campaign_room
+    from forum.campaign_status import load_declared_campaign
+
+    executor, executor_error = _make_executor_or_error(args)
+    if executor_error is not None:
+        print(executor_error, file=sys.stderr)
+        return 2
+    if executor is None:
+        print(
+            "campaign run needs a model executor. Forum is model-agnostic: pass --cmd "
+            '"<model cli>", --chat-url <openai-compatible url>, or --api (Anthropic).',
+            file=sys.stderr,
+        )
+        return 2
+    led = _open_ledger(args.ledger)
+    declared = load_declared_campaign(led, args.campaign_id)
+    if declared is None:
+        print(f"no campaign {args.campaign_id!r} in this ledger", file=sys.stderr)
+        return 1
+    campaign = campaign_from_payload(declared)
+    asyncio.run(run_campaign(led, campaign, executor, max_parallel=args.max_parallel))
+    room = build_campaign_room(led, args.campaign_id)
+    if args.json:
+        print(json.dumps(room, indent=2))
+        return 0
+    print(json.dumps({
+        "campaign_id": room["campaign_id"],
+        "complete": room["complete"],
+        "progress": room["progress"],
+    }, indent=2))
+    return 0
+
+
 def _cmd_bench(args) -> int:
     from forum.report import compare, summarize
 
@@ -691,6 +802,41 @@ def build_parser() -> argparse.ArgumentParser:
     gate_reject.add_argument("--reason", default="", help="why the wave was rejected")
     gate_reject.set_defaults(func=lambda a: _cmd_gate_resolve(a, "gate_rejected"))
     gate.set_defaults(func=lambda a: _print_help_rc(gate))
+
+    campaign = sub.add_parser("campaign", help="declare, inspect, and run a witnessed multi-project campaign")
+    camp_sub = campaign.add_subparsers(dest="campaign_command")
+    camp_declare = camp_sub.add_parser("declare", help="declare a campaign from a JSON file (witnessed once)")
+    camp_declare.add_argument("--file", required=True, help="path to a campaign JSON file")
+    _add_ledger(camp_declare)
+    camp_declare.set_defaults(func=_cmd_campaign_declare)
+    camp_status = camp_sub.add_parser("status", help="reduce the ledger into a campaign's current status")
+    camp_status.add_argument("--campaign-id", required=True, help="the campaign id to reduce")
+    camp_status.add_argument("--json", action="store_true", help="emit the campaign room as JSON (default)")
+    camp_status.add_argument("--text", action="store_true", help="emit prompt-safe room text")
+    _add_ledger(camp_status)
+    camp_status.set_defaults(func=_cmd_campaign_status)
+    camp_next = camp_sub.add_parser("next", help="derive the campaign's next operator actions")
+    camp_next.add_argument("--campaign-id", required=True, help="the campaign id")
+    camp_next.add_argument("--json", action="store_true", help="emit next actions as JSON (default)")
+    _add_ledger(camp_next)
+    camp_next.set_defaults(func=_cmd_campaign_next)
+    camp_run = camp_sub.add_parser("run", help="best-effort dispatch of a campaign's runnable forum features to a fixed point")
+    camp_run.add_argument("--campaign-id", required=True, help="the campaign id to run")
+    camp_run.add_argument("--max-parallel", type=int, default=6, help="max features dispatched concurrently per wave")
+    camp_run.add_argument("--json", action="store_true", help="emit the full campaign room as JSON")
+    _add_ledger(camp_run)
+    _add_executor(camp_run)
+    camp_run.set_defaults(func=_cmd_campaign_run)
+    camp_ingest = camp_sub.add_parser("ingest-status", help="record an external project's or feature's status (no execution)")
+    camp_ingest.add_argument("--campaign-id", required=True, help="the campaign id")
+    camp_ingest.add_argument("--project", required=True, help="the project id the status belongs to")
+    camp_ingest.add_argument("--feature", default=None, help="a feature id (omit to record project-level status)")
+    camp_ingest.add_argument("--status", required=True, help="the reported status (done/in_progress/blocked/failed)")
+    camp_ingest.add_argument("--source", required=True, help="the reporting system, e.g. external:telos")
+    camp_ingest.add_argument("--reason", default="", help="optional reason/context for the status")
+    _add_ledger(camp_ingest)
+    camp_ingest.set_defaults(func=_cmd_campaign_ingest_status)
+    campaign.set_defaults(func=lambda a: _print_help_rc(campaign))
 
     bench = sub.add_parser("bench", help="compare two ledgers (A/B) by their summaries")
     bench.add_argument("a", help="ledger directory A")
