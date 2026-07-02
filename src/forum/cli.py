@@ -4,11 +4,10 @@ import argparse
 import asyncio
 import dataclasses
 import json
-import os
-import shlex
 import sys
 
 from forum import __version__
+from forum.command_split import split_command
 from forum.flagship import cmd_demo, cmd_doctor, cmd_status
 
 DEFAULT_LEDGER = "forum-ledger"
@@ -17,7 +16,7 @@ DEFAULT_LEDGER = "forum-ledger"
 def _command_executor(cmd: str):
     from forum.executor import SubprocessExecutor
 
-    return SubprocessExecutor(shlex.split(cmd, posix=os.name != "nt"))
+    return SubprocessExecutor(split_command(cmd))
 
 
 def _chat_executor(model: str, base_url: str, api_key_env: str | None = None):

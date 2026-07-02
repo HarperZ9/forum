@@ -43,8 +43,13 @@ def test_runtime_config_builds_command_executors_and_preserves_windows_paths(
     monkeypatch, tmp_path
 ):
     import forum.runtime_config as runtime_config
+    from forum.command_split import split_command
 
-    monkeypatch.setattr(runtime_config.os, "name", "nt")
+    monkeypatch.setattr(
+        runtime_config,
+        "split_command",
+        lambda cmd: split_command(cmd, os_name="nt"),
+    )
     config = tmp_path / "forum-runtime.toml"
     config.write_text(
         r"""

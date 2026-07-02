@@ -192,8 +192,13 @@ def test_serve_and_mcp_wire_to_their_handlers():
 
 def test_cmd_executor_preserves_windows_paths(monkeypatch):
     import forum.cli as cli
+    from forum.command_split import split_command
 
-    monkeypatch.setattr(cli.os, "name", "nt")
+    monkeypatch.setattr(
+        cli,
+        "split_command",
+        lambda cmd: split_command(cmd, os_name="nt"),
+    )
     args = build_parser().parse_args([
         "submit", "do x", "--cmd", r"C:\Tools\model.exe C:\tmp\adapter.py",
     ])

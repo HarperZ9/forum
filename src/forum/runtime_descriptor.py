@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import os
-import shlex
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from forum.command_split import split_command
 from forum.executor import executor_id
 from forum.roster import VALID_TIERS
 
@@ -172,7 +172,7 @@ def _descriptor_from_spec(
 
 
 def _command_descriptor(cmd: str, *, source: str) -> RuntimeExecutorSpec:
-    argv = shlex.split(cmd, posix=os.name != "nt")
+    argv = split_command(cmd)
     if not argv:
         raise ValueError("runtime command must include a command")
     return RuntimeExecutorSpec(
