@@ -258,6 +258,14 @@ re-derives nothing, so the summary is exactly as trustworthy as the ledger under
 it, and it ships the checkpoint and verify flag alongside the numbers so a reader can
 confirm that.
 
+Run rooms are the operator read model over the same ledger. `forum.run_room` starts
+from the latest request by default and projects that run into `forum.run-room/v1`:
+request, route frame, plan waves, task contracts, latest results, verdicts,
+checkpoints, answer, and quality signals. This is not a second state store and not
+a model summary. It is a clipped, structured view over witnessed entries, exposed
+through `forum ledger room --json`, `GET /room`, and MCP `forum.run.room` so UI and
+peer tools have a platform endpoint without learning every raw ledger entry shape.
+
 `compare(a, b)` takes two such summaries and reports the delta on the numeric
 fields, and `forum bench A B` runs it over two ledgers. This is the measurement
 seam for the project's own improvement: a change that claims to cut model calls or

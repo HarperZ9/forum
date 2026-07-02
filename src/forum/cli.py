@@ -249,6 +249,20 @@ def _cmd_ledger_capsule(args) -> int:
     return 0
 
 
+def _cmd_ledger_room(args) -> int:
+    from forum.run_room import build_run_room, room_text
+
+    room = build_run_room(
+        _open_ledger(args.ledger),
+        max_text_chars=args.max_text_chars,
+    )
+    if args.text:
+        print(room_text(room))
+        return 0
+    print(json.dumps(room, indent=2))
+    return 0
+
+
 def _cmd_bench(args) -> int:
     from forum.report import compare, summarize
 
@@ -375,6 +389,12 @@ def build_parser() -> argparse.ArgumentParser:
     capsule.add_argument("--max-items", type=int, default=8, help="maximum task result items to include")
     capsule.add_argument("--max-text-chars", type=int, default=240, help="maximum characters copied from any text field")
     capsule.set_defaults(func=_cmd_ledger_capsule)
+    room = lsub.add_parser("room", help="project the latest run into an operator room snapshot")
+    _add_ledger(room)
+    room.add_argument("--json", action="store_true", help="emit the run room as JSON (default)")
+    room.add_argument("--text", action="store_true", help="emit prompt-safe room text")
+    room.add_argument("--max-text-chars", type=int, default=240, help="maximum characters copied from any text field")
+    room.set_defaults(func=_cmd_ledger_room)
     ledger.set_defaults(func=lambda a: _print_help_rc(ledger))
 
     bench = sub.add_parser("bench", help="compare two ledgers (A/B) by their summaries")
