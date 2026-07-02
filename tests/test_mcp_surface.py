@@ -71,6 +71,13 @@ def test_tools_list_includes_context_capsule():
     assert "forum.ledger.capsule" in names
 
 
+def test_tools_list_includes_runtime_and_context_preflight():
+    resp = _h(_mcp(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    names = {t["name"] for t in resp["result"]["tools"]}
+    assert "forum.runtime.inspect" in names
+    assert "forum.context.preflight" in names
+
+
 def test_call_route_decides_a_lane():
     resp = _call(_mcp(), "route", {"text": "build the api database server endpoint"})
     result = resp["result"]
@@ -246,6 +253,32 @@ def test_call_prefixed_run_room_after_submit():
     assert room["schema"] == "forum.run-room/v1"
     assert room["answer"]["text"] == "Done."
     assert room["tasks"][0]["id"] == "T1"
+
+
+def test_call_prefixed_runtime_inspect():
+    runtime = json.loads(_call(_mcp(), "forum.runtime.inspect")["result"]["content"][0]["text"])
+    assert runtime["schema"] == "forum.runtime.inspect/v1"
+    assert runtime["ready"] is True
+    assert runtime["default"]["id"] == "ScriptedExecutor"
+
+
+def test_call_prefixed_context_preflight():
+    surface = _mcp()
+    _call(surface, "forum.submit", {"request": "design an api"})
+    payload = json.loads(
+        _call(
+            surface,
+            "forum.context.preflight",
+            {
+                "request": "continue",
+                "use_capsule_context": True,
+                "context_token_budget": 0,
+            },
+        )["result"]["content"][0]["text"]
+    )
+    assert payload["schema"] == "forum.context-preflight/v1"
+    assert payload["ready"] is False
+    assert payload["context"]["action"] == "omitted"
 
 
 def test_call_ledger_get_returns_an_entry():

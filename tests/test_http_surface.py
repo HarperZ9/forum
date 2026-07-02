@@ -225,6 +225,38 @@ def test_room_returns_run_room_snapshot():
     assert body["tasks"][0]["id"] == "T1"
 
 
+def test_runtime_returns_current_executor_policy():
+    surface, _ = _surface()
+    resp = _do(surface, "GET", "/runtime")
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["schema"] == "forum.runtime.inspect/v1"
+    assert body["ready"] is True
+    assert body["default"]["kind"] == "executor"
+    assert body["default"]["id"] == "ScriptedExecutor"
+    assert body["tiers"]["capable"]["kind"] == "fallback"
+    assert body["tiers"]["capable"]["source"] == "default"
+
+
+def test_context_preflight_accepts_capsule_and_budget_fields():
+    surface, _ = _surface()
+    _do(surface, "POST", "/submit", b'{"request": "design an api"}')
+    resp = _do(
+        surface,
+        "POST",
+        "/context/preflight",
+        b'{"request": "continue", "use_capsule_context": true, "context_token_budget": 0}',
+    )
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["schema"] == "forum.context-preflight/v1"
+    assert body["ready"] is False
+    assert body["context"]["source"] == "capsule"
+    assert body["context"]["action"] == "omitted"
+    assert body["limits"]["max_total_tokens"] == 0
+    assert "capsule context would be omitted before planning" in body["issues"]
+
+
 def test_ledger_get_and_replay_after_submit():
     surface, orch = _surface()
     _do(surface, "POST", "/submit", b'{"request": "design an api"}')

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from forum.executor import executor_id
 from forum.roster import VALID_TIERS
 
 
@@ -88,6 +89,26 @@ def cli_tier_descriptors(args) -> dict[str, RuntimeExecutorSpec]:
     return specs
 
 
+def descriptors_from_executor(
+    executor: Any,
+) -> tuple[RuntimeExecutorSpec | None, dict[str, RuntimeExecutorSpec]]:
+    """Describe the live executor graph without running it."""
+    if executor is None:
+        return None, {}
+    default = getattr(executor, "_default", None)
+    tiers = getattr(executor, "_tiers", None)
+    if getattr(executor, "model_id", None) == "tiered" and default is not None and isinstance(tiers, dict):
+        tier_descriptors = {}
+        for tier, tier_executor in tiers.items():
+            if tier not in VALID_TIERS:
+                continue
+            descriptor = _live_descriptor(tier_executor)
+            if descriptor is not None:
+                tier_descriptors[tier] = descriptor
+        return _live_descriptor(default), tier_descriptors
+    return _live_descriptor(executor), {}
+
+
 def _load_toml(path: str | os.PathLike[str]) -> dict[str, Any]:
     try:
         with Path(path).open("rb") as handle:
@@ -159,6 +180,43 @@ def _command_descriptor(cmd: str, *, source: str) -> RuntimeExecutorSpec:
         "SubprocessExecutor",
         source,
         {"argv": " ".join(argv)},
+    )
+
+
+def _live_descriptor(executor: Any) -> RuntimeExecutorSpec | None:
+    if executor is None:
+        return None
+    type_name = type(executor).__name__
+    if type_name == "ChatExecutor":
+        model = str(getattr(executor, "_model", executor_id(executor)))
+        detail = {
+            "base_url": str(getattr(executor, "_base_url", "")),
+            "model": model,
+        }
+        api_key_env = getattr(executor, "_api_key_env", None)
+        if api_key_env:
+            detail["api_key_env"] = str(api_key_env)
+        return RuntimeExecutorSpec("chat", model, "current", detail)
+    if type_name == "ApiExecutor":
+        model = str(getattr(executor, "_model", executor_id(executor)))
+        return RuntimeExecutorSpec(
+            "api",
+            model,
+            "current",
+            {
+                "provider": "anthropic",
+                "model": model,
+                "api_key_env": str(getattr(executor, "_api_key_env", "ANTHROPIC_API_KEY")),
+            },
+        )
+    if type_name == "SubprocessExecutor":
+        command = [str(part) for part in getattr(executor, "_command", [])]
+        return RuntimeExecutorSpec("cmd", "SubprocessExecutor", "current", {"argv": " ".join(command)})
+    return RuntimeExecutorSpec(
+        "executor",
+        str(executor_id(executor)),
+        "current",
+        {"type": type_name},
     )
 
 
