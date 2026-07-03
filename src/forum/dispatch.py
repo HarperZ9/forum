@@ -13,7 +13,7 @@ from forum.context_budget import (
     pressure_payload,
 )
 from forum.executor import Assignment, Executor, Result, assignment_model_id
-from forum.gates import GatePolicy, gate_edits, gate_resolution
+from forum.gates import GatePolicy, expire_gate, gate_edits, gate_resolution
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 
@@ -292,22 +292,40 @@ async def dispatch_plan(
                     # No gate has fired yet: raise one and pause. Guarding on
                     # resolution is None (matched by run_seq+wave) means a resume
                     # that re-reaches a still-unresolved gate does not duplicate it.
+                    payload: dict[str, object] = {
+                        "run_seq": run_seq,
+                        "wave": i,
+                        "tasks": list(wave),
+                        "question": gates.question,
+                        "requested_by": "dispatch",
+                    }
+                    if gates.deadline_seconds is not None:
+                        # Record an absolute deadline off the ledger's own clock so
+                        # it advances on the same time base that stamps entry ts and
+                        # is itself hashed into the witnessed gate_pending payload.
+                        payload["on_expiry"] = gates.on_expiry
+                        payload["deadline"] = float(ledger.clock()) + gates.deadline_seconds
                     ledger.append(
                         actor="dispatch", kind="gate_pending",
-                        payload={
-                            "run_seq": run_seq,
-                            "wave": i,
-                            "tasks": list(wave),
-                            "question": gates.question,
-                            "requested_by": "dispatch",
-                        },
-                        causal_parent=run_seq,
+                        payload=payload, causal_parent=run_seq,
                     )
                     ledger.sync()
-                # pending (already raised, awaiting the operator): stop here so the
-                # gated wave and everything downstream stay un-run
-                return results
+                else:
+                    # Already pending: if a deadline was set and has lapsed with
+                    # no operator decision, auto-resolve it (witnessed) and act on
+                    # the result instead of blocking forever. No-op for unbounded
+                    # gates or before the deadline.
+                    expired = expire_gate(ledger, run_seq, i, clock=ledger.clock)
+                    if expired is not None:
+                        resolution = expired
+                if resolution is None or resolution == "pending":
+                    # pending (awaiting the operator, no lapsed deadline): stop here
+                    # so the gated wave and everything downstream stay un-run
+                    return results
             if resolution == "rejected":
+                # Chain the stop to the decision that caused it: an operator's
+                # gate_rejected, or (deadline lapsed with on_expiry=reject) the
+                # witnessed gate_expired. Either way the stop is causally grounded.
                 reject = next(
                     (
                         e for e in ledger.query(kind="gate_rejected")
@@ -316,6 +334,15 @@ async def dispatch_plan(
                     ),
                     None,
                 )
+                if reject is None:
+                    reject = next(
+                        (
+                            e for e in ledger.query(kind="gate_expired")
+                            if (body := ledger.get_payload(e.payload_hash)).get("run_seq") == run_seq
+                            and body.get("wave") == i
+                        ),
+                        None,
+                    )
                 ledger.append(
                     actor="dispatch", kind="gate_stopped",
                     payload={"run_seq": run_seq, "wave": i, "reason": "gate rejected"},

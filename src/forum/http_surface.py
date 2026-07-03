@@ -223,13 +223,20 @@ class HttpSurface:
             run_seq = body.get("run_seq")
             wave = body.get("wave")
             if gate_resolution(led, run_seq, wave) == "pending":
-                pending.append({
+                item = {
                     "seq": entry.seq,
                     "run_seq": run_seq,
                     "wave": wave,
                     "tasks": list(body.get("tasks") or []),
                     "question": body.get("question", ""),
-                })
+                }
+                deadline = body.get("deadline")
+                if isinstance(deadline, (int, float)):
+                    # bounded gate: expose the deadline and the auto-decision that
+                    # fires on resume if it lapses (reject unless operator opted in)
+                    item["deadline"] = float(deadline)
+                    item["on_expiry"] = str(body.get("on_expiry") or "reject")
+                pending.append(item)
         return json_response({"pending": pending})
 
     def _gate_resolve(self, action: str, body: bytes) -> Response:

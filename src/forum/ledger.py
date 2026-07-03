@@ -129,6 +129,16 @@ class Ledger:
         self._s = storage
         self._clock = clock
 
+    @property
+    def clock(self):
+        """The time source used to stamp entries (injectable for tests).
+
+        Deadline evaluation (gate expiry) reads this so it advances on the same
+        clock that stamps ``LedgerEntry.ts``, keeping a witnessed gate_pending's
+        recorded deadline and the expiry check on one consistent time base.
+        """
+        return self._clock
+
     def append(
         self,
         *,

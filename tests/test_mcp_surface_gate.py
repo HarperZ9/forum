@@ -77,7 +77,7 @@ def test_gate_edit_tool_resolves_with_edits():
 def test_gate_reject_tool_resolves():
     orch = _orch()
     run_seq = _seed_pending(orch.ledger)
-    resp = _call(McpSurface(orch), "gate_reject", {"run_seq": run_seq, "wave": 1, "approver": "op", "reason": "no"})
+    _call(McpSurface(orch), "gate_reject", {"run_seq": run_seq, "wave": 1, "approver": "op", "reason": "no"})
     assert gate_resolution(orch.ledger, run_seq, 1) == "rejected"
 
 
