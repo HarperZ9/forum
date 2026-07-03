@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from forum.ledger import Ledger, LedgerEntry
@@ -14,6 +15,11 @@ _DECISION_KINDS = {
 }
 _RESOLVE_KINDS = frozenset(_DECISION_KINDS)
 
+# The on-expiry decisions a deadline policy may choose, and the gate_expired
+# payload ``decision`` each writes. reject is the safe default: an unattended
+# gate that lapses does NOT silently ship its wave unless the operator opted in.
+_EXPIRY_DECISIONS = {"approve": "approved", "reject": "rejected"}
+
 
 @dataclass(frozen=True, slots=True)
 class GatePolicy:
@@ -23,10 +29,29 @@ class GatePolicy:
     ``gated_waves``), dispatch reads the ledger for a resolution keyed to
     (run_seq, wave=i). ``question`` is copied into the gate_pending entry so the
     operator sees what they are approving.
+
+    ``deadline_seconds`` (optional) makes the gate durable-but-bounded: the
+    gate_pending records an absolute ``deadline`` (its own witnessed ts plus this
+    many seconds). If a resume re-reaches the boundary after the deadline with no
+    operator decision, dispatch appends a witnessed ``gate_expired`` entry that
+    auto-resolves the gate to ``on_expiry`` ('approve' or 'reject', default
+    'reject' so a lapsed gate never silently ships its wave). The deadline is
+    evaluated only on resume; it is not a background timer, so nothing runs
+    behind the operator's back between resumes.
     """
 
     gated_waves: frozenset[int]
     question: str = "Approve this wave before it runs?"
+    deadline_seconds: float | None = None
+    on_expiry: str = "reject"
+
+    def __post_init__(self) -> None:
+        if self.deadline_seconds is not None and self.deadline_seconds <= 0:
+            raise ValueError("deadline_seconds must be positive when set")
+        if self.on_expiry not in _EXPIRY_DECISIONS:
+            raise ValueError(
+                f"on_expiry must be 'approve' or 'reject', got {self.on_expiry!r}"
+            )
 
 
 def _matches(body: object, run_seq: object, wave: object) -> bool:
@@ -59,6 +84,16 @@ def gate_resolution(
                 if best_seq is None or entry.seq > best_seq:
                     best_seq = entry.seq
                     resolution = name
+    # A gate_expired is a witnessed auto-decision (deadline lapsed with no
+    # operator action). It competes on the same highest-seq-wins rule, so an
+    # operator decision recorded before OR after expiry still resolves correctly:
+    # the latest witnessed decision is authoritative.
+    for entry in ledger.query(kind="gate_expired"):
+        body = ledger.get_payload(entry.payload_hash)
+        if _matches(body, run_seq, wave):
+            if best_seq is None or entry.seq > best_seq:
+                best_seq = entry.seq
+                resolution = str(body.get("decision") or "rejected")
     if resolution is not None:
         return resolution
     for entry in ledger.query(kind="gate_pending"):
@@ -81,6 +116,80 @@ def gate_edits(ledger: Ledger, run_seq: object, wave: object) -> dict[str, str]:
             if isinstance(raw, dict):
                 edits = {str(k): str(v) for k, v in raw.items()}
     return edits
+
+
+def pending_deadline(ledger: Ledger, run_seq: object, wave: object) -> float | None:
+    """Absolute deadline recorded on this gate's gate_pending, or None.
+
+    Pure ledger read. None when the gate carries no deadline (an unbounded gate)
+    or has no gate_pending yet. The latest gate_pending wins (a re-raise would
+    supersede), mirroring the resolution scans.
+    """
+    deadline: float | None = None
+    for entry in ledger.query(kind="gate_pending"):
+        body = ledger.get_payload(entry.payload_hash)
+        if _matches(body, run_seq, wave):
+            raw = body.get("deadline")
+            deadline = float(raw) if isinstance(raw, (int, float)) else None
+    return deadline
+
+
+def expire_gate(
+    ledger: Ledger,
+    run_seq: object,
+    wave: object,
+    *,
+    clock=time.time,
+) -> str | None:
+    """Auto-resolve a still-pending gate whose deadline has lapsed; else no-op.
+
+    Returns the resolution the run should now act on ('approved' | 'rejected')
+    when this call appends a witnessed ``gate_expired``, otherwise None. Idempotent
+    and safe to call at the wave boundary: it acts only when the gate is genuinely
+    'pending' (no operator decision, no prior expiry) AND a recorded deadline has
+    passed under ``clock``. The gate_expired entry is hash-chained to the
+    gate_pending it resolves, carries the ``decision`` (from the pending's
+    ``on_expiry``), and is synced like every other gate write, so the resumed run
+    re-verifies. Unbounded gates (no deadline) always return None: they stay
+    pending until the operator acts.
+
+    INVARIANT: no await. Called inside the wave loop under cooperative
+    scheduling; the read + append window must not yield (see Ledger.append).
+    """
+    if gate_resolution(ledger, run_seq, wave) != "pending":
+        return None
+    deadline = pending_deadline(ledger, run_seq, wave)
+    if deadline is None or float(clock()) < deadline:
+        return None
+    pend: LedgerEntry | None = None
+    on_expiry = "reject"
+    for entry in ledger.query(kind="gate_pending"):
+        body = ledger.get_payload(entry.payload_hash)
+        if _matches(body, run_seq, wave):
+            pend = entry
+            raw = body.get("on_expiry")
+            if raw in _EXPIRY_DECISIONS:
+                on_expiry = str(raw)
+    if pend is None:
+        # Unreachable in practice: a 'pending' resolution and a recorded deadline
+        # both require a matched gate_pending. Guard so the causal_parent is always
+        # a concrete seq (a witnessed entry is never left unchained).
+        return None
+    decision = _EXPIRY_DECISIONS[on_expiry]
+    ledger.append(
+        actor="dispatch",
+        kind="gate_expired",
+        payload={
+            "run_seq": run_seq,
+            "wave": wave,
+            "decision": decision,
+            "on_expiry": on_expiry,
+            "deadline": deadline,
+        },
+        causal_parent=pend.seq,
+    )
+    ledger.sync()
+    return decision
 
 
 def resolve_gate(

@@ -50,6 +50,27 @@ def test_get_gates_lists_pending():
     assert data["pending"][0]["wave"] == 1
 
 
+def test_get_gates_surfaces_deadline():
+    surface, orch = _surface()
+    led = orch.ledger
+    req = led.append(actor="client", kind="request", payload={"tasks": ["T1", "T2"]})
+    plan = led.append(
+        actor="dispatch", kind="plan", payload={"waves": [["T1"], ["T2"]], "edges": []},
+        causal_parent=req.seq,
+    )
+    led.append(
+        actor="dispatch", kind="gate_pending",
+        payload={
+            "run_seq": plan.seq, "wave": 1, "tasks": ["T2"], "question": "ship?",
+            "requested_by": "dispatch", "deadline": 9999.0, "on_expiry": "reject",
+        },
+        causal_parent=plan.seq,
+    )
+    data = json.loads(_do(surface, "GET", "/gates").body)
+    assert data["pending"][0]["deadline"] == 9999.0
+    assert data["pending"][0]["on_expiry"] == "reject"
+
+
 def test_post_gate_approve_resolves():
     surface, orch = _surface()
     run_seq = _seed_pending(orch.ledger)
