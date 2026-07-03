@@ -431,13 +431,20 @@ def _pending_gates(led) -> list[dict]:
         run_seq = body.get("run_seq")
         wave = body.get("wave")
         if gate_resolution(led, run_seq, wave) == "pending":
-            pending.append({
+            item = {
                 "seq": entry.seq,
                 "run_seq": run_seq,
                 "wave": wave,
                 "tasks": list(body.get("tasks") or []),
                 "question": body.get("question", ""),
-            })
+            }
+            deadline = body.get("deadline")
+            if isinstance(deadline, (int, float)):
+                # A bounded gate: surface its deadline and the auto-decision that
+                # fires on resume if it lapses, so the operator sees the clock.
+                item["deadline"] = float(deadline)
+                item["on_expiry"] = str(body.get("on_expiry") or "reject")
+            pending.append(item)
     return pending
 
 
@@ -451,7 +458,10 @@ def _cmd_gate_list(args) -> int:
         print("no pending gates")
         return 0
     for gate in pending:
-        print(f"run_seq={gate['run_seq']} wave={gate['wave']} tasks={gate['tasks']}: {gate['question']}")
+        line = f"run_seq={gate['run_seq']} wave={gate['wave']} tasks={gate['tasks']}: {gate['question']}"
+        if "deadline" in gate:
+            line += f" [deadline={gate['deadline']:.0f} on_expiry={gate['on_expiry']}]"
+        print(line)
     return 0
 
 
