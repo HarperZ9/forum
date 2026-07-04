@@ -10,7 +10,8 @@
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
 
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
-![version: 1.12](https://img.shields.io/badge/version-1.12-informational.svg)
+[![PyPI](https://img.shields.io/pypi/v/forum-engine.svg)](https://pypi.org/project/forum-engine/)
+[![downloads](https://img.shields.io/pypi/dm/forum-engine.svg?label=downloads)](https://pypi.org/project/forum-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none](https://img.shields.io/badge/deps-none-success.svg)
 ![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
