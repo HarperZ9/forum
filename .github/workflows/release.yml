@@ -23,7 +23,7 @@ jobs:
           python -m venv /tmp/v
           /tmp/v/bin/pip install dist/*.whl
           /tmp/v/bin/forum --version
-          /tmp/v/bin/python -I -c "from forum.roster import load_default; assert len(load_default().agents) == 24"
+          /tmp/v/bin/python -I -c "from forum.roster import load_default; assert len(load_default().agents) == 28"
       - uses: actions/upload-artifact@v7
         with:
           name: dist
