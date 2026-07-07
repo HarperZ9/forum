@@ -69,8 +69,8 @@ def status_payload() -> dict:
                 "forum.ledger.summary",
             ],
             "current_status": (
-                "1.12.0 per-task context with 28-lane Project Telos roster, "
-                "model-foundry daemon routing, and MCP parity"
+                "1.13.0 campaign orchestration, approval gates with durable "
+                "deadlines, proof and domain lanes, and run room operator surfaces"
             ),
             "telos_contracts": TELOS_CONTRACTS,
         },
