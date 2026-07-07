@@ -106,7 +106,7 @@ The daemon exposes route, plan, submit, humanize, prose contracts, gates, run ro
 
 ## Status
 
-The latest tagged release on PyPI is `forum-engine 1.12.0`. Development since that tag (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and operator briefs, runtime inspection, approval gates with durable deadlines, proof and domain lanes, and campaign orchestration) is on `main` and recorded in [CHANGELOG.md](CHANGELOG.md) under Unreleased; it ships in the next release. The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
+The latest release is `forum-engine 1.13.0` (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and operator briefs, runtime inspection, approval gates with durable deadlines, proof and domain lanes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
 
 ## Docs
 
