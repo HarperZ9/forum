@@ -28,7 +28,7 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 - **Run rooms and capsules.** `forum ledger room --brief` projects the latest run into an operator brief with state, risk, and deterministic next actions. `forum ledger capsule` compacts a run into a reusable context brief for the next one.
 - **Zero dependencies.** Pure standard library at runtime. Python 3.11+.
 
-## Install and quickstart
+## Work with it
 
 ```bash
 pip install forum-engine
@@ -120,7 +120,7 @@ The latest tagged release on PyPI is `forum-engine 1.12.0`. Development since th
 
 Peer projects in Project Telos compose through clean seams: [index](https://github.com/HarperZ9/index) supplies organized context through the `ContextProvider` seam, and [crucible](https://github.com/HarperZ9/crucible) can check answers through the `VerifierProvider` seam. Both default to no-ops, so forum stands alone.
 
-## The record is the point
+## Why it matters
 
 Most orchestrators give you output and a log you are asked to trust. forum writes every routing decision, task, result, and verdict into a hash-chained, content-addressed ledger you can verify, replay, and challenge, so a run is something you can prove, not just believe.
 

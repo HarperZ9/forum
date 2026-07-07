@@ -27,10 +27,15 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     for rel in [
         "docs/brand/forum-mark.svg",
         "docs/brand/forum-hero.png",
+        ".github/assets/banner.svg",
         "examples/forum-demo.html",
     ]:
         assert (root / rel).exists(), rel
-        assert rel in readme
+    for rel in [
+        ".github/assets/banner.svg",
+        "examples/forum-demo.html",
+    ]:
+        assert rel in readme, rel
     assert (root / "docs/brand/forum-hero.svg").exists()
     assert "## Why it matters" in readme
     assert "## Work with it" in readme
