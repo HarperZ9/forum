@@ -169,6 +169,26 @@ def _cmd_humanize(args) -> int:
         return 2
     return 0
 
+def _cmd_import_trace(args) -> int:
+    import sys as _sys
+
+    from forum.flight_recorder import TraceParseError, import_trace
+
+    try:
+        text = _sys.stdin.read() if args.trace == "-" else open(args.trace, encoding="utf-8").read()
+        events = json.loads(text)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"import-trace: cannot read trace: {exc}", file=_sys.stderr)
+        return 2
+    try:
+        record = import_trace(events, args.format)
+    except TraceParseError as exc:
+        print(f"import-trace: {exc}", file=_sys.stderr)
+        return 2
+    print(json.dumps(record, indent=2))
+    return 0
+
+
 def _cmd_route(args) -> int:
     from forum.roster import load_default
     from forum.route_frame import derive_route_frame, frame_payload
@@ -698,6 +718,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="accepted for operator-surface consistency; route already emits JSON",
     )
     route.set_defaults(func=_cmd_route)
+
+    ft = sub.add_parser(
+        "import-trace",
+        help="fold an external agent trace (LangSmith/OTel/AgentOps/generic JSON) "
+             "into a verifiable, replayable ledger — a flight recorder that "
+             "refutes its own tampering")
+    ft.add_argument("trace", help="path to a JSON trace (list of events), or - for stdin")
+    ft.add_argument("--format", choices=["langsmith", "otel", "agentops", "generic"],
+                    default="generic")
+    ft.set_defaults(func=_cmd_import_trace)
 
     submit = sub.add_parser("submit", help="plan and answer a request, witnessed")
     submit.add_argument("request")
