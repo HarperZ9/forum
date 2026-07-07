@@ -7,14 +7,14 @@ format normalizes, and a malformed event fails LOUD (never silently dropped).
 """
 from __future__ import annotations
 
+import pytest
+
 from forum.flight_recorder import (
     TraceParseError,
     import_trace,
     normalize_trace,
 )
-from forum.ledger import GENESIS, InMemoryStorage, Ledger, merkle_root
-
-import pytest
+from forum.ledger import GENESIS, InMemoryStorage, Ledger
 
 GENERIC = [
     {"actor": "planner", "kind": "plan", "id": "a", "payload": {"goal": "x"}},
@@ -34,7 +34,6 @@ def test_trace_folds_into_a_verifying_ledger():
 
 def test_causal_parents_resolved_by_id():
     rec = import_trace(GENERIC, "generic")
-    seqs = {e["seq"]: e for e in rec["ledger"]}
     b = next(e for e in rec["ledger"] if e["actor"] == "worker" and e["kind"] == "act"
              and e["causal_parent"] == 0)
     assert b["seq"] == 1                          # b's parent is a (seq 0)
