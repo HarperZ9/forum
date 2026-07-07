@@ -13,11 +13,63 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
 
-## Try it
+## Features
+
+- **One command, three model backends.** `forum submit "ship a login API" --cmd "ollama run llama3"` plans the request, runs it across agents, and returns one synthesized answer. Swap `--cmd` for `--chat-url` (any OpenAI-compatible server) or `--api` (Anthropic). A local CLI needs no account.
+- **Tiered executors.** Route task agents to cheap, capable, and frontier models by roster tier: `--cheap-cmd`, `--capable-cmd`, `--frontier-cmd`, or per-tier chat endpoints. Put the whole policy in a TOML file and load it with `--runtime-config`; `forum runtime inspect` explains the merged policy before anything runs.
+- **Crash-safe runs.** Runs checkpoint at wave boundaries and resume from the durable ledger, reusing every task already witnessed as successful and re-running only the rest.
+- **Human-in-the-loop approval gates.** Pause a run at a wave boundary until an operator approves, edits, or rejects it: `forum gate list / approve / edit / reject`. Gates can carry durable deadlines with a witnessed auto-decision on expiry, so an unattended run never stalls silently. See [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md).
+- **Campaigns.** Declare a multi-project campaign as a JSON feature graph, then drive it to a fixed point: `forum campaign declare / status / next / run / ingest-status`. Cycles are caught up front; external project status can be ingested without execution.
+- **Bounded everything.** `RunBudget` caps a run by model calls and wall clock. `ContextBudget` admits, trims, or omits request context, per-task context, upstream injection, and synthesis inputs under approximate-token caps. `forum context preflight` estimates the pressure before you spend a model call.
+- **Delivery quality gates.** A deterministic concision floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. Expert delivery profiles (`operator`, `engineer`, `researcher`, `executive`) check the final answer against a local prose contract, selected from the route by default.
+- **Deterministic routing with a human contract.** `forum route` picks a lane from a 28-lane default roster without a model, and attaches a `forum.route-frame/v1` frame: domain, intent, posture, delivery profile, runtime tier, and an embedded communication contract that synthesis follows.
+- **Witnessed escalation.** Every result records the model that produced it; a failed task escalates up a ladder of stronger executors on an auditable verdict.
+- **Always-on surfaces.** One daemon (stdlib asyncio, no framework) serves the engine over HTTP; `forum mcp` exposes the same tools over MCP (stdio), a thin adapter over the HTTP surface so the two cannot drift.
+- **Run rooms and capsules.** `forum ledger room --brief` projects the latest run into an operator brief with state, risk, and deterministic next actions. `forum ledger capsule` compacts a run into a reusable context brief for the next one.
+- **Zero dependencies.** Pure standard library at runtime. Python 3.11+.
+
+## Install and quickstart
 
 ```bash
 pip install forum-engine
 ```
+
+Routing and the ledger commands need no model:
+
+```bash
+forum route "build the auth endpoint and the database schema"
+```
+
+```json
+{
+  "decided": "backend",
+  "confidence": 0.6,
+  "needs_escalation": false,
+  ...
+}
+```
+
+Answer a request with a local model (no account needed), then read the record:
+
+```bash
+forum submit "ship a login API" --cmd "ollama run llama3"
+forum ledger show --limit 20
+forum ledger verify
+forum ledger room --brief
+```
+
+Run the daemon or the MCP server over the same engine:
+
+```bash
+forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
+forum mcp --cmd "ollama run llama3"
+```
+
+`forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `bench`. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the operator surface.
+
+## A worked example: catch a tampered record
+
+No install needed beyond a clone, and no model is called:
 
 ```bash
 git clone https://github.com/HarperZ9/forum
@@ -25,93 +77,9 @@ cd forum
 python examples/demo.py
 ```
 
-Open the visual ledger replay surface at [`examples/forum-demo.html`](examples/forum-demo.html).
-
-## Why it matters
-
-Agent fleets fail quietly when their route is just output. forum makes the route the
-artifact: every plan, task, result, and verification step lands in a replayable ledger.
-It gives the people depending on the run something better than confidence: a record
-they can inspect, replay, and challenge.
-
-## Work with it
-
-forum is the right first test when the hard part is not one model answer, but the route
-a team of agents took to get there. Bring it a clinical intake, newsroom check, studio
-pipeline, due-diligence pass, or token-budget problem where the path matters as much as
-the answer. The most useful next pressure is real use: workflows that need replay,
-verifier feedback, and research support for executor and witness hardening.
-
-## What to test first
-
-- Give forum a task with at least two plausible routes and one explicit stop condition.
-- Inspect whether the ledger preserves the decision, evidence, result, and next action well enough for a fresh run to resume.
-- A strong test is a failure case: missing context, unavailable credentials, bad evidence, or a verifier disagreement should become an explicit blocked or unverifiable route, not a confident answer.
-
-## Current status
-
-- **Release:** `forum-engine 1.12.0`; command `forum`; Python 3.11+; zero third-party runtime dependencies in core.
-- **Operator surface:** `forum status --json`, `forum doctor --json`, `forum demo --json`, `forum submit --json`, and `forum mcp` expose the Project Telos action envelope, submit receipts, actionable run-room snapshots, deterministic operator briefs, and native MCP tools including `forum.route`, `forum.prose.humanize`, `forum.prose.contract`, `forum.status`, `forum.doctor`, `forum.ledger.summary`, `forum.run.room`, `forum.runtime.inspect`, and `forum.context.preflight`. The same CLI is available from source checkouts with `python -m forum`. The status payload also advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
-- **Current floor:** 1.12.0 routes fresh per-task context from a peer brain, keeps a 28-lane default roster including `project-telos` and `model-foundry`, attaches deterministic human route frames and local runtime policy to routing output, uses those frames to guide synthesis and select the default expert delivery profile for submit runs, supports optional task-level done criteria and per-wave submit checkpoints, derives run-room next actions and operator briefs, and preserves every route, task, result, and verification step in the ledger.
-- **Public role:** routing and loop-state layer for Project Telos: forum turns messy agent work into a ledger with explicit next actions, evidence, and stop conditions.
-
-- **Enterprise readiness:** [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md) records the large-context, action-receipt, readability, and host-integration contract for unattended agent workflows.
-
-## What it does
-
-Every few months there's a new framework for orchestrating AI agents. You wire one
-up, hand it a task, and it works. Then you try to run it for real, and you hit the
-question that actually matters: what happened on that run, and can you prove it?
-Usually all you've got is a pile of model output and a log you're supposed to trust.
-
-Forum starts from that question. It's an orchestration engine for fleets of agents,
-and the idea underneath it is simple. The record of what happened isn't a side effect
-of the work. It is the work. Every routing decision, every task, every result goes
-into a ledger you can verify, replay, and trace.
-
-Here's why it's built this way. A language model has no memory of its own. Each call
-starts from nothing. If you want to build something dependable on top of that, you
-have to give a forgetful mind two things it can't supply for itself: a record that
-outlives the conversation, and a way to check that record instead of trusting it. You
-also need reach, the ability to act across a lot of agents at once. That's the real
-project. The small zero-dependency pieces in this repo aren't the goal. They're the
-bricks.
-
-Everything here is built, tested, and on PyPI. The foundation (ledger, router, planner),
-the runtime that executes a plan across agents and witnesses every step, model-agnostic
-executors (any command, any OpenAI-compatible server, the Anthropic API), the control
-loop that turns a plain request into one verified answer, a durable ledger that survives
-a restart and lets a run resume from where it stopped, an always-on daemon over HTTP and
-MCP, and a `forum` command. On top of that sit the parts that make a run trustworthy and
-lean: a bounded budget, witnessed model-tier escalation, a verified intent check, a
-delivery floor that tightens verbose answers without dropping a request's terms, typed
-data-flow between tasks, and clean seams for a peer brain to supply context and an
-external verifier to check the answer.
-
-## Watch it work
-
-```bash
-git clone https://github.com/HarperZ9/forum
-cd forum
-python examples/demo.py        # no install, nothing to download
-```
-
-The demo routes a few requests, plans a small dependency graph, records every step,
-and then does the interesting part. It quietly corrupts a stored result and checks
-whether the ledger notices.
+The demo routes a few requests, plans a dependency graph into parallel waves, runs it, and then quietly corrupts one stored result:
 
 ```
-1. Routing (deterministic Tier-0; decides a lane or escalates)
-   'build the database schema and the auth endpoint'  ->  backend
-    'build the react component and css for the page'  ->  frontend
-               'write the readme docs and the guide'  ->  docs
-                                  'summon a unicorn'  ->  escalate -> needs an LLM classifier (confidence 0.00)
-
-2. Planning (DAG -> parallel waves, capped by policy max_parallel=2)
-  wave 0: ['T1']
-  wave 1: ['T2']
-  wave 2: ['T3', 'T4']
-
 4. Accountability: verify, tamper-detect, replay
   verify() (chain)      : True
   verify(deep=True)     : True
@@ -122,218 +90,50 @@ whether the ledger notices.
   verify(deep=True)     : False  <- body tamper caught
 ```
 
-Look at those last two lines. The chain of hashes still links, so a quick check
-passes. But the contents of one record no longer match what was promised, and the
-deeper check says so. You don't have to trust the record. You can check it.
+The chain of hashes still links, so a shallow check passes. But one record's contents no longer match what was promised, and the deep check says so. A visual replay of the same ledger lives at [`examples/forum-demo.html`](examples/forum-demo.html).
 
-To see the engine run a whole plan instead of just the ledger, there's a second
-example:
-
-```bash
-python examples/run.py
-```
-
-It routes a request, runs a three-step plan across agents (with a stub standing in for
-a real model), and verifies the entire run from the ledger at the end.
-
-## The pains it answers
-
-These are real complaints from people running agent fleets. The project harvests them
-and lets each one drive a feature; each maps to something Forum does.
-
-- **"An unattended loop turned a dollar into a hundred overnight."** A `RunBudget` caps a run by model calls and wall-clock; when it is spent the run stops gracefully and witnesses where. `forum submit --max-model-calls N --max-seconds S`. (v1.1)
-- **"It drifted wrong and spiraled for hours before anyone caught it."** Every step is witnessed, and after synthesis Forum checks how much of the request the answer still covers, escalating to a model judge when that floor flags. Drift lands on the record, not at hour three. (v1.4, v1.5)
-- **"No idea which model actually ran each task."** Every result records the model that produced it, and a failed task escalates up a ladder of stronger models on the auditable verdict, witnessed. (v1.2)
-- **"I want to orchestrate my own subscriptions and local models, not a new SaaS."** Zero-dependency, self-hosted, model-agnostic: any command (a local CLI needs no account), any OpenAI-compatible server, or the Anthropic API. The daemon runs on your box. (shipped)
-- **"The loop has no contract, no standing authority."** A run carries a witnessed contract, organized context in and a bounded budget; planned tasks can carry explicit `done_when` criteria that the worker sees and the validator judges. The ledger is the standing record of what was agreed and what happened. (v1.1+)
-- **"Long loops exhaust the context window with no recovery."** A run checkpoints at wave boundaries and resumes from the witnessed ledger, reusing what already succeeded; injected context is bounded and pulled fresh per task. (v1.9, v1.10, v1.12)
-- **"Large context becomes a hidden bill and a hidden risk."** A `ContextBudget` admits, trims, or omits request context, per-task context, upstream result injection, and final synthesis result inputs under approximate-token caps. Every decision is witnessed as `context_budget`, so a run can prove what shaped each model call and what was left out. (v1.13+)
-- **"I need to know context pressure before the run starts."** `forum context preflight` estimates request size and optional capsule context against the same budget rules submit uses, reporting retained, trimmed, or omitted context without model calls. (v1.22)
-- **"My IDE or host needs the same preflight before it calls submit."** The daemon and MCP expose the same runtime and context checks through `GET /runtime`, `POST /context/preflight`, `forum.runtime.inspect`, and `forum.context.preflight`.
-- **"The ledger is faithful, but too large to feed back into the next run."** Context Capsules compact the witnessed ledger into a deterministic brief that can be reused as request context without replaying raw history into the model. (v1.15)
-- **"Model output is a wall of words."** A deterministic delivery floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. (v1.11)
-- **"The answer still sounds like generic model output."** Expert Delivery Profiles check the final answer against a local prose contract (`operator`, `engineer`, `researcher`, or `executive`) and witness the result as `delivery_profile_check`. Submit runs select that profile from the route frame by default, while an explicit `--delivery-profile` still overrides it. (v1.14+)
-- **"Memory is a routing problem, and stale facts poison it."** Forum plans and runs on organized context pulled from a brain through a clean seam; building and pruning that knowledge graph is a peer's job (the index flagship), and Forum consumes it, witnessed. (v1.1, v1.12)
-- **"Self-improving agents need a deliberate lane, not a vague escalation."** Bounded model-foundry and daemon work routes to `model-foundry`, where eval-gated promotion, receipt chains, context envelopes, and verifier feedback are first-class dispatch signals.
-- **"Broad Telos work needs a primary room and visible secondary lanes."** Multi-domain flagship requests route to `project-telos` when the umbrella evidence is decisive, while graphics, research, and function-routing candidates remain visible for decomposition.
-- **"A route should set the room, not just name the worker."** Route outputs now include a deterministic `forum.route-frame/v1` contract: domain, intent, posture, delivery profile, selected runtime tier/executor, proof/domain lane hints, human-facing answer contract, an embedded communication contract, and matched signals. It is local architecture, not model judgment, and route ledger entries witness it for later supervision data.
-- **"Delivery should follow the room the route set."** Submit passes the route frame's human and communication contracts into final-answer synthesis, then checks the delivered answer against the selected expert profile. Receipts include the witnessed route frame and the selected delivery profile source (`route_frame` or `explicit`), so the answer's posture is visible in the same record as the model, ledger range, and verification verdict.
-
-## More to run
-
-Each example is a short, offline, dependency-free demonstration of one capability:
-
-```bash
-python examples/run_request.py       # a plain request: plan, witnessed run, one verified answer
-python examples/run_escalation.py    # a failed task escalates up a ladder of stronger models
-python examples/run_intent_judge.py  # the intent ladder: a lexical drift floor, then a model judge
-python examples/run_delivery.py      # a verbose answer is tightened, accepted only if it stays covered
-python examples/run_delivery_profile.py # witnessed expert delivery profiles
-python examples/run_resume.py        # a crashed run resumes from the ledger, reusing what succeeded
-python examples/run_efficiency.py    # bounded prompts and a weighed record
-python examples/run_context_pressure.py # witnessed approximate-token context budgets
-python examples/run_context_capsule.py # compact witnessed run memory into next-run context
-python examples/run_summary.py       # read a run from the ledger, and A/B two runs with forum bench
-```
-
-## From the command line
-
-Install it with `pip install forum-engine` (pure standard library, no dependencies come with it), and Forum gives you a `forum` command:
-
-```bash
-forum route --json "build the auth endpoint and the database schema" # lane plus human route frame, no model needed
-forum humanize "As an AI language model, utilize this report."     # clearer operator prose, no new facts
-forum context preflight "ship a login API" --use-capsule-context   # estimate request/capsule context pressure before submit
-forum ledger capsule --json                                        # compact the ledger into reusable context
-forum ledger room --json                                           # latest run as an operator room snapshot
-forum ledger room --brief                                          # polished status, risk, and next-step brief
-forum runtime inspect --runtime-config forum-runtime.toml          # explain default and tier executors before a run
-forum submit "ship a login API" --cmd "ollama run llama3"            # plan, run, answer with a local model, no account
-forum submit "ship a login API" --cmd "ollama run llama3" --cheap-cmd "ollama run phi3" --capable-cmd "ollama run llama3" --frontier-cmd "ollama run qwen2.5-coder" # route task agents by roster tier
-forum submit "ship a login API" --chat-url http://localhost:11434/v1/chat/completions --model llama3 --cheap-chat-url http://localhost:11434/v1/chat/completions --cheap-model phi3 --frontier-chat-url http://localhost:8000/v1/chat/completions --frontier-model qwen2.5-coder # tier local endpoints directly
-forum submit "ship a login API" --runtime-config forum-runtime.toml  # load default and tier executors from local TOML
-forum submit "ship a login API" --cmd "ollama run llama3" --use-capsule-context # use prior ledger state as bounded context
-forum submit "ship a login API" --cmd "ollama run llama3" --checkpoint-each-wave # witness phase savepoints
-forum submit "ship a login API" --cmd "ollama run llama3" --json     # include a Project Telos action receipt
-forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3   # the HTTP daemon
-forum mcp --cmd "ollama run llama3"                                  # the MCP stdio server
-forum ledger verify                                                  # check the record
-forum ledger show --limit 20                                         # the last 20 entries
-```
-
-`submit`, `serve`, and `mcp` reach a model, and Forum is model-agnostic about which.
-`--cmd "<any command>"` runs any model (a local CLI needs no account), `--chat-url`
-talks to any OpenAI-compatible server (local or cloud), and `--api` is one specific
-provider (Anthropic). Add `--cheap-cmd`, `--capable-cmd`, or `--frontier-cmd` to
-route task agents to different local commands by the roster's model tier, or add
-`--cheap-chat-url`, `--capable-chat-url`, and `--frontier-chat-url` with matching
-`--*-model` flags to route tiers directly to OpenAI-compatible local endpoints.
-The global `--cmd` or `--chat-url` remains the control/default executor. For a
-durable local setup, put the same policy in a TOML file and pass `--runtime-config`
-to `submit`, `serve`, or `mcp`; explicit CLI flags override the file for that run.
-`forum runtime inspect` accepts the same executor flags and reports the merged
-default/tier policy without running commands or probing endpoints.
-The daemon exposes the live runtime at `GET /runtime`, and MCP exposes the same
-payload as `forum.runtime.inspect`. Context preflight is available through
-`POST /context/preflight` and MCP `forum.context.preflight`, including optional
-capsule context and the same budget fields as submit.
-Routing and the ledger commands need no model at all. See [RUNNING.md](RUNNING.md).
+Every example in [`examples/`](examples/) is a short, offline, dependency-free demonstration of one capability: escalation ladders, intent judging, delivery tightening, crash resume, context pressure, context capsules, campaigns, and more.
 
 ## How the ledger works
 
-A log tells you what a program says it did. A ledger lets you prove it. Two old ideas
-do most of the work.
+Two old ideas do most of the work. A hash chain: every entry carries a fingerprint of the one before it, so edits, drops, and reorders stop the fingerprints lining up, and `verify()` tells you where. Content addressing: prompts and outputs are stored under a fingerprint of their own bytes, which keeps the chain small and lets you redact a sensitive body down to its fingerprint with the chain still checking out; `verify(deep=True)` re-hashes each body that is present.
 
-The first is a hash chain. Every entry carries a fingerprint of the one before it.
-Edit a past entry, drop one, or shuffle the order, and the fingerprints stop lining
-up. `verify()` walks the chain and tells you where.
+Everything else falls out of those two. `replay(until=...)` rebuilds the exact state at any past point. `causal_chain(seq)` follows parent links to answer why something happened. `checkpoint()` folds the history into one Merkle root, built to avoid the second-preimage collision (CVE-2012-2459) that naive Merkle code runs into. By default the ledger lives in memory; point it at `FileStorage` and every entry is appended to a JSONL file and fsynced before the next, so the record survives a restart, tolerates a crash-torn final write, and still verifies exactly.
 
-The second is content addressing. The bulky parts, the prompts and the outputs, are
-stored under a fingerprint of their own bytes rather than inline. That keeps the chain
-small, and it has a useful side effect: you can redact a sensitive body down to its
-fingerprint and the chain still checks out. When the bodies are there,
-`verify(deep=True)` re-hashes each one to make sure it still matches. That's what
-catches the swapped result in the demo.
+## HTTP and MCP surfaces
 
-Everything else falls out of those two. `replay(until=...)` rebuilds the exact state
-at any past point, which works because the core is pure and entries never change.
-`causal_chain(seq)` follows the parent links to answer the question every postmortem
-comes back to: why did this happen? And `checkpoint()` folds the whole history into
-one Merkle root. The leaves and the internal nodes are tagged differently, and odd
-nodes get carried up rather than duplicated, so it avoids the second-preimage
-collision (CVE-2012-2459) that naive Merkle code runs into.
+The daemon exposes route, plan, submit, humanize, prose contracts, gates, run rooms, capsules, runtime inspection, context preflight, and ledger verify/replay over HTTP (`/route`, `/plan`, `/submit`, `/gates`, `/gate/approve`, `/room`, `/capsule`, `/runtime`, `/context/preflight`, `/prose/contract`, `/verify`, and more). MCP mirrors the same tools: `forum.submit`, `forum.route`, `forum.plan`, `forum.status`, `forum.doctor`, `forum.verify`, `forum.prose.humanize`, `forum.prose.contract`, `forum.ledger.summary`, `forum.ledger.capsule`, `forum.ledger.get`, `forum.run.room`, `forum.runtime.inspect`, `forum.context.preflight`, and `forum.gate.list` / `approve` / `edit` / `reject`.
 
-None of this is worth much if the record dies with the process. By default the
-ledger lives in memory, which is right for a test or a single run. Point it at a
-`FileStorage` instead and every entry is appended to a file and fsynced before the
-next one, so the ledger survives a restart and still verifies, replays, and
-checkpoints exactly. If a crash cuts the final write short, that half-written line
-is dropped on reload and the rest of the record stands. Tampering does not get a
-quieter treatment: a reordered file still loads, and `verify()` still says no.
+## Status
 
-## What's here
-
-- `forum.ledger`: the record. Hash chain, content-addressed bodies, `verify` / `verify(deep=True)`, `replay`, `causal_chain`, Merkle `checkpoint`.
-- `forum.storage`: where the record lives. An in-memory store for tests and short runs, and a durable `FileStorage` (append-only JSONL) so a ledger survives a restart and stays verifiable. It fsyncs every append by default; `fsync_each=False` plus `ledger.sync()` batches that for throughput, with the durability window stated plainly.
-- `forum.routing`: a router that reads a request, picks a lane, and only falls back to a model when the keywords genuinely can't decide.
-- `forum.route_frame` and `forum.communication_contract`: the human route contract. They wrap a route with deterministic local fields for domain, intent, posture, delivery profile, selected model tier/executor, proof/domain lane hints, a short answer contract, a JSON-ready `forum.communication-contract/v1` payload, and the matched signals behind the frame. CLI, HTTP, MCP, and `Orchestrator.assign` route ledger entries expose the same `forum.route-frame/v1` payload, so routing becomes dispatch data, local runtime policy, and communication posture.
-- `forum.lanes`: the proof-lane gate, two orthogonal axes. The verb axis is a closed, frozen vocabulary of five proof lanes (observe, execute, validate, synthesize, verify), each granting an explicit scope set. The domain axis is a second closed vocabulary of ten domain lanes (frontier-foundry, research-foundry, model-foundry, scientific-runtime, formal-proof, bio-evidence, robotics-control, visual-truth, learning-forge, source-federation) that name which body of work a route belongs to and grant no scopes, so a valid domain can never launder a scope claim. `witness_route` refuses a route that names a lane outside either vocabulary or claims a scope its verb lane does not grant (over-routing), with a typed reason, and the rejection lands in the ledger as a first-class `lane_rejection` entry, never a silent drop. The decision keys off vocabulary membership and scope arithmetic, not the route author's wording, so a route cannot certify itself. Accepted and rejected routes alike are witnessed with the same typed fields (task, both lane axes, scopes, confidence when the router had one, and on rejection the reason code with excess and granted scopes), so the ledger doubles as labeled routing examples for training and evaluating a router model.
-- `forum.lane_gaps`: the vocabulary-gap receipt. When routing escalates repeatedly and no lane ever decides, `derive_vocabulary_gap` (a pure function over witnessed route outcomes) turns the trailing run of undecided routes into a typed receipt with the operator-named domain signal, the count of consecutive escalations, and the confidence ceiling they never rose above; `witness_vocabulary_gap` lands it in the ledger as a `vocabulary_gap` entry chained to the last escalation. Below the threshold nothing fires, and no lane is ever created automatically: the receipt is the evidence an operator uses to decide whether widening the vocabulary is worth a code change.
-- `forum.plan` and `forum.dispatch`: a task graph compiled into parallel waves (cycles and missing dependencies caught up front), with typed edges and optional task-level `done_when` criteria. A data edge feeds its upstream's witnessed output into the downstream task so it builds on real work; an order edge only sequences. Every edge, data hand-off, and structured done criterion is witnessed. A run resumes from the ledger, reusing tasks already witnessed as successful and re-running only the rest, and can checkpoint each wave as a savepoint. Injected upstream output is capped to keep prompts bounded, with the full output kept in the ledger.
-- `forum.roster`: the cast of specialists, written as plain data in a TOML file and validated on load. Ships with a built-in default roster of 28 plain capability lanes (`load_default()`), so a fresh install has a real roster out of the box.
-- `forum.policy`: the rules of the room. Which work can run, and how much at once.
-- `forum.executor` / `forum.runtime` / `forum.runtime_descriptor` / `forum.runtime_inspect` / `forum.chat_executor` / `forum.api_executor`: how work actually runs and how the runtime explains itself, model-agnostic. A stub for tests, a `SubprocessExecutor` that runs any command (a local model CLI needs no account), a `TieredExecutor` that routes task agents to cheap/capable/frontier executors from roster policy, safe runtime descriptors for config/CLI policy and live executors, a read-only runtime inspection payload, a `ChatExecutor` for any OpenAI-compatible server (local or cloud), and an `ApiExecutor` for the Anthropic API. Tiered runtimes can mix commands and direct chat endpoints. A failing task is witnessed, not fatal; each result records which model produced it, and a failed task can escalate up a ladder of stronger executors, witnessed.
-- `forum.control` and `Orchestrator.submit`: the control loop. A Coordinator turns a plain request into a plan, a Classifier picks an agent when keywords can't, a Validator judges each result, and a Synthesizer writes one answer. Every step is witnessed; `checkpoint_each_wave` leaves phase savepoints during normal submit runs; and HTTP, MCP, and `forum submit --json` return a `project-telos.action-receipt/v1` packet that joins the answer to ledger sequence, payload hash, model identity, checkpoint, and verification verdict.
-- `forum.context`, `forum.context_budget`, `forum.context_preflight`, and `forum.budget`: the run contract. A `ContextProvider` seam so a run plans on organized context from a brain (the index flagship), and routes fresh task-specific context to each agent at dispatch, witnessed as the exact context that shaped each step; a `ContextBudget` that admits, trims, or omits request context, per-task context, upstream injection, and final synthesis result inputs under approximate-token caps; a preflight payload, exposed through CLI, HTTP, and MCP, that estimates request and capsule pressure before submit; and a `RunBudget` that bounds a run and witnesses where it stopped.
-- `forum.context_capsule`: compact run memory. It reads the witnessed ledger and produces a deterministic `forum.context-capsule/v1` brief with latest request, latest answer, task results, quality signals, checkpoint, and verification state. A `LedgerCapsuleProvider` feeds that brief back through the existing context seam, so a later run gets compact memory without raw ledger replay.
-- `forum.run_room`: the operator room read model. It projects the latest request's ledger slice into `forum.run-room/v1`: request, route frame, plan, task contracts, latest results, verdicts, checkpoints, answer, quality signals, deterministic `next_actions`, and a `forum.run-room.brief/v1` operator brief with state, posture, risk, and next step. CLI, HTTP, and MCP expose the same payload so platform tools can inspect a run without parsing raw replay entries, while `forum ledger room --brief` prints the human readout directly.
-- `forum.verify`: the verification seam. A `VerifierProvider` lets an external verifier (a peer flagship, a proof-checker, a test runner) check the answer Forum produced, and the verdict is witnessed. The peer of the context seam: context flows in before the run, verification comes back after it. The default abstains, so Forum stands alone.
-- `forum.delivery` and `forum.delivery_profile`: how the answer reads. A deterministic floor (`assess`) measures concision (sentence length, filler) and flags a dense answer, witnessed every run; an opt-in `Reviser` seam tightens a flagged answer, and Forum accepts the tighter version only if it still covers the request. Expert Delivery Profiles add local prose contracts (`operator`, `engineer`, `researcher`, `executive`) and witness profile checks as `delivery_profile_check`. Submit derives a request route frame first, passes its human and communication contracts into the synthesis prompt, and uses its `delivery_profile` as the default profile, so an implementation route gets engineer delivery, evidence work gets researcher delivery, and operator-platform work gets executive delivery unless the caller explicitly overrides it. The floors stand alone; the reviser is the model rung, verified before it replaces the answer.
-- `forum.daemon` / `forum.http_surface`: an always-on HTTP service (stdlib asyncio, no framework) over one long-lived, durable ledger. Submit a request, read a witnessed answer, inspect the live runtime, preflight context pressure, and verify or replay the record over HTTP.
-- `forum.mcp_surface`: the same tools over MCP (JSON-RPC on stdio), including `forum.prose.contract`, `forum.runtime.inspect`, and `forum.context.preflight`. It is a thin adapter over the HTTP surface, so the two can never drift.
-- `forum.intent` and the intent-judge: did the run answer the request? After synthesis, a deterministic coverage of the request's vocabulary by the answer is witnessed (a lexical floor that flags drift, never blocks). When it flags and you opt in (`IntentJudge`, or `forum submit --judge-intent`), a model resolves whether the answer truly drifted or just paraphrased, witnessed as its own entry and bounded by the budget. Cheap floor first, the model only when the floor earns it.
-- `forum.report`: reading the record. `summarize(ledger)` aggregates a witnessed run into counts, model calls, the byte weight of the record, the checkpoint, and the verify result, reading only what was witnessed; `compare(a, b)` (and `forum bench A B`) is the delta between two runs, so you can prove a change helped (or made a run leaner) instead of asserting it.
-
-Pure standard library. No third-party runtime dependencies. The tests run the
-primitives directly, tamper detection and the Merkle property included.
-
-## Roadmap
-
-- **Done, the foundation.** Ledger, router, roster, planner, policy. Tested and runnable.
-- **Done, the runtime.** An asyncio dispatcher that runs a plan's waves with bounded concurrency, a mailbox actor and a restart supervisor, and an Orchestrator that ties routing, planning, and witnessed dispatch into one call. The engine runs end to end against a stub executor today.
-- **Done, real executors.** A `SubprocessExecutor` that runs any command (so any CLI, including a model CLI), and an `ApiExecutor` that drives a model over the Anthropic API, both behind the one executor seam. A failing task is witnessed, not fatal.
-- **Done, the control loop.** A Coordinator that turns a plain request into a plan, a Classifier, a Validator that judges each result (a failed task is witnessed, not blessed), and a Synthesizer that writes one answer. `Orchestrator.submit` runs the whole loop, witnessed.
-- **Done, durable storage.** A file-backed `FileStorage` (append-only JSONL) so a ledger outlives the process: it recovers exactly on restart, tolerates a crash-torn final write, and stays tamper-evident.
-- **Done, the default roster.** 28 domain-neutral capability lanes (engineering, graphics, support, research) shipped in the box and loaded with `roster.load_default()`. Plain capability names, every lane keyword-routable, including `model-foundry` for bounded self-improving daemon and large-context model workflow.
-- **Done, the daemon (HTTP).** A stdlib-asyncio HTTP service over one durable ledger: route, plan, submit, and verify or replay the record over HTTP. Every request witnessed into the same record.
-- **Done, the MCP surface.** The same tools over MCP (JSON-RPC on stdio), a thin adapter over the HTTP surface so the two cannot drift. The lone optional edge.
-- **Done, the CLI.** A `forum` command: route, submit, serve, mcp, and ledger verify / show / replay / get. Pick a model with `--api` or `--cmd`.
-- **Done, hardened and proven.** Each verdict chains to the result it judged, the routing ladder reaches the Classifier on escalation (`assign` / `submit_one`), and a gated test proves the whole loop against a real model. See [RUNNING.md](RUNNING.md).
-- **1.0.** Durable, verifiable, daemonized, installable, documented. The functional engine is complete.
-- **1.1, the run contract.** A ContextProvider seam (plan on a brain's organized context, witnessed) and a RunBudget that bounds a run. Research-informed.
-- **1.2, witnessed escalation.** Model identity in the ledger and validator-driven escalation up a ladder of stronger executors, on a verifiable signal not model confidence. Research-informed.
-- **1.3, reading the record.** A run summary aggregated purely from the witnessed ledger (`forum ledger summary`), and a ledger A/B (`forum bench`) so an improvement is measured from the record, not claimed.
-- **1.4, did the run answer?** A witnessed intent check: how much of the request the final answer covers, recorded and surfaced in the summary and A/B. A reproducible lexical floor; a grounded model intent-judge is the next rung.
-- **1.5, the intent-judge.** The rung above the floor: when the lexical check flags drift, an opt-in model judge resolves whether the answer truly drifted or just paraphrased, witnessed and budget-bounded. Cheap-first, like routing and escalation.
-- **1.6, the DAG flows data.** Typed edges: a data edge feeds its upstream's witnessed output into the downstream task, an order edge only sequences. Existing plans now flow data downstream instead of dropping it, and every edge and hand-off is witnessed.
-- **1.7, the verification seam.** A VerifierProvider seam, the peer of the context seam, so an external verifier checks the answer after the run, witnessed. The default abstains; Forum stands alone.
-- **1.8, opt-in batched fsync.** A throughput option for the durable ledger: defer the per-append fsync and force it on demand with `ledger.sync()`. The default stays fsync-every-append; the tradeoff is stated plainly.
-- **1.9, phased checkpoints and resume.** A run resumes from the witnessed ledger, reusing successful tasks and re-running only the rest; each wave can checkpoint as a savepoint. The ledger is the resume state, no model in the loop.
-- **1.10, efficiency.** Bounded upstream injection (cap the prompt, keep the full output in the ledger) and a weighed record (`payload_bytes`) so a leaner run is provable in `forum bench`.
-- **1.11, the delivery ladder.** A deterministic concision floor on the answer, and an opt-in verified tightening: a reviser shortens a flagged answer, accepted only if it stays covered. Less word-dense, no request term dropped.
-- **1.12, per-task context.** The ContextProvider seam routed to every task: each agent gets fresh, task-specific context at dispatch, capped and witnessed. The Forum-native half of context management, composing with a brain through the seam.
-- **1.13, context pressure.** Deterministic approximate-token budgets for request context, per-task context, upstream injection, and final synthesis result inputs, with retained/trimmed/omitted decisions witnessed and summarized.
-- **1.14, expert delivery profiles.** Deterministic local profile checks for operator, engineer, researcher, and executive delivery, witnessed in the ledger and exposed across CLI, HTTP, MCP, receipts, summary, and bench.
-- **1.15, context capsules.** Deterministic ledger compaction into reusable context briefs, exposed through CLI, HTTP, MCP, and a CLI submit flag that feeds prior run state through the existing ContextProvider seam.
-- **1.16, task done criteria.** Optional planner-produced `done_when` criteria travel with a task as a structured contract: workers see them, task entries witness them, and validators judge against them.
-- **1.17, submit wave checkpoints.** High-level submit runs expose dispatcher wave savepoints through Python, CLI, HTTP, and MCP, so ordinary platform runs can leave resumable phase markers.
-- **1.18, run rooms.** A read-only `forum.run-room/v1` projection joins request, route, plan, tasks, criteria, results, verdicts, checkpoints, answer, and quality signals into one operator/platform payload.
-- **1.19, actionable run rooms.** The same room payload now carries deterministic `next_actions` for retry, budget, checkpoint resume, delivery revision, intent judgment, verifier review, receipt export, or initial request submission.
-- **1.20, operator run-room briefs.** Run rooms now include deterministic prose briefings: status, route posture, risk, next step, and compact signals, exposed in JSON and through `forum ledger room --brief`.
-- **1.21, runtime inspection.** `forum runtime inspect` reports merged config/CLI runtime policy, roster tier demand, missing executors, and fallback behavior before a run starts, without executing commands or touching model endpoints.
-- **1.22, context preflight.** `forum context preflight` estimates request and optional capsule context pressure against configured budgets before submit, reporting retained, trimmed, or omitted context without raw capsule text in JSON.
-- **1.23, runtime and preflight surfaces.** The daemon and MCP expose live runtime inspection and context preflight through `GET /runtime`, `POST /context/preflight`, `forum.runtime.inspect`, and `forum.context.preflight`, so hosts can inspect the run posture before submit.
-- **1.24, communication contracts.** Route frames now embed deterministic `forum.communication-contract/v1` payloads, synthesis receives the same lead/structure/evidence/avoid/required-move contract, and hosts can call `POST /prose/contract` or MCP `forum.prose.contract`.
-- **Beyond.** A ledger-reading dashboard; compact-on-limit with the brain; platform execution rooms; advanced local model endpoints; and the code-readability half of the quality contract (the concision half shipped in 1.11), peers not one absorbing the other.
+The latest tagged release on PyPI is `forum-engine 1.12.0`. Development since that tag (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and operator briefs, runtime inspection, approval gates with durable deadlines, proof and domain lanes, and campaign orchestration) is on `main` and recorded in [CHANGELOG.md](CHANGELOG.md) under Unreleased; it ships in the next release. The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
 
 ## Docs
 
+- [docs/INTRODUCTION.md](docs/INTRODUCTION.md): what forum is, core concepts, and a first-ten-minutes walkthrough.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the layers, the ledger, and the surfaces.
 - [RUNNING.md](RUNNING.md): run it against a real model, over the API or a model CLI.
+- [USAGE.md](USAGE.md): the operator command surface.
+- [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md): human-in-the-loop gates with durable deadlines.
+- [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation.
 - [SECURITY.md](SECURITY.md): the trust model, the no-shell guarantee, and sandboxing.
-- [RELEASING.md](RELEASING.md): how a release is built and published.
+
+Peer projects in Project Telos compose through clean seams: [index](https://github.com/HarperZ9/index) supplies organized context through the `ContextProvider` seam, and [crucible](https://github.com/HarperZ9/crucible) can check answers through the `VerifierProvider` seam. Both default to no-ops, so forum stands alone.
+
+## The record is the point
+
+Most orchestrators give you output and a log you are asked to trust. forum writes every routing decision, task, result, and verdict into a hash-chained, content-addressed ledger you can verify, replay, and challenge, so a run is something you can prove, not just believe.
 
 ## License
 
-Forum is fair-source: the code is open to read, run, and build on, with commercial
-use reserved so the project can fund its own development. Copyright stays with the
-author. See [LICENSE](LICENSE) for the exact terms.
+Forum is fair-source: the code is open to read, run, and build on, with commercial use reserved so the project can fund its own development. Copyright stays with the author. See [LICENSE](LICENSE) for the exact terms.
 
 ## For developers
 
-Keep the public README, package metadata, and examples aligned with current behavior. Before opening a PR or pushing a release, run the local package verification path.
+Keep the public README, package metadata, and examples aligned with current behavior. Before opening a PR or pushing a release:
 
 ```bash
-python -m pip install -e ".[test]"
+python -m pip install -e ".[dev]"
 python -m pytest
+python examples/demo.py
 ```
