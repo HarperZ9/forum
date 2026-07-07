@@ -88,11 +88,13 @@ def _bad(ev: Any, i: int):
     raise TraceParseError(f"event #{i} is not an object: {type(ev).__name__}")
 
 
-def import_trace(events: Sequence[dict], fmt: str = "generic",
-                 *, clock=None) -> dict:
-    """Fold a trace into a fresh in-memory ledger and return a witnessed record:
-    the ledger entries, the verify verdict, and the Merkle root. Deterministic
-    given `clock` (a counter is used if none is supplied, so ts is reproducible)."""
+def ledger_from_trace(events: Sequence[dict], fmt: str = "generic",
+                      *, clock=None) -> tuple[Ledger, int]:
+    """Fold a trace into a fresh in-memory ledger and return (ledger, dangling).
+    This is the seam a downstream consumer (e.g. gradable export) needs: it wants
+    the ledger itself, not just a summary. Deterministic given `clock` (a counter
+    is used if none is supplied, so ts is reproducible). `dangling` counts events
+    whose parent id was unknown at append time (recorded as roots, id kept)."""
     norm = normalize_trace(events, fmt)
     counter = {"t": 0.0}
 
@@ -102,8 +104,6 @@ def import_trace(events: Sequence[dict], fmt: str = "generic",
 
     ledger = Ledger(InMemoryStorage(), clock=clock or _c)
     id_to_seq: dict[Any, int] = {}
-    entries: list[dict[str, Any]] = []
-    hashes: list[str] = []
     dangling = 0
     for n in norm:
         parent_seq = None
@@ -116,9 +116,20 @@ def import_trace(events: Sequence[dict], fmt: str = "generic",
                           payload=n["payload"], causal_parent=parent_seq)
         if n.get("id") is not None:
             id_to_seq[n["id"]] = e.seq
-        entries.append({"seq": e.seq, "actor": e.actor, "kind": e.kind,
-                        "causal_parent": e.causal_parent, "entry_hash": e.entry_hash})
-        hashes.append(e.entry_hash)
+    return ledger, dangling
+
+
+def import_trace(events: Sequence[dict], fmt: str = "generic",
+                 *, clock=None) -> dict:
+    """Fold a trace into a fresh in-memory ledger and return a witnessed record:
+    the ledger entries, the verify verdict, and the Merkle root. Deterministic
+    given `clock` (a counter is used if none is supplied, so ts is reproducible)."""
+    ledger, dangling = ledger_from_trace(events, fmt, clock=clock)
+    replayed = ledger.replay()
+    entries = [{"seq": e.seq, "actor": e.actor, "kind": e.kind,
+                "causal_parent": e.causal_parent, "entry_hash": e.entry_hash}
+               for e in replayed]
+    hashes: list[str] = [e.entry_hash for e in replayed]
     root = merkle_root(hashes) if hashes else GENESIS
     return {
         "schema": "forum.flight-recorder/1",

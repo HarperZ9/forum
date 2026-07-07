@@ -189,6 +189,58 @@ def _cmd_import_trace(args) -> int:
     return 0
 
 
+def _cmd_grade(args) -> int:
+    from forum.grade import grade_ledger
+
+    led = _open_ledger(args.ledger)
+    print(json.dumps(grade_ledger(led, min_checks=args.min_checks), indent=2))
+    return 0
+
+
+def _cmd_export_gradable(args) -> int:
+    from forum.gradable_export import gradable_record, write_gradable_jsonl
+
+    led = _open_ledger(args.ledger)
+    row = gradable_record(led, min_checks=args.min_checks)
+    if args.out:
+        write_gradable_jsonl([row], args.out)
+        print(f"wrote 1 gradable-trajectory row -> {args.out} "
+              f"(grade={row['grade']['label']} reward={row['grade']['reward']})")
+    else:
+        print(json.dumps(row, indent=2))
+    return 0
+
+
+def _cmd_mine(args) -> int:
+    """One command: fold ANY framework's trace into a verifiable ledger, grade it,
+    and append it as a gradable-trajectory datum. trace -> witnessed RL data."""
+    import sys as _sys
+
+    from forum.flight_recorder import TraceParseError, ledger_from_trace
+    from forum.gradable_export import gradable_record, write_gradable_jsonl
+
+    try:
+        text = _sys.stdin.read() if args.trace == "-" else open(args.trace, encoding="utf-8").read()
+        events = json.loads(text)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"mine: cannot read trace: {exc}", file=_sys.stderr)
+        return 2
+    try:
+        led, _ = ledger_from_trace(events, args.format)
+    except TraceParseError as exc:
+        print(f"mine: {exc}", file=_sys.stderr)
+        return 2
+    row = gradable_record(led, min_checks=args.min_checks)
+    if args.out:
+        write_gradable_jsonl([row], args.out)
+        print(f"mined {args.trace} -> {args.out} "
+              f"(grade={row['grade']['label']} reward={row['grade']['reward']}, "
+              f"merkle={row['oracle']['merkle_root'][:12]}...)")
+    else:
+        print(json.dumps(row, indent=2))
+    return 0
+
+
 def _cmd_route(args) -> int:
     from forum.roster import load_default
     from forum.route_frame import derive_route_frame, frame_payload
@@ -728,6 +780,34 @@ def build_parser() -> argparse.ArgumentParser:
     ft.add_argument("--format", choices=["langsmith", "otel", "agentops", "generic"],
                     default="generic")
     ft.set_defaults(func=_cmd_import_trace)
+
+    grade = sub.add_parser(
+        "grade",
+        help="grade a run's ledger — an outcome signal that CAN fail and counts "
+             "only independent checks (a producer cannot grade itself)")
+    grade.add_argument("ledger", help="path to a persisted ledger directory")
+    grade.add_argument("--min-checks", type=int, default=2)
+    grade.set_defaults(func=_cmd_grade)
+
+    exp = sub.add_parser(
+        "export-gradable",
+        help="export a run's ledger as one forum.gradable-trajectory/1 datum "
+             "(prompt + trajectory + a can-fail grade + off-forum re-derivation inputs)")
+    exp.add_argument("ledger", help="path to a persisted ledger directory")
+    exp.add_argument("--out", help="append the sealed row to this JSONL (else print)")
+    exp.add_argument("--min-checks", type=int, default=2)
+    exp.set_defaults(func=_cmd_export_gradable)
+
+    mine = sub.add_parser(
+        "mine",
+        help="one command: fold ANY framework's trace into a verifiable ledger, "
+             "grade it, and append it as witnessed gradable RL data")
+    mine.add_argument("trace", help="path to a JSON trace (list of events), or - for stdin")
+    mine.add_argument("--format", choices=["langsmith", "otel", "agentops", "generic"],
+                      default="generic")
+    mine.add_argument("--out", help="append the sealed gradable row to this JSONL (else print)")
+    mine.add_argument("--min-checks", type=int, default=2)
+    mine.set_defaults(func=_cmd_mine)
 
     submit = sub.add_parser("submit", help="plan and answer a request, witnessed")
     submit.add_argument("request")
