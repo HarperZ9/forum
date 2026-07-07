@@ -102,7 +102,8 @@ def import_trace(events: Sequence[dict], fmt: str = "generic",
 
     ledger = Ledger(InMemoryStorage(), clock=clock or _c)
     id_to_seq: dict[Any, int] = {}
-    entries = []
+    entries: list[dict[str, Any]] = []
+    hashes: list[str] = []
     dangling = 0
     for n in norm:
         parent_seq = None
@@ -117,7 +118,8 @@ def import_trace(events: Sequence[dict], fmt: str = "generic",
             id_to_seq[n["id"]] = e.seq
         entries.append({"seq": e.seq, "actor": e.actor, "kind": e.kind,
                         "causal_parent": e.causal_parent, "entry_hash": e.entry_hash})
-    root = merkle_root([e["entry_hash"] for e in entries]) if entries else GENESIS
+        hashes.append(e.entry_hash)
+    root = merkle_root(hashes) if hashes else GENESIS
     return {
         "schema": "forum.flight-recorder/1",
         "format": fmt,
