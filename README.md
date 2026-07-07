@@ -1,20 +1,17 @@
-<p align="center">
-  <img src="docs/brand/forum-hero.png" alt="Forum, coordinate agent work with replayable ledgers">
-</p>
-<!-- Project mark: docs/brand/forum-mark.svg -->
+<p align="center"><img src=".github/assets/banner.svg" alt="forum: Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger." width="100%"></p>
 
-# forum
+**Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger.**
 
-> Coordinate agents through ledgers a later run can inspect and resume.
+[![PyPI](https://img.shields.io/pypi/v/forum-engine?style=flat-square&labelColor=14041b&color=99f147)](https://pypi.org/project/forum-engine/)
+[![license](https://img.shields.io/badge/license-Forum%20Fair--Source-8f8095?style=flat-square&labelColor=14041b)](LICENSE)
+[![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
+[![downloads](https://img.shields.io/pypi/dm/forum-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/forum-engine/)
+![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
+![deps: none](https://img.shields.io/badge/deps-none-success?style=flat-square&labelColor=14041b)
+
+forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
-
-[![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/forum-engine.svg)](https://pypi.org/project/forum-engine/)
-[![downloads](https://img.shields.io/pypi/dm/forum-engine.svg?label=downloads)](https://pypi.org/project/forum-engine/)
-![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-![deps: none](https://img.shields.io/badge/deps-none-success.svg)
-![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
 
 ## Try it
 
