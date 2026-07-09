@@ -61,6 +61,22 @@ brief: latest request, latest answer, task results, quality signals, checkpoint,
 verification state. `--use-capsule-context` feeds that brief through the normal
 ContextProvider seam, so existing context budgets still decide how much is admitted.
 
+## Deep Verify Benchmark
+
+```bash
+forum bench-deep-verify --json
+forum bench-deep-verify --entries 1000,10000 --payload-bytes 256,4096 --storage memory --storage file-batched --redaction-ratio 0,0.5,1 --json --out deep-verify.json
+```
+
+`bench-deep-verify` measures the scaling cost of the causal ledger's integrity checks.
+It reports chain-only `verify()`, payload-only `verify_payloads()`, and full
+`verify(deep=True)` timings as a `forum.deep-verify-benchmark/v1` receipt. The
+variables are entry count, payload body bytes, storage mode, fsync mode, redaction
+ratio, warmups, and repeats. Redacted payload bodies are removed before verification,
+so the benchmark also shows the content-addressed trade-off: the chain can still
+verify when only fingerprints remain, while deep payload rehashing scales with the
+payload bodies that are still present.
+
 ## Expert Delivery Profiles
 
 ```bash
