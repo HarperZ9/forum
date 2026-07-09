@@ -112,7 +112,7 @@ The daemon exposes route, plan, submit, humanize, prose contracts, gates, run ro
 
 ## Status
 
-The latest release is `forum-engine 1.13.0` (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and operator briefs, runtime inspection, approval gates with durable deadlines, proof and domain lanes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
+The latest release is `forum-engine 1.13.0` (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and operator briefs, runtime inspection, approval gates with durable deadlines, proof and domain lanes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). The test suite currently collects 556 tests, including gated real-model tests, and CI runs on every push.
 
 ## Docs
 
