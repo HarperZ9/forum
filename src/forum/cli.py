@@ -697,6 +697,35 @@ def _cmd_bench(args) -> int:
     return 0
 
 
+def _cmd_bench_deep_verify(args) -> int:
+    from forum.bench_deep_verify import (
+        benchmark_matrix,
+        dumps,
+        parse_float_csv,
+        parse_int_csv,
+        report_text,
+    )
+
+    try:
+        payload = benchmark_matrix(
+            entry_counts=parse_int_csv(args.entries),
+            payload_body_bytes=parse_int_csv(args.payload_bytes),
+            storage_modes=args.storage or ["memory"],
+            redaction_ratios=parse_float_csv(args.redaction_ratio),
+            repeats=args.repeats,
+            warmups=args.warmups,
+        )
+    except ValueError as exc:
+        print(f"bench-deep-verify: {exc}", file=sys.stderr)
+        return 2
+    text = dumps(payload)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    print(text if args.json else report_text(payload))
+    return 0
+
+
 def _add_ledger(sp) -> None:
     sp.add_argument("--ledger", default=DEFAULT_LEDGER, help="ledger directory (default: forum-ledger)")
 
@@ -963,6 +992,30 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("b", help="ledger directory B")
     bench.add_argument("--json", action="store_true", help="emit both summaries and the delta as JSON")
     bench.set_defaults(func=_cmd_bench)
+
+    deep = sub.add_parser(
+        "bench-deep-verify",
+        help="measure ledger verify(deep=True) scaling across payload and storage variables",
+    )
+    deep.add_argument("--entries", default="100,1000", help="comma-separated entry counts")
+    deep.add_argument("--payload-bytes", default="256,4096", help="comma-separated body byte targets")
+    deep.add_argument(
+        "--storage",
+        action="append",
+        choices=["memory", "file-sync", "file-batched"],
+        default=None,
+        help="storage mode to include; repeat for multiple modes",
+    )
+    deep.add_argument(
+        "--redaction-ratio",
+        default="0,0.5,1",
+        help="comma-separated ratios of payload bodies removed before verification",
+    )
+    deep.add_argument("--warmups", type=int, default=1, help="warmup iterations per case")
+    deep.add_argument("--repeats", type=int, default=5, help="measured iterations per case")
+    deep.add_argument("--json", action="store_true", help="emit the full JSON payload")
+    deep.add_argument("--out", default=None, help="write the full JSON payload to this path")
+    deep.set_defaults(func=_cmd_bench_deep_verify)
 
     return parser
 
