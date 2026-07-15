@@ -114,13 +114,25 @@ def gradable_record(ledger: Ledger, *, request: str | None = None,
             # The consumer re-derives merkle_root + reward and decides MATCH/DRIFT.
             "verified": ledger.verify(deep=True),
             "grade_inputs": grade["grade_inputs"],
+            # the check payload BODIES, bound to the merkle chain: each hashes to
+            # a witnessed entry's payload_hash, so a consumer reads ok from the
+            # body (not the free-floating grade_input) and a flipped grade cannot
+            # survive. Without these the grade witnessed itself; this closes it.
+            "check_payloads": [
+                {"seq": gi["seq"], "payload_hash": gi["payload_hash"],
+                 "body": ledger.get_payload(gi["payload_hash"])}
+                for gi in grade["grade_inputs"]
+            ],
             "recheck": ("recompute each entry_hash from its fields "
                         "(sha256 of seq|ts(.6f)|actor|kind|causal_parent|payload_hash|"
                         "prev_hash joined by \\x1f), fold the RFC6962 merkle "
                         "(0x00 leaf / 0x01 node, promote-odd) and compare to "
-                        "merkle_root; recompute reward from grade_inputs. Tamper "
-                        "any entry -> root mismatch; flip any grade_input.ok -> "
-                        "reward changes."),
+                        "merkle_root; for each check_payload confirm "
+                        "canonical_hash(body)==payload_hash of a witnessed entry, "
+                        "read ok from that bound body, and recompute reward from "
+                        "the bound checks. Tamper any entry OR any check body -> "
+                        "a hash mismatch; the grade cannot be forged apart from "
+                        "the merkle-witnessed record."),
         },
         "budget": {
             "model_calls": _model_calls(ledger),
