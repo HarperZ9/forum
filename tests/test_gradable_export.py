@@ -104,3 +104,62 @@ def test_pinned_witness_vector():
             f"merkle recipe drifted: {root} != pinned {PINNED_MERKLE_ROOT}")
     # else: first run — capture the value below and pin it on both sides
     assert len(root) == 64 and root != GENESIS
+
+
+def _rederive_reward_from_bound_payloads(row):
+    """Off-forum re-derivation that reads each check's ok from the WITNESSED
+    payload body (bound to the merkle chain), never from the free-floating
+    grade_inputs. Raises AssertionError if a body does not bind."""
+    from forum.hashing import canonical_hash
+    entries = {e["payload_hash"]: e for e in row["trajectory"]["entries"]}
+    producers = {e["actor"] for e in row["trajectory"]["entries"]
+                 if e["kind"] == "result"}
+    checks = row["oracle"]["check_payloads"]
+    passed = refuted = 0
+    for cp in checks:
+        ph = cp["payload_hash"]
+        # the body must hash to a witnessed entry's payload_hash (merkle-bound)
+        assert ph in entries, "check payload not in the witnessed trajectory"
+        assert canonical_hash(cp["body"]) == ph, "check body does not hash to its entry"
+        entry = entries[ph]
+        if entry["actor"] in producers:
+            continue  # self-graded, read from the witnessed actor, not a label
+        ok = cp["body"].get("ok")
+        if ok is None:
+            continue
+        if ok:
+            passed += 1
+        else:
+            refuted += 1
+    total = passed + refuted
+    return round(passed / total, 6) if total else 0.0
+
+
+def test_flipped_grade_input_breaks_bound_recheck():
+    row = gradable_record(_graded_run())
+    # the honest export re-derives to its own reward from the bound bodies
+    assert _rederive_reward_from_bound_payloads(row) == row["grade"]["reward"]
+    # an adversary flips a grade_input.ok false->true and inflates the grade,
+    # leaving the witnessed entries (and their bodies) untouched, and reseals
+    import copy
+    forged = copy.deepcopy(row)
+    forged["grade"]["reward"] = 1.0
+    forged["grade"]["label"] = "PASS"
+    for gi in forged["oracle"]["grade_inputs"]:
+        gi["ok"] = True
+    # the bound re-derivation reads ok from the witnessed bodies, so the forged
+    # grade does not match what the merkle-bound checks actually say
+    assert _rederive_reward_from_bound_payloads(forged) == row["grade"]["reward"]
+
+
+def test_flipping_a_check_body_breaks_its_hash_binding():
+    row = gradable_record(_graded_run())
+    import copy
+    forged = copy.deepcopy(row)
+    # flip the ok inside a check BODY to fabricate a pass: the body no longer
+    # hashes to its witnessed payload_hash, so the binding is broken
+    forged["oracle"]["check_payloads"][0]["body"]["ok"] = (
+        not forged["oracle"]["check_payloads"][0]["body"]["ok"])
+    import pytest
+    with pytest.raises(AssertionError):
+        _rederive_reward_from_bound_payloads(forged)

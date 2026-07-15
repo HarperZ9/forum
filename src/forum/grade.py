@@ -60,7 +60,11 @@ def grade_ledger(ledger: Ledger, *, min_checks: int = 2) -> dict[str, Any]:
                 passed += 1
             else:
                 refuted += 1
-            inputs.append({"actor": e.actor, "ok": bool(ok), "kind": kind})
+            # bind each grade input to its witnessed entry (seq + payload_hash),
+            # so a consumer can re-read ok from the merkle-covered body rather
+            # than trusting this free-floating ok
+            inputs.append({"actor": e.actor, "ok": bool(ok), "kind": kind,
+                           "seq": e.seq, "payload_hash": e.payload_hash})
             graders.append(e.actor)
     count = passed + refuted
     reward = round(passed / count, 6) if count else 0.0
