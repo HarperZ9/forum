@@ -65,7 +65,7 @@ forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
 forum mcp --cmd "ollama run llama3"
 ```
 
-`forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `bench`, and `bench-deep-verify`. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the operator surface.
+`forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `bench`, and `bench-deep-verify`. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
 
 ## A worked example: catch a tampered record
 
@@ -112,14 +112,14 @@ The daemon exposes route, plan, submit, humanize, prose contracts, gates, run ro
 
 ## Status
 
-The latest release is `forum-engine 1.13.0` (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and operator briefs, runtime inspection, approval gates with durable deadlines, proof and domain lanes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
+The latest release is `forum-engine 1.13.0` (context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and readable briefs, runtime inspection, approvals with durable deadlines, proof and domain routes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
 
 ## Docs
 
 - [docs/INTRODUCTION.md](docs/INTRODUCTION.md): what forum is, core concepts, and a first-ten-minutes walkthrough.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the layers, the ledger, and the surfaces.
 - [RUNNING.md](RUNNING.md): run it against a real model, over the API or a model CLI.
-- [USAGE.md](USAGE.md): the operator command surface.
+- [USAGE.md](USAGE.md): the full command reference.
 - [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md): human-in-the-loop gates with durable deadlines.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation.
 - [SECURITY.md](SECURITY.md): the trust model, the no-shell guarantee, and sandboxing.
