@@ -134,8 +134,9 @@ def test_build_run_room_joins_current_run_state():
         "posture": "architect",
         "delivery_profile": "engineer",
         "summary": (
-            "The latest run is verified, has a final answer, "
-            "and has no blocking signals."
+            "The latest run's ledger re-derived, it has a final answer, and no "
+            "blocking signals fired; whether an external check accepted the answer "
+            "is reported in the signals, not assumed from the ledger."
         ),
         "risk": "No blocking signals detected.",
         "next_step": "Export run receipt.",
@@ -143,6 +144,7 @@ def test_build_run_room_joins_current_run_state():
             "Route: implementation / execute / architect",
             "Tasks: 1 total, 1 with results, 1 accepted",
             "Answer: present",
+            "External verification: none ran (an intact ledger is not answer acceptance)",
         ],
     }
     assert "Forum run room" in room_text(room)
