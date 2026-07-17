@@ -55,7 +55,15 @@ def _spec_from_row(row: dict) -> AgentSpec:
 
 def _roster_from_data(data: dict) -> Roster:
     rows = data.get("agent", [])
-    return Roster(tuple(_spec_from_row(r) for r in rows))
+    specs = tuple(_spec_from_row(r) for r in rows)
+    # names must be unique: a duplicate double-counts one actor in routing and
+    # lets a second row suppress or impersonate the first
+    seen: set[str] = set()
+    for s in specs:
+        if s.name in seen:
+            raise ValueError(f"duplicate agent name: {s.name!r}")
+        seen.add(s.name)
+    return Roster(specs)
 
 
 def loads(text: str) -> Roster:

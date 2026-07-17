@@ -296,4 +296,16 @@ def _signals(payloads: list[tuple[LedgerEntry, dict[str, Any]]], counts: Counter
             1 for entry, payload in payloads
             if entry.kind == "verification" and payload.get("ok") is False
         ),
+        # an external verification actually ran (ok is not None): distinguishes
+        # 'nobody checked the answer' from 'the ledger re-derived'
+        "verifications_ran": sum(
+            1 for entry, payload in payloads
+            if entry.kind == "verification" and payload.get("ok") is not None
+        ),
+        # the SEMANTIC intent judge confirmed a drift (kind=='intent_judgment',
+        # ok is False), distinct from the LEXICAL intent_check's 'possible' flag
+        "intent_drift_judged": sum(
+            1 for entry, payload in payloads
+            if entry.kind == "intent_judgment" and payload.get("ok") is False
+        ),
     }
