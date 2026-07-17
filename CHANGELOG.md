@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Deep verify benchmark: adds `forum bench-deep-verify`, a zero-dependency benchmark
+  for ledger integrity scaling. It times chain-only `verify()`, payload-only
+  `verify_payloads()`, and full `verify(deep=True)` across entry counts, payload body
+  sizes, storage modes, fsync behavior, redaction ratios, warmups, and repeats, with a
+  `forum.deep-verify-benchmark/v1` JSON receipt for public comparison.
+
 ## 1.13.0 (2026-07-07): campaign orchestration, approval gates, and operator surfaces
 
 A run is no longer the largest unit Forum can witness. This release adds campaign orchestration above the run, puts a human approval gate (with a durable deadline) inside the run, and gives the operator live surfaces to watch and steer both: run rooms, runtime inspection, context preflight, and context capsules, all read from the same witnessed ledger.
