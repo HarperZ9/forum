@@ -121,6 +121,15 @@ def submit_receipt(
         entries, ledger, delivery_profile, route_frame
     )
     verified = ledger.verify(deep=True)
+    # the EXTERNAL verifier's ruling on the answer, distinct from hash-chain
+    # integrity: the latest witnessed kind=='verification' entry's ok. None
+    # when no verification ran (the honest null: nobody checked).
+    answer_verified = None
+    for entry in entries:
+        if entry.kind == "verification":
+            ok = ledger.get_payload(entry.payload_hash).get("ok")
+            if ok is not None:
+                answer_verified = bool(ok)
     checkpoint = ledger.checkpoint()
     intent_material = {
         "tool": "forum",
@@ -158,7 +167,14 @@ def submit_receipt(
             **_delivery_profile_observed(entries, ledger),
         },
         "verification": {
-            "verdict": "MATCH" if verified else "DRIFT",
+            # the verdict is ledger-scoped (MATCH == the hash chain re-derived,
+            # transparently paired with ledger_deep_verified). An active
+            # external REFUTATION (answer_verified False) never reads MATCH; an
+            # ABSTENTION (None, forum standing alone by design) leaves the
+            # ledger verdict but surfaces the null, so the external ruling is
+            # never omitted from the portable receipt a stranger relies on.
+            "verdict": "MATCH" if (verified and answer_verified is not False) else "DRIFT",
             "ledger_deep_verified": verified,
+            "answer_verified": answer_verified,
         },
     }

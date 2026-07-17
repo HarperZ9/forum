@@ -169,6 +169,78 @@ def _cmd_humanize(args) -> int:
         return 2
     return 0
 
+def _cmd_import_trace(args) -> int:
+    import sys as _sys
+
+    from forum.flight_recorder import TraceParseError, import_trace
+
+    try:
+        text = _sys.stdin.read() if args.trace == "-" else open(args.trace, encoding="utf-8").read()
+        events = json.loads(text)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"import-trace: cannot read trace: {exc}", file=_sys.stderr)
+        return 2
+    try:
+        record = import_trace(events, args.format)
+    except TraceParseError as exc:
+        print(f"import-trace: {exc}", file=_sys.stderr)
+        return 2
+    print(json.dumps(record, indent=2))
+    return 0
+
+
+def _cmd_grade(args) -> int:
+    from forum.grade import grade_ledger
+
+    led = _open_ledger(args.ledger)
+    print(json.dumps(grade_ledger(led, min_checks=args.min_checks), indent=2))
+    return 0
+
+
+def _cmd_export_gradable(args) -> int:
+    from forum.gradable_export import gradable_record, write_gradable_jsonl
+
+    led = _open_ledger(args.ledger)
+    row = gradable_record(led, min_checks=args.min_checks)
+    if args.out:
+        write_gradable_jsonl([row], args.out)
+        print(f"wrote 1 gradable-trajectory row -> {args.out} "
+              f"(grade={row['grade']['label']} reward={row['grade']['reward']})")
+    else:
+        print(json.dumps(row, indent=2))
+    return 0
+
+
+def _cmd_mine(args) -> int:
+    """One command: fold ANY framework's trace into a verifiable ledger, grade it,
+    and append it as a gradable-trajectory datum. trace -> witnessed RL data."""
+    import sys as _sys
+
+    from forum.flight_recorder import TraceParseError, ledger_from_trace
+    from forum.gradable_export import gradable_record, write_gradable_jsonl
+
+    try:
+        text = _sys.stdin.read() if args.trace == "-" else open(args.trace, encoding="utf-8").read()
+        events = json.loads(text)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"mine: cannot read trace: {exc}", file=_sys.stderr)
+        return 2
+    try:
+        led, _ = ledger_from_trace(events, args.format)
+    except TraceParseError as exc:
+        print(f"mine: {exc}", file=_sys.stderr)
+        return 2
+    row = gradable_record(led, min_checks=args.min_checks)
+    if args.out:
+        write_gradable_jsonl([row], args.out)
+        print(f"mined {args.trace} -> {args.out} "
+              f"(grade={row['grade']['label']} reward={row['grade']['reward']}, "
+              f"merkle={row['oracle']['merkle_root'][:12]}...)")
+    else:
+        print(json.dumps(row, indent=2))
+    return 0
+
+
 def _cmd_route(args) -> int:
     from forum.roster import load_default
     from forum.route_frame import derive_route_frame, frame_payload
@@ -625,6 +697,35 @@ def _cmd_bench(args) -> int:
     return 0
 
 
+def _cmd_bench_deep_verify(args) -> int:
+    from forum.bench_deep_verify import (
+        benchmark_matrix,
+        dumps,
+        parse_float_csv,
+        parse_int_csv,
+        report_text,
+    )
+
+    try:
+        payload = benchmark_matrix(
+            entry_counts=parse_int_csv(args.entries),
+            payload_body_bytes=parse_int_csv(args.payload_bytes),
+            storage_modes=args.storage or ["memory"],
+            redaction_ratios=parse_float_csv(args.redaction_ratio),
+            repeats=args.repeats,
+            warmups=args.warmups,
+        )
+    except ValueError as exc:
+        print(f"bench-deep-verify: {exc}", file=sys.stderr)
+        return 2
+    text = dumps(payload)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    print(text if args.json else report_text(payload))
+    return 0
+
+
 def _add_ledger(sp) -> None:
     sp.add_argument("--ledger", default=DEFAULT_LEDGER, help="ledger directory (default: forum-ledger)")
 
@@ -698,6 +799,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="accepted for operator-surface consistency; route already emits JSON",
     )
     route.set_defaults(func=_cmd_route)
+
+    ft = sub.add_parser(
+        "import-trace",
+        help="fold an external agent trace (LangSmith/OTel/AgentOps/generic JSON) "
+             "into a verifiable, replayable ledger — a flight recorder that "
+             "refutes its own tampering")
+    ft.add_argument("trace", help="path to a JSON trace (list of events), or - for stdin")
+    ft.add_argument("--format", choices=["langsmith", "otel", "agentops", "generic"],
+                    default="generic")
+    ft.set_defaults(func=_cmd_import_trace)
+
+    grade = sub.add_parser(
+        "grade",
+        help="grade a run's ledger — an outcome signal that CAN fail and counts "
+             "only independent checks (a producer cannot grade itself)")
+    grade.add_argument("ledger", help="path to a persisted ledger directory")
+    grade.add_argument("--min-checks", type=int, default=2)
+    grade.set_defaults(func=_cmd_grade)
+
+    exp = sub.add_parser(
+        "export-gradable",
+        help="export a run's ledger as one forum.gradable-trajectory/1 datum "
+             "(prompt + trajectory + a can-fail grade + off-forum re-derivation inputs)")
+    exp.add_argument("ledger", help="path to a persisted ledger directory")
+    exp.add_argument("--out", help="append the sealed row to this JSONL (else print)")
+    exp.add_argument("--min-checks", type=int, default=2)
+    exp.set_defaults(func=_cmd_export_gradable)
+
+    mine = sub.add_parser(
+        "mine",
+        help="one command: fold ANY framework's trace into a verifiable ledger, "
+             "grade it, and append it as witnessed gradable RL data")
+    mine.add_argument("trace", help="path to a JSON trace (list of events), or - for stdin")
+    mine.add_argument("--format", choices=["langsmith", "otel", "agentops", "generic"],
+                      default="generic")
+    mine.add_argument("--out", help="append the sealed gradable row to this JSONL (else print)")
+    mine.add_argument("--min-checks", type=int, default=2)
+    mine.set_defaults(func=_cmd_mine)
 
     submit = sub.add_parser("submit", help="plan and answer a request, witnessed")
     submit.add_argument("request")
@@ -853,6 +992,30 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("b", help="ledger directory B")
     bench.add_argument("--json", action="store_true", help="emit both summaries and the delta as JSON")
     bench.set_defaults(func=_cmd_bench)
+
+    deep = sub.add_parser(
+        "bench-deep-verify",
+        help="measure ledger verify(deep=True) scaling across payload and storage variables",
+    )
+    deep.add_argument("--entries", default="100,1000", help="comma-separated entry counts")
+    deep.add_argument("--payload-bytes", default="256,4096", help="comma-separated body byte targets")
+    deep.add_argument(
+        "--storage",
+        action="append",
+        choices=["memory", "file-sync", "file-batched"],
+        default=None,
+        help="storage mode to include; repeat for multiple modes",
+    )
+    deep.add_argument(
+        "--redaction-ratio",
+        default="0,0.5,1",
+        help="comma-separated ratios of payload bodies removed before verification",
+    )
+    deep.add_argument("--warmups", type=int, default=1, help="warmup iterations per case")
+    deep.add_argument("--repeats", type=int, default=5, help="measured iterations per case")
+    deep.add_argument("--json", action="store_true", help="emit the full JSON payload")
+    deep.add_argument("--out", default=None, help="write the full JSON payload to this path")
+    deep.set_defaults(func=_cmd_bench_deep_verify)
 
     return parser
 
