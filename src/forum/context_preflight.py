@@ -142,9 +142,12 @@ def _index_context_envelope_summary(context: str) -> dict | None:
         return None
     if data.get("schema") != "project-telos.context-envelope/v1":
         return None
-    budget = data.get("budget") if isinstance(data.get("budget"), dict) else {}
-    retained = data.get("retained") if isinstance(data.get("retained"), list) else []
-    omitted = data.get("omitted") if isinstance(data.get("omitted"), list) else []
+    raw_budget = data.get("budget")
+    raw_retained = data.get("retained")
+    raw_omitted = data.get("omitted")
+    budget = raw_budget if isinstance(raw_budget, dict) else {}
+    retained = raw_retained if isinstance(raw_retained, list) else []
+    omitted = raw_omitted if isinstance(raw_omitted, list) else []
     return {
         "schema": "project-telos.context-envelope/v1",
         "verification_verdict": data.get("verification_verdict"),
