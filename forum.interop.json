@@ -42,12 +42,21 @@
       "module": "src/forum/flight_recorder.py:normalize_trace",
       "summary": "",
       "consumable_as": []
+    },
+    {
+      "capability": "project-telos.context-envelope/v1",
+      "title": "bounded context envelope preflight",
+      "module": "src/forum/context_preflight.py:_index_context_envelope_summary",
+      "summary": "",
+      "consumable_as": []
     }
   ],
   "evidence": [
     "src/forum/ledger.py",
     "src/forum/flight_recorder.py",
     "src/forum/flagship.py",
-    "src/forum/receipts.py"
+    "src/forum/receipts.py",
+    "src/forum/context_capsule.py",
+    "src/forum/context_preflight.py"
   ]
 }
