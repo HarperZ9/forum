@@ -106,3 +106,28 @@ def test_context_preflight_recognizes_index_context_envelope_json():
     }
     text = context_preflight_text(payload)
     assert "structured: project-telos.context-envelope/v1 verdict=MATCH retained=2 omitted=1 tokens=42/100" in text
+
+
+def test_context_preflight_defaults_nullable_or_malformed_envelope_fields():
+    from forum.context_preflight import build_context_preflight
+
+    context = """
+    {
+      "schema": "project-telos.context-envelope/v1",
+      "verification_verdict": "PARTIAL",
+      "retained": null,
+      "omitted": {"name": "not-a-list"},
+      "budget": null
+    }
+    """
+
+    payload = build_context_preflight("improve forum", context=context, context_source="index")
+
+    assert payload["context"]["structured"] == {
+        "schema": "project-telos.context-envelope/v1",
+        "verification_verdict": "PARTIAL",
+        "retained": 0,
+        "omitted": 0,
+        "approx_tokens": None,
+        "token_budget": None,
+    }
