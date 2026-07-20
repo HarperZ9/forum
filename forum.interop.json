@@ -1,0 +1,62 @@
+{
+  "organ": "forum",
+  "invoke": {
+    "cli": "forum",
+    "mcp_server": "forum.mcp_surface:serve_stdio",
+    "python_import": "forum"
+  },
+  "emits": [
+    {
+      "capability": "project-telos.flagship-action/v1",
+      "title": "flagship-action envelope",
+      "module": "src/forum/flagship.py:envelope",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "forum.flight-recorder/1",
+      "title": "trace -> verifiable ledger",
+      "module": "src/forum/flight_recorder.py:import_trace",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "project-telos.action-receipt/v1",
+      "title": "submit action receipt",
+      "module": "src/forum/receipts.py:submit_receipt",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "forum.context-capsule/v1",
+      "title": "witnessed context capsule",
+      "module": "src/forum/context_capsule.py:build_context_capsule",
+      "summary": "",
+      "consumable_as": []
+    }
+  ],
+  "consumes": [
+    {
+      "capability": "external-agent-trace/1",
+      "title": "LangSmith/OTel/AgentOps trace",
+      "module": "src/forum/flight_recorder.py:normalize_trace",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "project-telos.context-envelope/v1",
+      "title": "bounded context envelope preflight",
+      "module": "src/forum/context_preflight.py:_index_context_envelope_summary",
+      "summary": "",
+      "consumable_as": []
+    }
+  ],
+  "evidence": [
+    "src/forum/ledger.py",
+    "src/forum/flight_recorder.py",
+    "src/forum/flagship.py",
+    "src/forum/receipts.py",
+    "src/forum/context_capsule.py",
+    "src/forum/context_preflight.py"
+  ]
+}
