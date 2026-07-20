@@ -79,3 +79,55 @@ def test_context_preflight_text_is_concise():
     assert "request: 3 tokens" in text
     assert "context: capsule trimmed 4->2 tokens" in text
     assert "capsule context would be trimmed" in text
+
+
+def test_context_preflight_recognizes_index_context_envelope_json():
+    from forum.context_preflight import build_context_preflight, context_preflight_text
+
+    context = """
+    {
+      "schema": "project-telos.context-envelope/v1",
+      "verification_verdict": "MATCH",
+      "retained": [{"name": "index"}, {"name": "forum"}],
+      "omitted": [{"name": "docs", "reason": "outside_focus_or_budget"}],
+      "budget": {"approx_tokens": 42, "token_budget": 100}
+    }
+    """
+
+    payload = build_context_preflight("improve index", context=context, context_source="index")
+
+    assert payload["context"]["structured"] == {
+        "schema": "project-telos.context-envelope/v1",
+        "verification_verdict": "MATCH",
+        "retained": 2,
+        "omitted": 1,
+        "approx_tokens": 42,
+        "token_budget": 100,
+    }
+    text = context_preflight_text(payload)
+    assert "structured: project-telos.context-envelope/v1 verdict=MATCH retained=2 omitted=1 tokens=42/100" in text
+
+
+def test_context_preflight_defaults_nullable_or_malformed_envelope_fields():
+    from forum.context_preflight import build_context_preflight
+
+    context = """
+    {
+      "schema": "project-telos.context-envelope/v1",
+      "verification_verdict": "PARTIAL",
+      "retained": null,
+      "omitted": {"name": "not-a-list"},
+      "budget": null
+    }
+    """
+
+    payload = build_context_preflight("improve forum", context=context, context_source="index")
+
+    assert payload["context"]["structured"] == {
+        "schema": "project-telos.context-envelope/v1",
+        "verification_verdict": "PARTIAL",
+        "retained": 0,
+        "omitted": 0,
+        "approx_tokens": None,
+        "token_budget": None,
+    }

@@ -94,7 +94,9 @@ def _brief_summary(state: str, verified: bool) -> str:
             return "The latest run is verified but needs operator attention before delivery."
         return "The latest run needs operator attention because ledger verification failed."
     if state == "complete":
-        return "The latest run is verified, has a final answer, and has no blocking signals."
+        return ("The latest run's ledger re-derived, it has a final answer, and no "
+                "blocking signals fired; whether an external check accepted the answer "
+                "is reported in the signals, not assumed from the ledger.")
     if state == "in_progress":
         return "The latest run is verified and still in progress; no final answer is present yet."
     return "The latest request is witnessed and ready for planning or execution."
@@ -124,6 +126,8 @@ def _brief_risk(room: dict) -> str:
         )
     if delivery:
         return f"Delivery needs review: {_join_phrase(delivery)} flagged."
+    if signals.get("intent_drift_judged", 0) > 0:
+        return "Intent judge confirmed the answer drifted from the request."
     if signals.get("flagged_intent", 0) > 0:
         return "Intent coverage flagged possible drift."
     return "No blocking signals detected."
@@ -160,7 +164,20 @@ def _brief_bullets(room: dict) -> list[str]:
         route,
         f"Tasks: {len(tasks)} total, {results} with results, {accepted} accepted",
         f"Answer: {'present' if (room.get('answer') or {}).get('text') else 'missing'}",
+        _verification_bullet(room.get("signals") or {}),
     ]
+
+
+def _verification_bullet(signals: dict) -> str:
+    # ledger integrity is NOT answer acceptance: name whether an external check
+    # actually ran, so a "complete" brief never reads as if the answer was accepted.
+    ran = signals.get("verifications_ran", 0)
+    refuted = signals.get("refuted_verifications", 0)
+    if ran <= 0:
+        return "External verification: none ran (an intact ledger is not answer acceptance)"
+    if refuted > 0:
+        return f"External verification: {ran} ran, {refuted} refuted"
+    return f"External verification: {ran} ran, none refuted"
 
 
 def _state_label(state: str) -> str:
