@@ -1,5 +1,7 @@
 <p align="center"><img src=".github/assets/zentropy-banner.png" alt="forum: Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger." width="100%"></p>
 
+Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `docs/brand/forum-hero.png`.
+
 **Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger.**
 
 [![PyPI](https://img.shields.io/pypi/v/forum-engine?style=flat-square&labelColor=14041b&color=99f147)](https://pypi.org/project/forum-engine/)

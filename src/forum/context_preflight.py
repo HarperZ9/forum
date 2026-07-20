@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from forum.context_budget import (
     ContextBudget,
     ContextBudgetMeter,
@@ -57,6 +59,17 @@ def context_preflight_text(payload: dict) -> str:
     if issues:
         lines.append("issues:")
         lines.extend(f"- {issue}" for issue in issues)
+    structured = context.get("structured")
+    if structured:
+        lines.append(
+            "structured: "
+            f"{structured.get('schema')} "
+            f"verdict={structured.get('verification_verdict')} "
+            f"retained={structured.get('retained')} "
+            f"omitted={structured.get('omitted')} "
+            f"tokens={structured.get('approx_tokens')}/"
+            f"{structured.get('token_budget')}"
+        )
     return "\n".join(lines)
 
 
@@ -69,14 +82,16 @@ def _context_payload(
         return _empty_context(), []
     if budget is None:
         tokens = approx_tokens(context)
-        return {
+        payload = {
             "source": context_source,
             "action": "retained",
             "reason": "no_budget",
             "original_tokens": tokens,
             "admitted_tokens": tokens,
             "tokens_saved": 0,
-        }, []
+        }
+        _attach_structured_context(payload, context)
+        return payload, []
 
     meter = ContextBudgetMeter()
     _, pressure = apply_context_budget("request", context_source, context, budget, meter)
@@ -89,6 +104,7 @@ def _context_payload(
         "admitted_tokens": pressure.admitted_tokens,
         "tokens_saved": tokens_saved,
     }
+    _attach_structured_context(payload, context)
     return payload, _issues(context_source, pressure.action)
 
 
@@ -109,3 +125,31 @@ def _issues(context_source: str, action: str) -> list[str]:
     if action == "omitted":
         return [f"{context_source} context would be omitted before planning"]
     return []
+
+
+def _attach_structured_context(payload: dict, context: str) -> None:
+    structured = _index_context_envelope_summary(context)
+    if structured is not None:
+        payload["structured"] = structured
+
+
+def _index_context_envelope_summary(context: str) -> dict | None:
+    try:
+        data = json.loads(context)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("schema") != "project-telos.context-envelope/v1":
+        return None
+    budget = data.get("budget") if isinstance(data.get("budget"), dict) else {}
+    retained = data.get("retained") if isinstance(data.get("retained"), list) else []
+    omitted = data.get("omitted") if isinstance(data.get("omitted"), list) else []
+    return {
+        "schema": "project-telos.context-envelope/v1",
+        "verification_verdict": data.get("verification_verdict"),
+        "retained": len(retained),
+        "omitted": len(omitted),
+        "approx_tokens": budget.get("approx_tokens"),
+        "token_budget": budget.get("token_budget"),
+    }
