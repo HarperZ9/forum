@@ -55,3 +55,19 @@ def test_missing_required_field_rejected():
     bad = '[[agent]]\nname="x"\ncategory="c"\ndomain="d"\nkeywords=["k"]\nmodel_tier="cheap"\n'
     with pytest.raises(ValueError, match="executor"):
         loads(bad)
+
+
+def test_duplicate_agent_names_are_rejected():
+    # two rows named the same agent double-count one actor and let it suppress
+    # or impersonate; a roster's names must be unique
+    dup = SAMPLE + """
+[[agent]]
+name = "backend"
+category = "engineering"
+domain = "a second backend, same name"
+keywords = ["server"]
+model_tier = "cheap"
+executor = "claude-code"
+"""
+    with pytest.raises(ValueError, match="duplicate agent name"):
+        loads(dup)
