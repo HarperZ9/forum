@@ -47,3 +47,7 @@ Thumbs.db
 docs/superpowers/
 .superpowers/
 .warden-safe-cache/
+
+# direnv environment files (can hold exported secrets)
+.envrc
+.envrc.local
