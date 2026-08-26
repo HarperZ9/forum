@@ -1,4 +1,5 @@
 import dataclasses
+import threading
 
 import pytest
 
@@ -155,3 +156,53 @@ def test_sqlite_creates_missing_parent_directory(tmp_path):
     store.put_payload("h", {"ok": True})
     assert store.get_payload("h") == {"ok": True}
     store.close()
+
+
+def test_sqlite_append_raises_seq_collision_on_duplicate(tmp_path):
+    from forum.ledger import GENESIS, LedgerEntry, SeqCollision, compute_entry_hash
+
+    store = SqliteStorage(str(tmp_path / "l.db"))
+
+    def _entry(seq):
+        h = compute_entry_hash(seq, 1.0, "a", "k", None, "p" * 64, GENESIS)
+        return LedgerEntry(seq, 1.0, "a", "k", None, "p" * 64, GENESIS, h)
+
+    store.append(_entry(0))
+    with pytest.raises(SeqCollision):
+        store.append(_entry(0))  # same seq (PRIMARY KEY) -> retryable race
+
+
+def test_sqlite_concurrent_append_keeps_chain_intact(tmp_path):
+    # Many concurrent WRITERS, each with its own SqliteStorage connection to one
+    # shared db file (the multi-worker topology). They race for seq; the Ledger's
+    # SeqCollision retry must leave a dense, verifiable chain with nothing lost.
+    db = str(tmp_path / "shared.db")
+    SqliteStorage(db).close()  # create the schema before the writers start
+    workers, per = 6, 60
+    errors: list[BaseException] = []
+    start = threading.Barrier(workers)
+
+    def _writer(worker_id: int) -> None:
+        try:
+            store = SqliteStorage(db, fsync_each=True)
+            led = Ledger(store)
+            start.wait()  # release all writers together to maximize contention
+            for i in range(per):
+                led.append(actor=f"w{worker_id}", kind="result",
+                           payload={"w": worker_id, "i": i})
+            store.close()
+        except BaseException as exc:  # noqa: BLE001 — surface to the assertion
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_writer, args=(w,)) for w in range(workers)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=90)
+
+    assert not errors, f"writer raised: {errors[0]!r}"
+    led = Ledger(SqliteStorage(db))
+    total = workers * per
+    assert led.count() == total  # every append landed, none lost
+    assert [e.seq for e in led.replay()] == list(range(total))  # dense, no gaps/dups
+    assert led.verify(deep=True) is True  # chain + payloads intact under the race

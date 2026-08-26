@@ -17,6 +17,15 @@
   directory, with no new flags. Evidence: the `forum.storage-scaling-benchmark/v1`
   receipt (`python -m forum.bench_storage`) reports append throughput, verify latency,
   and resident memory for all three backends at scale, showing the RAM ceiling removed.
+- Concurrent multi-writer ledger append: `Ledger.append` retries on a `SeqCollision`
+  raised by storage, so several worker processes appending to one `SqliteStorage`
+  (WAL mode, with `busy_timeout` set) cannot corrupt the seq/prev chain. The loser of
+  a seq race re-reads the advanced head and retries; `put_payload` is content-keyed so
+  the retry is a no-op. Single-process backends never collide, so their behavior is
+  unchanged and append stays await-free. This is the concurrency substrate stateless
+  multi-worker serving builds on. Proven by a test where six concurrent writers on one
+  shared database land every append as a dense, `verify(deep=True)`-clean chain with
+  nothing lost.
 - Deep verify benchmark: adds `forum bench-deep-verify`, a zero-dependency benchmark
   for ledger integrity scaling. It times chain-only `verify()`, payload-only
   `verify_payloads()`, and full `verify(deep=True)` across entry counts, payload body

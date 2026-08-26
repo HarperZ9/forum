@@ -5,7 +5,7 @@ import os
 import sqlite3
 from typing import Any
 
-from forum.ledger import LedgerEntry
+from forum.ledger import LedgerEntry, SeqCollision
 from forum.storage import StorageCorruption
 
 _SCHEMA = """
@@ -82,6 +82,10 @@ class SqliteStorage:
             self._conn.execute(
                 f"PRAGMA synchronous={'FULL' if fsync_each else 'NORMAL'}"
             )
+            # A concurrent writer holds the WAL write lock only briefly; wait for
+            # it rather than failing fast, so multi-worker appends serialize
+            # instead of erroring under contention.
+            self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.executescript(_SCHEMA)
         except sqlite3.DatabaseError as exc:  # not a valid SQLite file
             raise StorageCorruption(f"{path}: not a valid SQLite database") from exc
@@ -114,14 +118,20 @@ class SqliteStorage:
 
     def append(self, entry: LedgerEntry) -> None:
         self._begin()
-        self._conn.execute(
-            f"INSERT INTO entries ({_COLS}) VALUES (?,?,?,?,?,?,?,?)",
-            (
-                entry.seq, entry.ts, entry.actor, entry.kind,
-                entry.causal_parent, entry.payload_hash,
-                entry.prev_hash, entry.entry_hash,
-            ),
-        )
+        try:
+            self._conn.execute(
+                f"INSERT INTO entries ({_COLS}) VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    entry.seq, entry.ts, entry.actor, entry.kind,
+                    entry.causal_parent, entry.payload_hash,
+                    entry.prev_hash, entry.entry_hash,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            # seq is the PRIMARY KEY: a duplicate means a concurrent writer
+            # claimed this seq first. Surface it as a retryable race, not
+            # corruption, so the Ledger re-reads head and tries again.
+            raise SeqCollision(f"seq {entry.seq} already present") from exc
 
     def all(self) -> list[LedgerEntry]:
         rows = self._conn.execute(

@@ -9,6 +9,17 @@ from forum.hashing import canonical_hash
 
 GENESIS = "0" * 64
 _SEP = "\x1f"
+_MAX_APPEND_RETRIES = 64
+
+
+class SeqCollision(Exception):
+    """Two writers raced for the same ledger seq; the loser must re-read head.
+
+    Raised by a storage backend whose seq is a unique key (SqliteStorage) when a
+    concurrent process has already claimed the seq this append computed. The
+    Ledger catches it and retries against the advanced head. Single-process
+    backends never produce it.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,20 +162,34 @@ class Ledger:
         # example dispatch_plan's TaskGroup) rely on this method being atomic
         # under cooperative scheduling; an await between reading head() and the
         # append would corrupt seq/prev_hash linkage. Do not introduce awaits here.
-        head = self._s.head()
-        seq = 0 if head is None else head.seq + 1
-        prev = GENESIS if head is None else head.entry_hash
-        payload_hash = canonical_hash(payload)
-        self._s.put_payload(payload_hash, payload)
-        ts = float(self._clock())
-        entry_hash = compute_entry_hash(
-            seq, ts, actor, kind, causal_parent, payload_hash, prev
+        #
+        # Across PROCESSES sharing one storage (SqliteStorage, WAL mode), two
+        # workers can read the same head and race for the same seq. The storage's
+        # unique seq rejects the loser with SeqCollision; we re-read the advanced
+        # head and retry. Single-process backends never collide, so this loop runs
+        # exactly once and their behavior is unchanged. put_payload is content-keyed
+        # and idempotent, so re-running it on a retry is a no-op.
+        for _ in range(_MAX_APPEND_RETRIES):
+            head = self._s.head()
+            seq = 0 if head is None else head.seq + 1
+            prev = GENESIS if head is None else head.entry_hash
+            payload_hash = canonical_hash(payload)
+            self._s.put_payload(payload_hash, payload)
+            ts = float(self._clock())
+            entry_hash = compute_entry_hash(
+                seq, ts, actor, kind, causal_parent, payload_hash, prev
+            )
+            entry = LedgerEntry(
+                seq, ts, actor, kind, causal_parent, payload_hash, prev, entry_hash
+            )
+            try:
+                self._s.append(entry)
+            except SeqCollision:
+                continue
+            return entry
+        raise SeqCollision(
+            f"append lost the seq race {_MAX_APPEND_RETRIES} times under contention"
         )
-        entry = LedgerEntry(
-            seq, ts, actor, kind, causal_parent, payload_hash, prev, entry_hash
-        )
-        self._s.append(entry)
-        return entry
 
     def verify(self, *, deep: bool = False) -> bool:
         prev = GENESIS
