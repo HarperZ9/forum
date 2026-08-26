@@ -19,6 +19,7 @@ from forum.auth import (
     witness_authz,
 )
 from forum.engine import Orchestrator
+from forum.metrics import MetricsRegistry
 from forum.receipts import submit_receipt
 from forum.tracing import KIND_SERVER, STATUS_ERROR, Tracer, parse_traceparent
 
@@ -116,6 +117,7 @@ class HttpSurface:
         verifier: TokenVerifier | None = None,
         role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
         tracer: Tracer | None = None,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._orch = orchestrator
         # No verifier means authentication is OFF: dispatch serves every request,
@@ -127,6 +129,9 @@ class HttpSurface:
         # Configure a Tracer with an exporter to emit an OTLP server span per
         # request, continuing an inbound W3C traceparent when one is present.
         self._tracer = tracer
+        # No metrics means metering is OFF. Configure a MetricsRegistry to record
+        # the http.server.request.duration histogram, one point per request.
+        self._metrics = metrics
 
     async def dispatch(
         self,
@@ -136,8 +141,18 @@ class HttpSurface:
         authorization: str | None = None,
         traceparent: str | None = None,
     ) -> Response:
-        if self._tracer is None:
+        # Both off is the cold path: one branch, no span, no clock read, byte for
+        # byte the pre-observability behavior. Tracing and metering compose
+        # independently, and a request is measured exactly once either way.
+        if self._tracer is None and self._metrics is None:
             return await self._dispatch_inner(method, path, body, authorization)
+        if self._tracer is None:
+            return await self._dispatch_measured(method, path, body, authorization)
+        return await self._dispatch_traced(method, path, body, authorization, traceparent)
+
+    async def _dispatch_traced(
+        self, method: str, path: str, body: bytes, authorization: str | None, traceparent: str | None
+    ) -> Response:
         parent = parse_traceparent(traceparent)
         with self._tracer.start_span(
             f"{method} {_route_template(path)}",
@@ -145,13 +160,46 @@ class HttpSurface:
             parent=parent,
             attributes={"http.request.method": method, "url.path": path},
         ) as span:
-            response = await self._dispatch_inner(method, path, body, authorization)
+            response = await self._dispatch_measured(method, path, body, authorization)
             span.attributes["http.response.status_code"] = response.status
             # OTel maps a server span to error only on 5xx; a 4xx is the client's
             # fault and leaves the span status OK.
             if response.status >= 500:
                 span.set_status(STATUS_ERROR, f"{response.status} {response.reason}")
             return response
+
+    async def _dispatch_measured(
+        self, method: str, path: str, body: bytes, authorization: str | None
+    ) -> Response:
+        """The single place a request is timed and recorded, so metering happens
+        exactly once whether tracing is on or off (no double count)."""
+        if self._metrics is None:
+            return await self._dispatch_inner(method, path, body, authorization)
+        start = self._metrics.now()
+        response = await self._dispatch_inner(method, path, body, authorization)
+        # The registry clock is epoch-wall, not monotonic; clamp a backward NTP
+        # step to a non-negative duration, the same single-clock trade-off tracing
+        # already accepts. _dispatch_inner never raises (it maps errors to a 500),
+        # so a failed request is still recorded once, with its status.
+        duration_seconds = max(0.0, (self._metrics.now() - start) / 1e9)
+        self._metrics.record_request(
+            method=method,
+            route=self._metric_route(path),
+            status_code=response.status,
+            duration_seconds=duration_seconds,
+        )
+        return response
+
+    def _metric_route(self, path: str) -> str | None:
+        """The low-cardinality http.route metric attribute, or None for an
+        unknown path so a flood of random 404 targets collapses into one no-route
+        cell instead of unbounded series. The raw path is never a metric
+        attribute (it stays the span's url.path)."""
+        if path.startswith("/ledger/") or path.startswith("/replay/"):
+            return _route_template(path)
+        if path in _KNOWN_PATHS:
+            return path
+        return None
 
     async def _dispatch_inner(
         self, method: str, path: str, body: bytes, authorization: str | None

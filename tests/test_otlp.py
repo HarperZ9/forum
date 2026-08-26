@@ -129,7 +129,7 @@ def test_emits_over_a_real_socket_to_an_otlp_endpoint():
             pass
 
     server = HTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.handle_request)
+    thread = threading.Thread(target=server.handle_request, daemon=True)
     thread.start()
     try:
         endpoint = f"http://127.0.0.1:{server.server_address[1]}"
@@ -138,6 +138,7 @@ def test_emits_over_a_real_socket_to_an_otlp_endpoint():
         thread.join(timeout=5)
         server.server_close()
 
+    assert not thread.is_alive(), "collector never received the request"
     assert received["path"] == "/v1/traces"
     assert received["content_type"] == "application/json"
     assert _only_span(received["body"])["spanId"] == "b" * 16

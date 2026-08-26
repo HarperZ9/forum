@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- OpenTelemetry metrics that emit. `forum.metrics` is a stdlib-only `MetricsRegistry`
+  that records the one STABLE semconv HTTP server instrument,
+  `http.server.request.duration` (a cumulative explicit-bucket histogram, unit `s`, the
+  semconv-recommended bucket boundaries). It reuses the tracing increment's discipline:
+  the clock is injected for determinism, and a fixed cumulative start instant is captured
+  once at construction. Bucketing is upper-inclusive (`bisect_left`, the Prometheus `le`
+  convention). There is deliberately no separate request counter: a histogram data point
+  already carries its own `count`, so the per-attribute request count is read from the
+  histogram, which avoids double-instrumenting the same population. `forum.otlp_metrics`
+  is the network edge adapter: `otlp_metrics_payload` renders the OTLP/HTTP JSON a
+  collector's `/v1/metrics` receiver accepts (the encodings that differ from proto3 JSON
+  handled correctly: `count` and `bucketCounts` as strings, `sum`/`min`/`max`/`explicitBounds`
+  as numbers, `aggregationTemporality` the bare integer 2, and a Histogram with no
+  `isMonotonic`), and `OtlpHttpMetricExporter` POSTs it best-effort. The HTTP surface
+  records one point per request with the low-cardinality attribute set
+  (`http.request.method`, `http.response.status_code`, `http.route`); an unknown path
+  carries no route so a 404 flood collapses to one cell, and the variable-seq paths are
+  templated (`/ledger/{seq}`). Tracing and metering compose independently and a request is
+  measured exactly once; with both off, dispatch is byte-for-byte the pre-observability
+  path. Turn it on by passing a `metrics` registry to `HttpSurface`, or point `forum serve`
+  at a collector via `OTEL_EXPORTER_OTLP_ENDPOINT` (`meter_from_env`); `forum serve` runs
+  under a shutdown guard that reaches `Daemon.stop()` on SIGINT/SIGTERM (or cancellation),
+  which flushes the histogram once. Evidence: `examples/run_metrics.py` writes the exact payload to
+  `benchmarks/otlp_metrics_sample.json`, and a test POSTs it over a real socket to a stdlib
+  `/v1/metrics` endpoint. Honest nulls: no separate counter (by design), no periodic
+  exporting reader (shutdown flush only in v1, so a hard kill loses the final snapshot),
+  no delta temporality, no exemplars, and the Development-status semconv metrics
+  (active_requests, request/response body size) are not shipped.
 - OpenTelemetry tracing that emits. `forum.tracing` is a stdlib-only tracer:
   spans with W3C `traceparent` propagation (`parse_traceparent` / `format_traceparent`),
   injectable clock and id source so every id and timestamp is reproducible in a test,

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import signal
 
 from forum.auth import DEFAULT_ROLE_POLICY, RolePolicy, TokenVerifier
 from forum.context import ContextProvider
@@ -10,6 +12,8 @@ from forum.engine import Orchestrator
 from forum.executor import EchoExecutor, Executor
 from forum.http_surface import MAX_BODY, HttpSurface, Response, error
 from forum.ledger import Ledger
+from forum.metrics import MetricsRegistry
+from forum.otlp_metrics import OtlpHttpMetricExporter
 from forum.policy import Policy
 from forum.roster import Roster, load_default
 from forum.storage import FileStorage
@@ -93,14 +97,20 @@ class Daemon:
         verifier: TokenVerifier | None = None,
         role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
         tracer: Tracer | None = None,
+        metrics: MetricsRegistry | None = None,
+        metric_exporter: OtlpHttpMetricExporter | None = None,
     ) -> None:
         self.orchestrator = orchestrator
         # A verifier turns on bearer-JWT auth for every non-public endpoint; None
         # keeps the daemon open, unchanged for existing deployments. A tracer
-        # turns on OTLP server-span emission per request; None keeps it off.
+        # turns on OTLP server-span emission per request; None keeps it off. A
+        # metrics registry records the request-duration histogram; the daemon
+        # holds the matching exporter and flushes it once on stop().
         self._surface = HttpSurface(
-            orchestrator, verifier=verifier, role_policy=role_policy, tracer=tracer
+            orchestrator, verifier=verifier, role_policy=role_policy, tracer=tracer, metrics=metrics
         )
+        self._metrics = metrics
+        self._metric_exporter = metric_exporter
         self._host = host
         self._port = port
         self._read_timeout = read_timeout
@@ -165,6 +175,11 @@ class Daemon:
             self._server = None
         if self._inflight:
             await asyncio.wait(self._inflight, timeout=drain_timeout)
+        # Flush metrics once, after in-flight requests have been recorded. This
+        # single best-effort shutdown flush is v1's emission trigger; there is no
+        # periodic reader yet, so a hard kill loses the final snapshot.
+        if self._metric_exporter is not None and self._metrics is not None:
+            self._metric_exporter.export(self._metrics)
 
 
 def build_orchestrator(
@@ -207,6 +222,41 @@ def build_orchestrator(
     )
 
 
+async def _run_until_shutdown(daemon: Daemon) -> None:
+    """Serve until a shutdown signal or cancellation, then flush and drain once.
+
+    The finally is the guarantee: whatever ends the serve loop -- SIGINT/SIGTERM,
+    Ctrl+C (which cancels this coroutine), or the server stopping on its own --
+    ``daemon.stop()`` runs, draining in-flight requests and flushing the metrics
+    exporter. Without it an accumulated histogram would be discarded on every
+    shutdown and never reach the collector, which is the whole point of metering.
+    """
+    loop = asyncio.get_running_loop()
+    stop = loop.create_future()
+    installed: list[int] = []
+    for signame in ("SIGINT", "SIGTERM"):
+        sig = getattr(signal, signame, None)
+        if sig is None:
+            continue
+        try:
+            loop.add_signal_handler(sig, lambda: stop.done() or stop.set_result(None))
+            installed.append(sig)
+        except (NotImplementedError, RuntimeError, ValueError):
+            # Windows has no add_signal_handler for these, and it is main-thread
+            # only; SIGINT still arrives as a cancel, which runs the finally.
+            pass
+    serving = asyncio.ensure_future(daemon.serve_forever())
+    try:
+        await asyncio.wait({serving, stop}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for sig in installed:
+            loop.remove_signal_handler(sig)
+        serving.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await serving
+        await daemon.stop()
+
+
 async def serve(
     ledger_dir: str = "forum-ledger",
     host: str = "127.0.0.1",
@@ -214,15 +264,26 @@ async def serve(
     executor: Executor | None = None,
 ) -> None:
     from forum.otlp import tracer_from_env
+    from forum.otlp_metrics import meter_from_env
 
-    # Tracing turns on only when OTEL_EXPORTER_OTLP_ENDPOINT names a collector;
-    # otherwise tracer is None and the daemon runs untraced, as before.
+    # Tracing and metrics turn on only when OTEL_EXPORTER_OTLP_ENDPOINT names a
+    # collector; otherwise both are None and the daemon runs unobserved, as before.
     tracer = tracer_from_env()
-    daemon = Daemon(build_orchestrator(ledger_dir, executor=executor), host, port, tracer=tracer)
+    meter = meter_from_env()
+    metrics, metric_exporter = meter if meter is not None else (None, None)
+    daemon = Daemon(
+        build_orchestrator(ledger_dir, executor=executor), host, port,
+        tracer=tracer, metrics=metrics, metric_exporter=metric_exporter,
+    )
     await daemon.start()
     tracing = "off" if tracer is None else "on"
-    print(f"forum daemon on http://{daemon.host}:{daemon.port} (ledger: {ledger_dir}, tracing: {tracing})")
-    await daemon.serve_forever()
+    metering = "off" if meter is None else "on"
+    print(
+        f"forum daemon on http://{daemon.host}:{daemon.port} "
+        f"(ledger: {ledger_dir}, tracing: {tracing}, metrics: {metering})"
+    )
+    # Serve under a shutdown guard so the metrics exporter is flushed on exit.
+    await _run_until_shutdown(daemon)
 
 
 if __name__ == "__main__":
