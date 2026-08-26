@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Durable scale-out ledger storage: adds `SqliteStorage`, a stdlib-only (`sqlite3`)
+  `Storage` backend that keeps the ledger on disk instead of resident in memory. Where
+  `InMemoryStorage` and `FileStorage` both hold the whole ledger and every payload in
+  RAM (`FileStorage` reads it all in on construction), `SqliteStorage` serves
+  `head`/`get`/`count`/`get_payload` as indexed point reads that never materialize the
+  full log, so resident memory stays flat as the ledger grows into the millions of
+  entries; only `all()` (used by verify/checkpoint/replay/query) streams the full set.
+  WAL mode is on, so many readers and one writer can share the file, the substrate a
+  stateless multi-worker deployment builds on. The Merkle chain and every receipt verify
+  byte-for-byte against the other backends, and durability is tunable (`fsync_each`)
+  exactly as for `FileStorage`. Ledger subcommands and the daemon select it by path
+  convention: a `.db` ledger path is SQLite, any other path is a `FileStorage`
+  directory, with no new flags. Evidence: the `forum.storage-scaling-benchmark/v1`
+  receipt (`python -m forum.bench_storage`) reports append throughput, verify latency,
+  and resident memory for all three backends at scale, showing the RAM ceiling removed.
 - Deep verify benchmark: adds `forum bench-deep-verify`, a zero-dependency benchmark
   for ledger integrity scaling. It times chain-only `verify()`, payload-only
   `verify_payloads()`, and full `verify(deep=True)` across entry counts, payload body

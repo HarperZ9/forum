@@ -167,7 +167,15 @@ def build_orchestrator(
     (an ApiExecutor or a model CLI via SubprocessExecutor) and return 502 under
     EchoExecutor.
     """
-    ledger = Ledger(FileStorage(ledger_dir, fsync_each=fsync_each))
+    # A ``.db`` ledger path selects the durable, RAM-free SQLite backend (WAL
+    # mode, shareable by concurrent workers); any other path is a FileStorage
+    # directory. Both honor fsync_each.
+    if str(ledger_dir).endswith(".db"):
+        from forum.sqlite_storage import SqliteStorage
+
+        ledger = Ledger(SqliteStorage(str(ledger_dir), fsync_each=fsync_each))
+    else:
+        ledger = Ledger(FileStorage(ledger_dir, fsync_each=fsync_each))
     return Orchestrator(
         roster or load_default(),
         ledger,

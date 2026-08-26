@@ -138,6 +138,15 @@ def _runtime_descriptors_or_error(args):
 
 def _open_ledger(directory):
     from forum.ledger import Ledger
+
+    # Path convention selects the backend: a ``.db`` path is a durable, RAM-free
+    # SQLite ledger (scales to millions of entries; shareable by concurrent
+    # workers in WAL mode); any other path is a FileStorage directory. This keeps
+    # every ledger subcommand backend-agnostic with no new flags.
+    if str(directory).endswith(".db"):
+        from forum.sqlite_storage import SqliteStorage
+
+        return Ledger(SqliteStorage(str(directory)))
     from forum.storage import FileStorage
 
     return Ledger(FileStorage(directory))
