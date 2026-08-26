@@ -20,6 +20,7 @@ from forum.auth import (
 )
 from forum.engine import Orchestrator
 from forum.receipts import submit_receipt
+from forum.tracing import KIND_SERVER, STATUS_ERROR, Tracer, parse_traceparent
 
 MAX_BODY = 1 << 20  # 1 MiB cap on a request body
 
@@ -67,6 +68,20 @@ _GATE_DECISION_KINDS = {
 }
 
 
+def _route_template(path: str) -> str:
+    """Collapse a variable-seq path to a low-cardinality span name.
+
+    OTel names a server span by its route, not its raw target, so ``/ledger/42``
+    and ``/ledger/43`` share one span name (``/ledger/{seq}``) and stay groupable
+    in a backend. The raw path is kept separately as the ``url.path`` attribute.
+    """
+    if path.startswith("/ledger/"):
+        return "/ledger/{seq}"
+    if path.startswith("/replay/"):
+        return "/replay/{seq}"
+    return path
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class Response:
     status: int
@@ -100,6 +115,7 @@ class HttpSurface:
         *,
         verifier: TokenVerifier | None = None,
         role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
+        tracer: Tracer | None = None,
     ) -> None:
         self._orch = orchestrator
         # No verifier means authentication is OFF: dispatch serves every request,
@@ -107,9 +123,38 @@ class HttpSurface:
         # per-endpoint scope.
         self._verifier = verifier
         self._role_policy = role_policy
+        # No tracer means tracing is OFF: dispatch takes the untraced fast path.
+        # Configure a Tracer with an exporter to emit an OTLP server span per
+        # request, continuing an inbound W3C traceparent when one is present.
+        self._tracer = tracer
 
     async def dispatch(
-        self, method: str, path: str, body: bytes, authorization: str | None = None
+        self,
+        method: str,
+        path: str,
+        body: bytes,
+        authorization: str | None = None,
+        traceparent: str | None = None,
+    ) -> Response:
+        if self._tracer is None:
+            return await self._dispatch_inner(method, path, body, authorization)
+        parent = parse_traceparent(traceparent)
+        with self._tracer.start_span(
+            f"{method} {_route_template(path)}",
+            kind=KIND_SERVER,
+            parent=parent,
+            attributes={"http.request.method": method, "url.path": path},
+        ) as span:
+            response = await self._dispatch_inner(method, path, body, authorization)
+            span.attributes["http.response.status_code"] = response.status
+            # OTel maps a server span to error only on 5xx; a 4xx is the client's
+            # fault and leaves the span status OK.
+            if response.status >= 500:
+                span.set_status(STATUS_ERROR, f"{response.status} {response.reason}")
+            return response
+
+    async def _dispatch_inner(
+        self, method: str, path: str, body: bytes, authorization: str | None
     ) -> Response:
         try:
             denied = self._authorize(method, path, authorization)

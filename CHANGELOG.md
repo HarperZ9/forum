@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- OpenTelemetry tracing that emits. `forum.tracing` is a stdlib-only tracer:
+  spans with W3C `traceparent` propagation (`parse_traceparent` / `format_traceparent`),
+  injectable clock and id source so every id and timestamp is reproducible in a test,
+  and pluggable exporters (`NullSpanExporter` by default, `InMemorySpanExporter` for
+  inspection). `forum.otlp` is the network edge adapter: it renders spans as OTLP/HTTP
+  JSON a stock OpenTelemetry Collector's `/v1/traces` receiver accepts unchanged, with
+  the two encodings that differ from proto3 JSON handled correctly (trace/span ids as
+  hex, not base64; `*UnixNano` int64 as strings). The HTTP surface emits one SERVER span
+  per request: it continues an inbound trace when a `traceparent` header is present, names
+  the span by a low-cardinality route (`/ledger/{seq}`, not `/ledger/42`), records
+  `http.request.method` / `url.path` / `http.response.status_code`, and marks the span
+  ERROR only on 5xx. Turn it on by passing a `tracer` to `Daemon` or `HttpSurface`; with
+  none configured the surface takes the untraced fast path, unchanged. `forum serve` turns
+  emission on with no code change when `OTEL_EXPORTER_OTLP_ENDPOINT` names a collector
+  (`OTEL_SERVICE_NAME` optional), via `tracer_from_env`. Export is best-effort: a collector
+  outage is swallowed so telemetry never breaks the request it measures. Evidence:
+  `examples/run_tracing.py` writes the exact OTLP payload to
+  `benchmarks/otlp_trace_sample.json`, and a test POSTs it over a real socket to a stdlib
+  HTTP endpoint and validates what the receiver got. Metrics and logs signals, and
+  orchestrator-internal spans below the request boundary, are a later increment.
 - Bearer-JWT authentication and role-based authorization for the HTTP surface,
   with a tamper-evident audit. `forum.auth` verifies HS256 tokens with the stdlib
   `hmac` (constant-time signature check, `exp`/`nbf` against an injectable clock,
