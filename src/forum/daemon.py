@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from forum.auth import DEFAULT_ROLE_POLICY, RolePolicy, TokenVerifier
 from forum.context import ContextProvider
 from forum.control import IntentJudge
 from forum.delivery import Reviser
@@ -21,8 +22,10 @@ class _BodyTooLarge(Exception):
     pass
 
 
-async def _read_request(reader: asyncio.StreamReader) -> tuple[str, str, bytes]:
-    """Parse one HTTP/1.1 request into (method, path, body).
+async def _read_request(
+    reader: asyncio.StreamReader,
+) -> tuple[str, str, bytes, str | None]:
+    """Parse one HTTP/1.1 request into (method, path, body, authorization).
 
     Raises _BodyTooLarge if the advertised Content-Length exceeds MAX_BODY, and
     ValueError / asyncio read errors on a malformed or truncated request.
@@ -57,7 +60,7 @@ async def _read_request(reader: asyncio.StreamReader) -> tuple[str, str, bytes]:
         if n > MAX_BODY:
             raise _BodyTooLarge()
         body = await reader.readexactly(n)
-    return method, path, body
+    return method, path, body, headers.get("authorization")
 
 
 async def _write_response(writer: asyncio.StreamWriter, response: Response) -> None:
@@ -79,9 +82,20 @@ class Daemon:
     (Connection: close); the surface is HttpSurface.
     """
 
-    def __init__(self, orchestrator: Orchestrator, host: str = "127.0.0.1", port: int = 8080, read_timeout: float = 10.0) -> None:
+    def __init__(
+        self,
+        orchestrator: Orchestrator,
+        host: str = "127.0.0.1",
+        port: int = 8080,
+        read_timeout: float = 10.0,
+        *,
+        verifier: TokenVerifier | None = None,
+        role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
+    ) -> None:
         self.orchestrator = orchestrator
-        self._surface = HttpSurface(orchestrator)
+        # A verifier turns on bearer-JWT auth for every non-public endpoint; None
+        # keeps the daemon open, unchanged for existing deployments.
+        self._surface = HttpSurface(orchestrator, verifier=verifier, role_policy=role_policy)
         self._host = host
         self._port = port
         self._read_timeout = read_timeout
@@ -104,7 +118,7 @@ class Daemon:
             self._inflight.add(task)
         try:
             try:
-                method, path, body = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
+                method, path, body, authorization = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
             except asyncio.TimeoutError:
                 await _write_response(writer, error(408, "request timed out"))
                 return
@@ -114,7 +128,7 @@ class Daemon:
             except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError):
                 await _write_response(writer, error(400, "malformed HTTP request"))
                 return
-            response = await self._surface.dispatch(method, path, body)
+            response = await self._surface.dispatch(method, path, body, authorization)
             await _write_response(writer, response)
         finally:
             if task is not None:

@@ -4,14 +4,33 @@ import dataclasses
 import json
 from typing import Any
 
+from forum.auth import (
+    DEFAULT_ROLE_POLICY,
+    SCOPE_GATE,
+    SCOPE_PLAN,
+    SCOPE_ROUTE,
+    SCOPE_SUBMIT,
+    InvalidToken,
+    RolePolicy,
+    TokenVerifier,
+    authorize,
+    bearer_token,
+    required_scope,
+    witness_authz,
+)
 from forum.engine import Orchestrator
 from forum.receipts import submit_receipt
 
 MAX_BODY = 1 << 20  # 1 MiB cap on a request body
 
+# The mutating verbs whose grants are worth witnessing in the audit ledger.
+_MUTATING_SCOPES = frozenset({SCOPE_ROUTE, SCOPE_PLAN, SCOPE_SUBMIT, SCOPE_GATE})
+
 _REASONS = {
     200: "OK",
     400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
     404: "Not Found",
     405: "Method Not Allowed",
     408: "Request Timeout",
@@ -75,14 +94,58 @@ class HttpSurface:
     (method, path, body) and writes the Response back.
     """
 
-    def __init__(self, orchestrator: Orchestrator) -> None:
+    def __init__(
+        self,
+        orchestrator: Orchestrator,
+        *,
+        verifier: TokenVerifier | None = None,
+        role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
+    ) -> None:
         self._orch = orchestrator
+        # No verifier means authentication is OFF: dispatch serves every request,
+        # exactly as before. Configure a verifier to require a bearer JWT and the
+        # per-endpoint scope.
+        self._verifier = verifier
+        self._role_policy = role_policy
 
-    async def dispatch(self, method: str, path: str, body: bytes) -> Response:
+    async def dispatch(
+        self, method: str, path: str, body: bytes, authorization: str | None = None
+    ) -> Response:
         try:
+            denied = self._authorize(method, path, authorization)
+            if denied is not None:
+                return denied
             return await self._route(method, path, body)
         except Exception as exc:  # never swallow: report with context
             return error(500, f"{type(exc).__name__}: {exc}")
+
+    def _authorize(
+        self, method: str, path: str, authorization: str | None
+    ) -> Response | None:
+        """Enforce bearer-JWT + scope for one request. Returns a 401/403 Response
+        to reject, or None to allow. Authenticated decisions are witnessed in the
+        ledger for a tamper-evident audit; unauthenticated 401s are not, so an
+        unauthenticated flood cannot grow the audit log."""
+        if self._verifier is None:
+            return None
+        scope = required_scope(method, path)
+        if scope is None:
+            return None  # public endpoint (for example /health)
+        token = bearer_token(authorization)
+        if token is None:
+            return error(401, "missing bearer token")
+        try:
+            claims = self._verifier.verify(token)
+        except InvalidToken as exc:
+            return error(401, f"invalid token: {exc}")
+        resource = f"{method} {path}"
+        decision = authorize(claims, scope, self._role_policy)
+        if not decision.granted:
+            witness_authz(self._orch.ledger, decision, resource=resource)
+            return error(403, decision.reason)
+        if scope in _MUTATING_SCOPES:
+            witness_authz(self._orch.ledger, decision, resource=resource)
+        return None
 
     async def _route(self, method: str, path: str, body: bytes) -> Response:
         if method == "GET" and path == "/health":

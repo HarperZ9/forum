@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Bearer-JWT authentication and role-based authorization for the HTTP surface,
+  with a tamper-evident audit. `forum.auth` verifies HS256 tokens with the stdlib
+  `hmac` (constant-time signature check, `exp`/`nbf` against an injectable clock,
+  `alg` confusion and the `none`-alg trick rejected), maps a token's roles to
+  scopes through a fail-closed `RolePolicy`, and gates each endpoint by a required
+  scope (unknown paths fail closed). Turn it on by passing a `verifier` to `Daemon`
+  or `HttpSurface`; with none configured the surface stays open and unchanged.
+  Every AUTHENTICATED decision is witnessed in the ledger (`authz_grant` on a
+  mutating verb, `authz_deny` on a refusal), so the access-control trail is
+  tamper-evident on the same Merkle chain as the runs it guards; unauthenticated
+  401s are not written, so a tokenless flood cannot grow the audit log. Asymmetric
+  verification (RS256 / JWKS) stays an edge adapter: implement the `TokenVerifier`
+  protocol and pass it in. `issue_hs256` mints tokens for callers and tests.
 - Durable scale-out ledger storage: adds `SqliteStorage`, a stdlib-only (`sqlite3`)
   `Storage` backend that keeps the ledger on disk instead of resident in memory. Where
   `InMemoryStorage` and `FileStorage` both hold the whole ledger and every payload in
