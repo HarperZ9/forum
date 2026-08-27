@@ -234,12 +234,17 @@ async def _run_until_shutdown(daemon: Daemon) -> None:
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
     installed: list[int] = []
+
+    def _request_stop() -> None:
+        if not stop.done():
+            stop.set_result(None)
+
     for signame in ("SIGINT", "SIGTERM"):
         sig = getattr(signal, signame, None)
         if sig is None:
             continue
         try:
-            loop.add_signal_handler(sig, lambda: stop.done() or stop.set_result(None))
+            loop.add_signal_handler(sig, _request_stop)
             installed.append(sig)
         except (NotImplementedError, RuntimeError, ValueError):
             # Windows has no add_signal_handler for these, and it is main-thread
