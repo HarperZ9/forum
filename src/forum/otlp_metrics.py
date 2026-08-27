@@ -12,6 +12,7 @@ from forum.metrics import (
     HistogramPoint,
     MetricsRegistry,
 )
+
 # The metrics wire layer reuses the trace layer's OTLP primitives (attribute
 # encoding, the POST transport seam, the scope version) so both signals share one
 # encoding and one network path.

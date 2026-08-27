@@ -25,8 +25,8 @@ from statistics import median
 from typing import Any
 
 from forum.ledger import InMemoryStorage, Ledger
-from forum.storage import FileStorage
 from forum.sqlite_storage import SqliteStorage
+from forum.storage import FileStorage
 
 SCHEMA = "forum.storage-scaling-benchmark/v1"
 
@@ -128,8 +128,8 @@ def benchmark_matrix(
     cases: list[dict[str, Any]] = []
     for backend in backends:
         for n in counts:
-            reps = [_run_cell_subprocess(backend, n) for _ in range(repeats)]
-            reps = [r for r in reps if r]
+            raw_reps = [_run_cell_subprocess(backend, n) for _ in range(repeats)]
+            reps: list[dict[str, Any]] = [r for r in raw_reps if r]
             if not reps:
                 cases.append({"backend": backend, "n": n, "error": "no successful reps"})
                 continue

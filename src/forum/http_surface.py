@@ -117,6 +117,8 @@ class HttpSurface(HttpReadMixin, HttpActionMixin):
     async def _dispatch_traced(
         self, method: str, path: str, body: bytes, authorization: str | None, traceparent: str | None
     ) -> Response:
+        # dispatch() only routes here when tracing is on, so _tracer is set.
+        assert self._tracer is not None
         parent = parse_traceparent(traceparent)
         with self._tracer.start_span(
             f"{method} {_route_template(path)}",

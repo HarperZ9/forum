@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from typing import TYPE_CHECKING
 
 from forum.http_response import Response, error, json_response
+
+if TYPE_CHECKING:
+    from forum.engine import Orchestrator
 
 
 class HttpReadMixin:
@@ -14,6 +18,9 @@ class HttpReadMixin:
     state of its own and is never instantiated alone. Split out of http_surface to
     keep each module within the size gate; behavior is unchanged.
     """
+
+    if TYPE_CHECKING:  # supplied by HttpSurface, the composed host
+        _orch: Orchestrator
 
     # --- validation helpers ---
 

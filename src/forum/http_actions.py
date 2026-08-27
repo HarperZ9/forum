@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from forum.http_response import Response, error, json_response
 from forum.receipts import submit_receipt
+
+if TYPE_CHECKING:
+    from forum.engine import Orchestrator
 
 # HTTP gate-decision path suffix -> the gate ledger entry kind it appends.
 _GATE_DECISION_KINDS = {
@@ -20,6 +25,19 @@ class HttpActionMixin:
     instantiated alone. Split out of http_surface to keep each module within the
     size gate; behavior is unchanged.
     """
+
+    if TYPE_CHECKING:  # supplied by the composed host (HttpSurface / HttpReadMixin)
+        _orch: Orchestrator
+
+        def _read_json(self, body: bytes) -> tuple[Any, Response | None]: ...
+
+        def _str_field(self, data: Any, name: str) -> tuple[Any, Response | None]: ...
+
+        def _context_budget(self, data: Any) -> tuple[Any, Any, Response | None]: ...
+
+        def _non_negative_int_field(
+            self, data: Any, name: str, *, default: int
+        ) -> tuple[Any, Response | None]: ...
 
     def _gate_resolve(self, action: str, body: bytes) -> Response:
         from forum.gates import resolve_gate
