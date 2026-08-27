@@ -25,8 +25,8 @@ from statistics import median
 from typing import Any
 
 from forum.ledger import InMemoryStorage, Ledger
-from forum.storage import FileStorage
 from forum.sqlite_storage import SqliteStorage
+from forum.storage import FileStorage
 
 SCHEMA = "forum.storage-scaling-benchmark/v1"
 

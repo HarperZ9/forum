@@ -3,9 +3,9 @@ import contextlib
 import json
 
 from forum.daemon import Daemon, _run_until_shutdown, build_orchestrator
+from forum.executor import Result
 from forum.metrics import MetricsRegistry
 from forum.otlp_metrics import OtlpHttpMetricExporter
-from forum.executor import Result
 from forum.policy import Policy
 from forum.roster import load_default
 
