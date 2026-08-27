@@ -1,0 +1,219 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "forum"
+            }
+          }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": {
+            "name": "forum.metrics",
+            "version": "1"
+          },
+          "metrics": [
+            {
+              "name": "http.server.request.duration",
+              "unit": "s",
+              "description": "Duration of inbound HTTP server requests.",
+              "histogram": {
+                "aggregationTemporality": 2,
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "http.request.method",
+                        "value": {
+                          "stringValue": "GET"
+                        }
+                      },
+                      {
+                        "key": "http.response.status_code",
+                        "value": {
+                          "intValue": "200"
+                        }
+                      },
+                      {
+                        "key": "http.route",
+                        "value": {
+                          "stringValue": "/status"
+                        }
+                      }
+                    ],
+                    "startTimeUnixNano": "1000000000",
+                    "timeUnixNano": "61000000000",
+                    "count": "5",
+                    "sum": 2.043,
+                    "bucketCounts": [
+                      "1",
+                      "0",
+                      "1",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "2",
+                      "0",
+                      "0",
+                      "1",
+                      "0",
+                      "0",
+                      "0",
+                      "0"
+                    ],
+                    "explicitBounds": [
+                      0.005,
+                      0.01,
+                      0.025,
+                      0.05,
+                      0.075,
+                      0.1,
+                      0.25,
+                      0.5,
+                      0.75,
+                      1.0,
+                      2.5,
+                      5.0,
+                      7.5,
+                      10.0
+                    ],
+                    "min": 0.003,
+                    "max": 1.2
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "key": "http.request.method",
+                        "value": {
+                          "stringValue": "GET"
+                        }
+                      },
+                      {
+                        "key": "http.response.status_code",
+                        "value": {
+                          "intValue": "500"
+                        }
+                      },
+                      {
+                        "key": "http.route",
+                        "value": {
+                          "stringValue": "/status"
+                        }
+                      }
+                    ],
+                    "startTimeUnixNano": "1000000000",
+                    "timeUnixNano": "61000000000",
+                    "count": "1",
+                    "sum": 3.0,
+                    "bucketCounts": [
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "1",
+                      "0",
+                      "0",
+                      "0"
+                    ],
+                    "explicitBounds": [
+                      0.005,
+                      0.01,
+                      0.025,
+                      0.05,
+                      0.075,
+                      0.1,
+                      0.25,
+                      0.5,
+                      0.75,
+                      1.0,
+                      2.5,
+                      5.0,
+                      7.5,
+                      10.0
+                    ],
+                    "min": 3.0,
+                    "max": 3.0
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "key": "http.request.method",
+                        "value": {
+                          "stringValue": "POST"
+                        }
+                      },
+                      {
+                        "key": "http.response.status_code",
+                        "value": {
+                          "intValue": "200"
+                        }
+                      },
+                      {
+                        "key": "http.route",
+                        "value": {
+                          "stringValue": "/submit"
+                        }
+                      }
+                    ],
+                    "startTimeUnixNano": "1000000000",
+                    "timeUnixNano": "61000000000",
+                    "count": "1",
+                    "sum": 0.6,
+                    "bucketCounts": [
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "1",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0",
+                      "0"
+                    ],
+                    "explicitBounds": [
+                      0.005,
+                      0.01,
+                      0.025,
+                      0.05,
+                      0.075,
+                      0.1,
+                      0.25,
+                      0.5,
+                      0.75,
+                      1.0,
+                      2.5,
+                      5.0,
+                      7.5,
+                      10.0
+                    ],
+                    "min": 0.6,
+                    "max": 0.6
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

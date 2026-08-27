@@ -1,24 +1,33 @@
 from __future__ import annotations
 
-import dataclasses
-import json
-from typing import Any
-
+from forum.auth import (
+    DEFAULT_ROLE_POLICY,
+    SCOPE_GATE,
+    SCOPE_PLAN,
+    SCOPE_ROUTE,
+    SCOPE_SUBMIT,
+    InvalidToken,
+    RolePolicy,
+    TokenVerifier,
+    authorize,
+    bearer_token,
+    required_scope,
+    witness_authz,
+)
 from forum.engine import Orchestrator
-from forum.receipts import submit_receipt
+from forum.http_actions import HttpActionMixin
+from forum.http_handlers import HttpReadMixin
 
-MAX_BODY = 1 << 20  # 1 MiB cap on a request body
+# Re-exported so existing imports (forum.daemon, tests) keep resolving these off
+# forum.http_surface after the wire primitives moved to forum.http_response.
+from forum.http_response import MAX_BODY, Response, error, json_response
+from forum.metrics import MetricsRegistry
+from forum.tracing import KIND_SERVER, STATUS_ERROR, Tracer, parse_traceparent
 
-_REASONS = {
-    200: "OK",
-    400: "Bad Request",
-    404: "Not Found",
-    405: "Method Not Allowed",
-    408: "Request Timeout",
-    413: "Payload Too Large",
-    500: "Internal Server Error",
-    502: "Bad Gateway",
-}
+__all__ = ["MAX_BODY", "HttpSurface", "Response", "error", "json_response"]
+
+# The mutating verbs whose grants are worth witnessing in the audit ledger.
+_MUTATING_SCOPES = frozenset({SCOPE_ROUTE, SCOPE_PLAN, SCOPE_SUBMIT, SCOPE_GATE})
 
 _KNOWN_PATHS = {
     "/health",
@@ -40,49 +49,160 @@ _KNOWN_PATHS = {
     "/gate/reject",
 }
 
-# HTTP gate-decision path suffix -> the gate ledger entry kind it appends.
-_GATE_DECISION_KINDS = {
-    "approve": "gate_approved",
-    "edit": "gate_edited",
-    "reject": "gate_rejected",
-}
+
+def _route_template(path: str) -> str:
+    """Collapse a variable-seq path to a low-cardinality span name.
+
+    OTel names a server span by its route, not its raw target, so ``/ledger/42``
+    and ``/ledger/43`` share one span name (``/ledger/{seq}``) and stay groupable
+    in a backend. The raw path is kept separately as the ``url.path`` attribute.
+    """
+    if path.startswith("/ledger/"):
+        return "/ledger/{seq}"
+    if path.startswith("/replay/"):
+        return "/replay/{seq}"
+    return path
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class Response:
-    status: int
-    body: bytes
-    content_type: str = "application/json"
-
-    @property
-    def reason(self) -> str:
-        return _REASONS.get(self.status, "Unknown")
-
-
-def json_response(obj: Any, status: int = 200) -> Response:
-    return Response(status, json.dumps(obj).encode("utf-8"))
-
-
-def error(status: int, message: str) -> Response:
-    return json_response({"error": message}, status)
-
-
-class HttpSurface:
+class HttpSurface(HttpReadMixin, HttpActionMixin):
     """Maps an HTTP method and path to the Orchestrator and serializes JSON.
 
     No sockets live here; `dispatch` is a plain coroutine so every endpoint is
     testable without a network. The transport (forum.daemon) feeds it a parsed
-    (method, path, body) and writes the Response back.
+    (method, path, body) and writes the Response back. The endpoint handlers live
+    on HttpReadMixin (reads + validation) and HttpActionMixin (mutations); this
+    class owns dispatch, authorization, and the observability wrapping.
     """
 
-    def __init__(self, orchestrator: Orchestrator) -> None:
+    def __init__(
+        self,
+        orchestrator: Orchestrator,
+        *,
+        verifier: TokenVerifier | None = None,
+        role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
+        tracer: Tracer | None = None,
+        metrics: MetricsRegistry | None = None,
+    ) -> None:
         self._orch = orchestrator
+        # No verifier means authentication is OFF: dispatch serves every request,
+        # exactly as before. Configure a verifier to require a bearer JWT and the
+        # per-endpoint scope.
+        self._verifier = verifier
+        self._role_policy = role_policy
+        # No tracer means tracing is OFF: dispatch takes the untraced fast path.
+        # Configure a Tracer with an exporter to emit an OTLP server span per
+        # request, continuing an inbound W3C traceparent when one is present.
+        self._tracer = tracer
+        # No metrics means metering is OFF. Configure a MetricsRegistry to record
+        # the http.server.request.duration histogram, one point per request.
+        self._metrics = metrics
 
-    async def dispatch(self, method: str, path: str, body: bytes) -> Response:
+    async def dispatch(
+        self,
+        method: str,
+        path: str,
+        body: bytes,
+        authorization: str | None = None,
+        traceparent: str | None = None,
+    ) -> Response:
+        # Both off is the cold path: one branch, no span, no clock read, byte for
+        # byte the pre-observability behavior. Tracing and metering compose
+        # independently, and a request is measured exactly once either way.
+        if self._tracer is None and self._metrics is None:
+            return await self._dispatch_inner(method, path, body, authorization)
+        if self._tracer is None:
+            return await self._dispatch_measured(method, path, body, authorization)
+        return await self._dispatch_traced(method, path, body, authorization, traceparent)
+
+    async def _dispatch_traced(
+        self, method: str, path: str, body: bytes, authorization: str | None, traceparent: str | None
+    ) -> Response:
+        parent = parse_traceparent(traceparent)
+        with self._tracer.start_span(
+            f"{method} {_route_template(path)}",
+            kind=KIND_SERVER,
+            parent=parent,
+            attributes={"http.request.method": method, "url.path": path},
+        ) as span:
+            response = await self._dispatch_measured(method, path, body, authorization)
+            span.attributes["http.response.status_code"] = response.status
+            # OTel maps a server span to error only on 5xx; a 4xx is the client's
+            # fault and leaves the span status OK.
+            if response.status >= 500:
+                span.set_status(STATUS_ERROR, f"{response.status} {response.reason}")
+            return response
+
+    async def _dispatch_measured(
+        self, method: str, path: str, body: bytes, authorization: str | None
+    ) -> Response:
+        """The single place a request is timed and recorded, so metering happens
+        exactly once whether tracing is on or off (no double count)."""
+        if self._metrics is None:
+            return await self._dispatch_inner(method, path, body, authorization)
+        start = self._metrics.now()
+        response = await self._dispatch_inner(method, path, body, authorization)
+        # The registry clock is epoch-wall, not monotonic; clamp a backward NTP
+        # step to a non-negative duration, the same single-clock trade-off tracing
+        # already accepts. _dispatch_inner never raises (it maps errors to a 500),
+        # so a failed request is still recorded once, with its status.
+        duration_seconds = max(0.0, (self._metrics.now() - start) / 1e9)
+        self._metrics.record_request(
+            method=method,
+            route=self._metric_route(path),
+            status_code=response.status,
+            duration_seconds=duration_seconds,
+        )
+        return response
+
+    def _metric_route(self, path: str) -> str | None:
+        """The low-cardinality http.route metric attribute, or None for an
+        unknown path so a flood of random 404 targets collapses into one no-route
+        cell instead of unbounded series. The raw path is never a metric
+        attribute (it stays the span's url.path)."""
+        if path.startswith("/ledger/") or path.startswith("/replay/"):
+            return _route_template(path)
+        if path in _KNOWN_PATHS:
+            return path
+        return None
+
+    async def _dispatch_inner(
+        self, method: str, path: str, body: bytes, authorization: str | None
+    ) -> Response:
         try:
+            denied = self._authorize(method, path, authorization)
+            if denied is not None:
+                return denied
             return await self._route(method, path, body)
         except Exception as exc:  # never swallow: report with context
             return error(500, f"{type(exc).__name__}: {exc}")
+
+    def _authorize(
+        self, method: str, path: str, authorization: str | None
+    ) -> Response | None:
+        """Enforce bearer-JWT + scope for one request. Returns a 401/403 Response
+        to reject, or None to allow. Authenticated decisions are witnessed in the
+        ledger for a tamper-evident audit; unauthenticated 401s are not, so an
+        unauthenticated flood cannot grow the audit log."""
+        if self._verifier is None:
+            return None
+        scope = required_scope(method, path)
+        if scope is None:
+            return None  # public endpoint (for example /health)
+        token = bearer_token(authorization)
+        if token is None:
+            return error(401, "missing bearer token")
+        try:
+            claims = self._verifier.verify(token)
+        except InvalidToken as exc:
+            return error(401, f"invalid token: {exc}")
+        resource = f"{method} {path}"
+        decision = authorize(claims, scope, self._role_policy)
+        if not decision.granted:
+            witness_authz(self._orch.ledger, decision, resource=resource)
+            return error(403, decision.reason)
+        if scope in _MUTATING_SCOPES:
+            witness_authz(self._orch.ledger, decision, resource=resource)
+        return None
 
     async def _route(self, method: str, path: str, body: bytes) -> Response:
         if method == "GET" and path == "/health":
@@ -125,341 +245,3 @@ class HttpSurface:
         if path in _KNOWN_PATHS or path.startswith("/ledger/") or path.startswith("/replay/"):
             return error(405, f"method {method} not allowed for {path}")
         return error(404, f"no route for {path}")
-
-    # --- helpers ---
-
-    def _read_json(self, body: bytes):
-        if not body:
-            return None, error(400, "expected a JSON body")
-        try:
-            data = json.loads(body)
-        except json.JSONDecodeError:
-            return None, error(400, "body is not valid JSON")
-        if not isinstance(data, dict):
-            return None, error(400, "body must be a JSON object")
-        return data, None
-
-    def _str_field(self, data: dict, name: str):
-        value = data.get(name)
-        if not isinstance(value, str) or not value:
-            return None, error(400, f"field {name!r} (a non-empty string) is required")
-        return value, None
-
-    def _seq_suffix(self, path: str, prefix: str):
-        try:
-            return int(path[len(prefix):]), None
-        except ValueError:
-            return None, error(400, f"{prefix}<seq> requires an integer seq")
-
-    def _context_budget(self, data: dict):
-        from forum.context_budget import ContextBudget
-
-        mapping = {
-            "context_token_budget": "max_total_tokens",
-            "request_context_token_budget": "max_request_tokens",
-            "task_context_token_budget": "max_task_tokens",
-            "upstream_token_budget": "max_upstream_tokens",
-        }
-        kwargs = {}
-        for field, target in mapping.items():
-            if field not in data:
-                continue
-            value = data[field]
-            if type(value) is not int:
-                return None, None, error(400, f"field {field!r} must be an integer")
-            kwargs[target] = value
-        if not kwargs:
-            return None, {}, None
-        try:
-            budget = ContextBudget(**kwargs)
-        except ValueError as exc:
-            return None, None, error(400, str(exc))
-        return budget, budget.configured_limits(), None
-
-    def _non_negative_int_field(self, data: dict, name: str, *, default: int):
-        value = data.get(name, default)
-        if type(value) is not int:
-            return None, error(400, f"field {name!r} must be an integer when provided")
-        if value < 0:
-            return None, error(400, f"field {name!r} must be >= 0")
-        return value, None
-
-    # --- handlers ---
-
-    def _ledger_get(self, path: str) -> Response:
-        seq, err = self._seq_suffix(path, "/ledger/")
-        if err:
-            return err
-        try:
-            entry = self._orch.ledger.get(seq)
-        except KeyError:
-            return error(404, f"no ledger entry at seq {seq}")
-        return json_response(dataclasses.asdict(entry))
-
-    def _replay(self, path: str) -> Response:
-        seq, err = self._seq_suffix(path, "/replay/")
-        if err:
-            return err
-        entries = self._orch.ledger.replay(until=seq)
-        return json_response({"entries": [dataclasses.asdict(e) for e in entries]})
-
-    def _capsule(self) -> Response:
-        from forum.context_capsule import build_context_capsule
-
-        return json_response(build_context_capsule(self._orch.ledger))
-
-    def _room(self) -> Response:
-        from forum.run_room import build_run_room
-
-        return json_response(build_run_room(self._orch.ledger))
-
-    def _gates(self) -> Response:
-        from forum.gates import gate_resolution
-
-        led = self._orch.ledger
-        pending = []
-        for entry in led.query(kind="gate_pending"):
-            body = led.get_payload(entry.payload_hash)
-            run_seq = body.get("run_seq")
-            wave = body.get("wave")
-            if gate_resolution(led, run_seq, wave) == "pending":
-                item = {
-                    "seq": entry.seq,
-                    "run_seq": run_seq,
-                    "wave": wave,
-                    "tasks": list(body.get("tasks") or []),
-                    "question": body.get("question", ""),
-                }
-                deadline = body.get("deadline")
-                if isinstance(deadline, (int, float)):
-                    # bounded gate: expose the deadline and the auto-decision that
-                    # fires on resume if it lapses (reject unless operator opted in)
-                    item["deadline"] = float(deadline)
-                    item["on_expiry"] = str(body.get("on_expiry") or "reject")
-                pending.append(item)
-        return json_response({"pending": pending})
-
-    def _gate_resolve(self, action: str, body: bytes) -> Response:
-        from forum.gates import resolve_gate
-
-        kind = _GATE_DECISION_KINDS[action]
-        data, err = self._read_json(body)
-        if err:
-            return err
-        run_seq = data.get("run_seq")
-        wave = data.get("wave")
-        if type(run_seq) is not int:
-            return error(400, "field 'run_seq' (an integer) is required")
-        if type(wave) is not int:
-            return error(400, "field 'wave' (an integer) is required")
-        approver, err = self._str_field(data, "approver")
-        if err:
-            return err
-        edits: dict[str, str] = {}
-        if kind == "gate_edited":
-            raw = data.get("edits")
-            if not isinstance(raw, dict) or not raw:
-                return error(400, "field 'edits' (a non-empty object of task_id -> instruction) is required")
-            for tid, instruction in raw.items():
-                if not isinstance(tid, str) or not isinstance(instruction, str):
-                    return error(400, "field 'edits' must map string task ids to string instructions")
-                edits[tid] = instruction
-        note = data.get("note", "")
-        reason = data.get("reason", "")
-        if not isinstance(note, str) or not isinstance(reason, str):
-            return error(400, "fields 'note' and 'reason' must be strings when provided")
-        entry = resolve_gate(
-            self._orch.ledger, run_seq, wave, kind,
-            approver=approver, note=note, reason=reason, edits=edits,
-        )
-        return json_response({"resolved": kind, "seq": entry.seq, "run_seq": run_seq, "wave": wave})
-
-    def _runtime(self) -> Response:
-        from forum.runtime_descriptor import descriptors_from_executor
-        from forum.runtime_inspect import inspect_runtime
-
-        default, tiers = descriptors_from_executor(self._orch.executor)
-        return json_response(inspect_runtime(default, tiers, self._orch.roster))
-
-    def _context_preflight(self, body: bytes) -> Response:
-        from forum.context_capsule import build_context_capsule, capsule_text
-        from forum.context_preflight import build_context_preflight
-
-        data, err = self._read_json(body)
-        if err:
-            return err
-        request, err = self._str_field(data, "request")
-        if err:
-            return err
-        context_budget, _, err = self._context_budget(data)
-        if err:
-            return err
-        use_capsule_context = data.get("use_capsule_context", False)
-        if not isinstance(use_capsule_context, bool):
-            return error(400, "field 'use_capsule_context' must be a boolean when provided")
-
-        context = ""
-        context_source = "none"
-        if use_capsule_context:
-            max_items, err = self._non_negative_int_field(data, "max_items", default=8)
-            if err:
-                return err
-            max_text_chars, err = self._non_negative_int_field(data, "max_text_chars", default=240)
-            if err:
-                return err
-            capsule = build_context_capsule(
-                self._orch.ledger,
-                max_items=max_items,
-                max_text_chars=max_text_chars,
-            )
-            context = capsule_text(capsule)
-            context_source = "capsule"
-
-        return json_response(
-            build_context_preflight(
-                request,
-                context=context,
-                context_source=context_source,
-                budget=context_budget,
-            )
-        )
-
-    def _route_text(self, body: bytes) -> Response:
-        from forum.route_frame import derive_route_frame, frame_payload
-
-        data, err = self._read_json(body)
-        if err:
-            return err
-        text, err = self._str_field(data, "text")
-        if err:
-            return err
-        result = self._orch.route(text)
-        frame = derive_route_frame(text, result, self._orch.roster)
-        return json_response({
-            "decided": result.decided,
-            "confidence": result.confidence,
-            "needs_escalation": result.needs_escalation,
-            "candidates": [{"agent": c.agent, "score": c.score} for c in result.candidates],
-            "frame": frame_payload(frame),
-        })
-
-
-    def _humanize(self, body: bytes) -> Response:
-        from forum.humanize import humanize_text
-
-        data, err = self._read_json(body)
-        if err:
-            return err
-        text, err = self._str_field(data, "text")
-        if err:
-            return err
-        audience = data.get("audience", "operator")
-        if not isinstance(audience, str) or not audience:
-            return error(400, "field 'audience' must be a non-empty string when provided")
-        profile = data.get("profile")
-        if profile is not None and (not isinstance(profile, str) or not profile):
-            return error(400, "field 'profile' must be a non-empty string when provided")
-        try:
-            return json_response(humanize_text(text, audience=audience, profile=profile))
-        except ValueError as exc:
-            return error(400, str(exc))
-
-    def _prose_contract(self, body: bytes) -> Response:
-        from forum.communication_contract import build_communication_contract
-        from forum.route_frame import derive_route_frame
-
-        data, err = self._read_json(body)
-        if err:
-            return err
-        text, err = self._str_field(data, "text")
-        if err:
-            return err
-        profile = data.get("profile")
-        if profile is not None and (not isinstance(profile, str) or not profile):
-            return error(400, "field 'profile' must be a non-empty string when provided")
-
-        result = self._orch.route(text)
-        frame = derive_route_frame(text, result, self._orch.roster)
-        try:
-            return json_response(
-                build_communication_contract(
-                    domain=frame.domain,
-                    intent=frame.intent,
-                    posture=frame.posture,
-                    profile=profile or frame.delivery_profile,
-                    human_contract=frame.human_contract,
-                    proof_lane=frame.proof_lane,
-                    domain_lane=frame.domain_lane,
-                )
-            )
-        except ValueError as exc:
-            return error(400, str(exc))
-
-    async def _plan(self, body: bytes) -> Response:
-        data, err = self._read_json(body)
-        if err:
-            return err
-        request, err = self._str_field(data, "request")
-        if err:
-            return err
-        try:
-            plan = await self._orch.coordinator.plan(
-                request, self._orch.roster, self._orch.executor
-            )
-        except ValueError as exc:
-            return error(502, f"the executor did not return a valid plan ({exc})")
-        return json_response({"tasks": [
-            {"id": t.id, "agent": t.agent, "instruction": t.instruction,
-             "depends_on": list(t.depends_on)}
-            for t in plan.tasks
-        ]})
-
-    async def _submit(self, body: bytes) -> Response:
-        data, err = self._read_json(body)
-        if err:
-            return err
-        request, err = self._str_field(data, "request")
-        if err:
-            return err
-        delivery_profile = data.get("delivery_profile")
-        if delivery_profile is not None and (
-            not isinstance(delivery_profile, str) or not delivery_profile
-        ):
-            return error(400, "field 'delivery_profile' must be a non-empty string when provided")
-        checkpoint_each_wave = data.get("checkpoint_each_wave", False)
-        if not isinstance(checkpoint_each_wave, bool):
-            return error(400, "field 'checkpoint_each_wave' must be a boolean when provided")
-        context_budget, context_budget_payload, err = self._context_budget(data)
-        if err:
-            return err
-        before_seq = self._orch.ledger.count()
-        try:
-            answer = await self._orch.submit(
-                request,
-                context_budget=context_budget,
-                delivery_profile=delivery_profile,
-                checkpoint_each_wave=checkpoint_each_wave,
-            )
-        except ValueError as exc:
-            message = str(exc)
-            if "unknown delivery profile" in message:
-                return error(400, message)
-            return error(
-                502,
-                "the configured executor did not return valid JSON; point the "
-                f"daemon at a real model executor ({exc})",
-            )
-        receipt = submit_receipt(
-            self._orch.ledger,
-            before_seq=before_seq,
-            request=request,
-            answer=answer,
-            executor=self._orch.executor,
-            context_budget=context_budget_payload,
-            delivery_profile=delivery_profile,
-        )
-        return json_response({
-            "answer": answer,
-            "checkpoint": self._orch.ledger.checkpoint(),
-            "receipt": receipt,
-        })

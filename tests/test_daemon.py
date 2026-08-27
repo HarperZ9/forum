@@ -1,7 +1,10 @@
 import asyncio
+import contextlib
 import json
 
-from forum.daemon import Daemon, build_orchestrator
+from forum.daemon import Daemon, _run_until_shutdown, build_orchestrator
+from forum.metrics import MetricsRegistry
+from forum.otlp_metrics import OtlpHttpMetricExporter
 from forum.executor import Result
 from forum.policy import Policy
 from forum.roster import load_default
@@ -240,3 +243,60 @@ def test_negative_content_length_is_400():
             await daemon.stop()
     asyncio.run(go())
 
+
+
+def test_stop_flushes_recorded_metrics_to_the_exporter():
+    # The critical delivery path: a request is recorded, and the ONE flush the
+    # daemon performs (on stop) POSTs that histogram to the exporter's transport.
+    captured = []
+    exporter = OtlpHttpMetricExporter(transport=lambda u, b, h, t: captured.append(json.loads(b)))
+    registry = MetricsRegistry()  # real clock; duration lands in some early bucket
+
+    async def go():
+        daemon = Daemon(
+            build_orchestrator_in_memory(), port=0,
+            metrics=registry, metric_exporter=exporter,
+        )
+        await daemon.start()
+        status, _ = await _request(daemon.port, _get("/health"))
+        assert status == 200
+        assert captured == []  # nothing flushed mid-run
+        await daemon.stop()
+
+    asyncio.run(go())
+
+    assert len(captured) == 1  # exactly one flush, on stop
+    metric = captured[0]["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]
+    assert metric["name"] == "http.server.request.duration"
+    dp = metric["histogram"]["dataPoints"][0]
+    attrs = {a["key"]: a["value"] for a in dp["attributes"]}
+    assert attrs["http.request.method"] == {"stringValue": "GET"}
+    assert attrs["http.route"] == {"stringValue": "/health"}
+    assert attrs["http.response.status_code"] == {"intValue": "200"}
+    assert dp["count"] == "1"
+
+
+def test_run_until_shutdown_calls_stop_on_cancel():
+    # Guards the delivery defect at the source: whatever ends the serve loop, the
+    # shutdown guard must reach daemon.stop() (the only metrics flush point).
+    class _SpyDaemon:
+        def __init__(self):
+            self.stopped = False
+            self._gate = asyncio.Event()
+
+        async def serve_forever(self):
+            await self._gate.wait()  # block until cancelled
+
+        async def stop(self, drain_timeout: float = 5.0):
+            self.stopped = True
+
+    async def go():
+        spy = _SpyDaemon()
+        task = asyncio.ensure_future(_run_until_shutdown(spy))
+        await asyncio.sleep(0.01)  # let it start serving
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        return spy.stopped
+
+    assert asyncio.run(go()) is True

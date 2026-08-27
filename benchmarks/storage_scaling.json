@@ -1,0 +1,257 @@
+{
+  "schema": "forum.storage-scaling-benchmark/v1",
+  "generated_at": "2026-08-26T19:50:47Z",
+  "python": "3.12.10",
+  "platform": "Windows-11-10.0.26220-SP0",
+  "rss_supported": true,
+  "parameters": {
+    "counts": [
+      10000,
+      50000,
+      200000
+    ],
+    "backends": [
+      "memory",
+      "file",
+      "sqlite"
+    ],
+    "repeats": 3,
+    "durability": "fsync_each=False (batched append; sync at end)"
+  },
+  "cases": [
+    {
+      "backend": "memory",
+      "n": 10000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 237194,
+        "min": 234333,
+        "max": 237773
+      },
+      "verify_ms": {
+        "median": 11.207,
+        "min": 11.092,
+        "max": 11.34
+      },
+      "rss_after_mb": {
+        "median": 30.9,
+        "min": 30.8,
+        "max": 31.0
+      },
+      "rss_delta_mb": {
+        "median": 6.5,
+        "min": 6.5,
+        "max": 6.6
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "memory",
+      "n": 50000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 227601,
+        "min": 225587,
+        "max": 228033
+      },
+      "verify_ms": {
+        "median": 56.038,
+        "min": 55.927,
+        "max": 56.862
+      },
+      "rss_after_mb": {
+        "median": 57.6,
+        "min": 57.5,
+        "max": 57.7
+      },
+      "rss_delta_mb": {
+        "median": 33.4,
+        "min": 33.4,
+        "max": 33.5
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "memory",
+      "n": 200000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 216258,
+        "min": 215333,
+        "max": 217091
+      },
+      "verify_ms": {
+        "median": 228.684,
+        "min": 226.25,
+        "max": 237.244
+      },
+      "rss_after_mb": {
+        "median": 156.1,
+        "min": 155.9,
+        "max": 156.1
+      },
+      "rss_delta_mb": {
+        "median": 131.8,
+        "min": 131.7,
+        "max": 131.8
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "file",
+      "n": 10000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 3665,
+        "min": 3520,
+        "max": 3781
+      },
+      "verify_ms": {
+        "median": 11.274,
+        "min": 11.157,
+        "max": 26.838
+      },
+      "rss_after_mb": {
+        "median": 30.9,
+        "min": 30.9,
+        "max": 31.0
+      },
+      "rss_delta_mb": {
+        "median": 6.7,
+        "min": 6.6,
+        "max": 6.7
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "file",
+      "n": 50000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 1900,
+        "min": 1833,
+        "max": 1919
+      },
+      "verify_ms": {
+        "median": 147.541,
+        "min": 133.645,
+        "max": 162.01
+      },
+      "rss_after_mb": {
+        "median": 57.7,
+        "min": 57.6,
+        "max": 58.0
+      },
+      "rss_delta_mb": {
+        "median": 33.4,
+        "min": 33.3,
+        "max": 33.5
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "file",
+      "n": 200000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 1669,
+        "min": 1652,
+        "max": 1670
+      },
+      "verify_ms": {
+        "median": 544.385,
+        "min": 448.701,
+        "max": 564.596
+      },
+      "rss_after_mb": {
+        "median": 156.1,
+        "min": 156.1,
+        "max": 156.2
+      },
+      "rss_delta_mb": {
+        "median": 131.8,
+        "min": 131.8,
+        "max": 131.9
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "sqlite",
+      "n": 10000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 61433,
+        "min": 60835,
+        "max": 62105
+      },
+      "verify_ms": {
+        "median": 33.384,
+        "min": 32.629,
+        "max": 35.274
+      },
+      "rss_after_mb": {
+        "median": 27.5,
+        "min": 27.4,
+        "max": 27.6
+      },
+      "rss_delta_mb": {
+        "median": 2.3,
+        "min": 2.3,
+        "max": 2.3
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "sqlite",
+      "n": 50000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 50745,
+        "min": 50711,
+        "max": 51076
+      },
+      "verify_ms": {
+        "median": 178.219,
+        "min": 173.115,
+        "max": 178.735
+      },
+      "rss_after_mb": {
+        "median": 27.6,
+        "min": 27.5,
+        "max": 27.6
+      },
+      "rss_delta_mb": {
+        "median": 2.5,
+        "min": 2.3,
+        "max": 2.5
+      },
+      "verify_ok": true
+    },
+    {
+      "backend": "sqlite",
+      "n": 200000,
+      "repeats": 3,
+      "append_per_sec": {
+        "median": 27721,
+        "min": 27689,
+        "max": 28195
+      },
+      "verify_ms": {
+        "median": 1448.939,
+        "min": 1423.23,
+        "max": 1460.773
+      },
+      "rss_after_mb": {
+        "median": 27.7,
+        "min": 27.7,
+        "max": 27.7
+      },
+      "rss_delta_mb": {
+        "median": 2.6,
+        "min": 2.6,
+        "max": 2.6
+      },
+      "verify_ok": true
+    }
+  ]
+}

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import signal
 
+from forum.auth import DEFAULT_ROLE_POLICY, RolePolicy, TokenVerifier
 from forum.context import ContextProvider
 from forum.control import IntentJudge
 from forum.delivery import Reviser
@@ -9,9 +12,12 @@ from forum.engine import Orchestrator
 from forum.executor import EchoExecutor, Executor
 from forum.http_surface import MAX_BODY, HttpSurface, Response, error
 from forum.ledger import Ledger
+from forum.metrics import MetricsRegistry
+from forum.otlp_metrics import OtlpHttpMetricExporter
 from forum.policy import Policy
 from forum.roster import Roster, load_default
 from forum.storage import FileStorage
+from forum.tracing import Tracer
 from forum.verify import VerifierProvider
 
 _ALL_CATEGORIES = frozenset({"engineering", "graphics", "support", "research"})
@@ -21,8 +27,10 @@ class _BodyTooLarge(Exception):
     pass
 
 
-async def _read_request(reader: asyncio.StreamReader) -> tuple[str, str, bytes]:
-    """Parse one HTTP/1.1 request into (method, path, body).
+async def _read_request(
+    reader: asyncio.StreamReader,
+) -> tuple[str, str, bytes, str | None, str | None]:
+    """Parse one HTTP/1.1 request into (method, path, body, authorization, traceparent).
 
     Raises _BodyTooLarge if the advertised Content-Length exceeds MAX_BODY, and
     ValueError / asyncio read errors on a malformed or truncated request.
@@ -57,7 +65,7 @@ async def _read_request(reader: asyncio.StreamReader) -> tuple[str, str, bytes]:
         if n > MAX_BODY:
             raise _BodyTooLarge()
         body = await reader.readexactly(n)
-    return method, path, body
+    return method, path, body, headers.get("authorization"), headers.get("traceparent")
 
 
 async def _write_response(writer: asyncio.StreamWriter, response: Response) -> None:
@@ -79,9 +87,30 @@ class Daemon:
     (Connection: close); the surface is HttpSurface.
     """
 
-    def __init__(self, orchestrator: Orchestrator, host: str = "127.0.0.1", port: int = 8080, read_timeout: float = 10.0) -> None:
+    def __init__(
+        self,
+        orchestrator: Orchestrator,
+        host: str = "127.0.0.1",
+        port: int = 8080,
+        read_timeout: float = 10.0,
+        *,
+        verifier: TokenVerifier | None = None,
+        role_policy: RolePolicy = DEFAULT_ROLE_POLICY,
+        tracer: Tracer | None = None,
+        metrics: MetricsRegistry | None = None,
+        metric_exporter: OtlpHttpMetricExporter | None = None,
+    ) -> None:
         self.orchestrator = orchestrator
-        self._surface = HttpSurface(orchestrator)
+        # A verifier turns on bearer-JWT auth for every non-public endpoint; None
+        # keeps the daemon open, unchanged for existing deployments. A tracer
+        # turns on OTLP server-span emission per request; None keeps it off. A
+        # metrics registry records the request-duration histogram; the daemon
+        # holds the matching exporter and flushes it once on stop().
+        self._surface = HttpSurface(
+            orchestrator, verifier=verifier, role_policy=role_policy, tracer=tracer, metrics=metrics
+        )
+        self._metrics = metrics
+        self._metric_exporter = metric_exporter
         self._host = host
         self._port = port
         self._read_timeout = read_timeout
@@ -104,7 +133,7 @@ class Daemon:
             self._inflight.add(task)
         try:
             try:
-                method, path, body = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
+                method, path, body, authorization, traceparent = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
             except asyncio.TimeoutError:
                 await _write_response(writer, error(408, "request timed out"))
                 return
@@ -114,7 +143,7 @@ class Daemon:
             except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError):
                 await _write_response(writer, error(400, "malformed HTTP request"))
                 return
-            response = await self._surface.dispatch(method, path, body)
+            response = await self._surface.dispatch(method, path, body, authorization, traceparent)
             await _write_response(writer, response)
         finally:
             if task is not None:
@@ -146,6 +175,11 @@ class Daemon:
             self._server = None
         if self._inflight:
             await asyncio.wait(self._inflight, timeout=drain_timeout)
+        # Flush metrics once, after in-flight requests have been recorded. This
+        # single best-effort shutdown flush is v1's emission trigger; there is no
+        # periodic reader yet, so a hard kill loses the final snapshot.
+        if self._metric_exporter is not None and self._metrics is not None:
+            self._metric_exporter.export(self._metrics)
 
 
 def build_orchestrator(
@@ -167,7 +201,15 @@ def build_orchestrator(
     (an ApiExecutor or a model CLI via SubprocessExecutor) and return 502 under
     EchoExecutor.
     """
-    ledger = Ledger(FileStorage(ledger_dir, fsync_each=fsync_each))
+    # A ``.db`` ledger path selects the durable, RAM-free SQLite backend (WAL
+    # mode, shareable by concurrent workers); any other path is a FileStorage
+    # directory. Both honor fsync_each.
+    if str(ledger_dir).endswith(".db"):
+        from forum.sqlite_storage import SqliteStorage
+
+        ledger = Ledger(SqliteStorage(str(ledger_dir), fsync_each=fsync_each))
+    else:
+        ledger = Ledger(FileStorage(ledger_dir, fsync_each=fsync_each))
     return Orchestrator(
         roster or load_default(),
         ledger,
@@ -180,16 +222,68 @@ def build_orchestrator(
     )
 
 
+async def _run_until_shutdown(daemon: Daemon) -> None:
+    """Serve until a shutdown signal or cancellation, then flush and drain once.
+
+    The finally is the guarantee: whatever ends the serve loop -- SIGINT/SIGTERM,
+    Ctrl+C (which cancels this coroutine), or the server stopping on its own --
+    ``daemon.stop()`` runs, draining in-flight requests and flushing the metrics
+    exporter. Without it an accumulated histogram would be discarded on every
+    shutdown and never reach the collector, which is the whole point of metering.
+    """
+    loop = asyncio.get_running_loop()
+    stop = loop.create_future()
+    installed: list[int] = []
+    for signame in ("SIGINT", "SIGTERM"):
+        sig = getattr(signal, signame, None)
+        if sig is None:
+            continue
+        try:
+            loop.add_signal_handler(sig, lambda: stop.done() or stop.set_result(None))
+            installed.append(sig)
+        except (NotImplementedError, RuntimeError, ValueError):
+            # Windows has no add_signal_handler for these, and it is main-thread
+            # only; SIGINT still arrives as a cancel, which runs the finally.
+            pass
+    serving = asyncio.ensure_future(daemon.serve_forever())
+    try:
+        await asyncio.wait({serving, stop}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for sig in installed:
+            loop.remove_signal_handler(sig)
+        serving.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await serving
+        await daemon.stop()
+
+
 async def serve(
     ledger_dir: str = "forum-ledger",
     host: str = "127.0.0.1",
     port: int = 8080,
     executor: Executor | None = None,
 ) -> None:
-    daemon = Daemon(build_orchestrator(ledger_dir, executor=executor), host, port)
+    from forum.otlp import tracer_from_env
+    from forum.otlp_metrics import meter_from_env
+
+    # Tracing and metrics turn on only when OTEL_EXPORTER_OTLP_ENDPOINT names a
+    # collector; otherwise both are None and the daemon runs unobserved, as before.
+    tracer = tracer_from_env()
+    meter = meter_from_env()
+    metrics, metric_exporter = meter if meter is not None else (None, None)
+    daemon = Daemon(
+        build_orchestrator(ledger_dir, executor=executor), host, port,
+        tracer=tracer, metrics=metrics, metric_exporter=metric_exporter,
+    )
     await daemon.start()
-    print(f"forum daemon on http://{daemon.host}:{daemon.port} (ledger: {ledger_dir})")
-    await daemon.serve_forever()
+    tracing = "off" if tracer is None else "on"
+    metering = "off" if meter is None else "on"
+    print(
+        f"forum daemon on http://{daemon.host}:{daemon.port} "
+        f"(ledger: {ledger_dir}, tracing: {tracing}, metrics: {metering})"
+    )
+    # Serve under a shutdown guard so the metrics exporter is flushed on exit.
+    await _run_until_shutdown(daemon)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,91 @@
 
 ## Unreleased
 
+- OpenTelemetry metrics that emit. `forum.metrics` is a stdlib-only `MetricsRegistry`
+  that records the one STABLE semconv HTTP server instrument,
+  `http.server.request.duration` (a cumulative explicit-bucket histogram, unit `s`, the
+  semconv-recommended bucket boundaries). It reuses the tracing increment's discipline:
+  the clock is injected for determinism, and a fixed cumulative start instant is captured
+  once at construction. Bucketing is upper-inclusive (`bisect_left`, the Prometheus `le`
+  convention). There is deliberately no separate request counter: a histogram data point
+  already carries its own `count`, so the per-attribute request count is read from the
+  histogram, which avoids double-instrumenting the same population. `forum.otlp_metrics`
+  is the network edge adapter: `otlp_metrics_payload` renders the OTLP/HTTP JSON a
+  collector's `/v1/metrics` receiver accepts (the encodings that differ from proto3 JSON
+  handled correctly: `count` and `bucketCounts` as strings, `sum`/`min`/`max`/`explicitBounds`
+  as numbers, `aggregationTemporality` the bare integer 2, and a Histogram with no
+  `isMonotonic`), and `OtlpHttpMetricExporter` POSTs it best-effort. The HTTP surface
+  records one point per request with the low-cardinality attribute set
+  (`http.request.method`, `http.response.status_code`, `http.route`); an unknown path
+  carries no route so a 404 flood collapses to one cell, and the variable-seq paths are
+  templated (`/ledger/{seq}`). Tracing and metering compose independently and a request is
+  measured exactly once; with both off, dispatch is byte-for-byte the pre-observability
+  path. Turn it on by passing a `metrics` registry to `HttpSurface`, or point `forum serve`
+  at a collector via `OTEL_EXPORTER_OTLP_ENDPOINT` (`meter_from_env`); `forum serve` runs
+  under a shutdown guard that reaches `Daemon.stop()` on SIGINT/SIGTERM (or cancellation),
+  which flushes the histogram once. Evidence: `examples/run_metrics.py` writes the exact payload to
+  `benchmarks/otlp_metrics_sample.json`, and a test POSTs it over a real socket to a stdlib
+  `/v1/metrics` endpoint. Honest nulls: no separate counter (by design), no periodic
+  exporting reader (shutdown flush only in v1, so a hard kill loses the final snapshot),
+  no delta temporality, no exemplars, and the Development-status semconv metrics
+  (active_requests, request/response body size) are not shipped.
+- OpenTelemetry tracing that emits. `forum.tracing` is a stdlib-only tracer:
+  spans with W3C `traceparent` propagation (`parse_traceparent` / `format_traceparent`),
+  injectable clock and id source so every id and timestamp is reproducible in a test,
+  and pluggable exporters (`NullSpanExporter` by default, `InMemorySpanExporter` for
+  inspection). `forum.otlp` is the network edge adapter: it renders spans as OTLP/HTTP
+  JSON a stock OpenTelemetry Collector's `/v1/traces` receiver accepts unchanged, with
+  the two encodings that differ from proto3 JSON handled correctly (trace/span ids as
+  hex, not base64; `*UnixNano` int64 as strings). The HTTP surface emits one SERVER span
+  per request: it continues an inbound trace when a `traceparent` header is present, names
+  the span by a low-cardinality route (`/ledger/{seq}`, not `/ledger/42`), records
+  `http.request.method` / `url.path` / `http.response.status_code`, and marks the span
+  ERROR only on 5xx. Turn it on by passing a `tracer` to `Daemon` or `HttpSurface`; with
+  none configured the surface takes the untraced fast path, unchanged. `forum serve` turns
+  emission on with no code change when `OTEL_EXPORTER_OTLP_ENDPOINT` names a collector
+  (`OTEL_SERVICE_NAME` optional), via `tracer_from_env`. Export is best-effort: a collector
+  outage is swallowed so telemetry never breaks the request it measures. Evidence:
+  `examples/run_tracing.py` writes the exact OTLP payload to
+  `benchmarks/otlp_trace_sample.json`, and a test POSTs it over a real socket to a stdlib
+  HTTP endpoint and validates what the receiver got. Metrics and logs signals, and
+  orchestrator-internal spans below the request boundary, are a later increment.
+- Bearer-JWT authentication and role-based authorization for the HTTP surface,
+  with a tamper-evident audit. `forum.auth` verifies HS256 tokens with the stdlib
+  `hmac` (constant-time signature check, `exp`/`nbf` against an injectable clock,
+  `alg` confusion and the `none`-alg trick rejected), maps a token's roles to
+  scopes through a fail-closed `RolePolicy`, and gates each endpoint by a required
+  scope (unknown paths fail closed). Turn it on by passing a `verifier` to `Daemon`
+  or `HttpSurface`; with none configured the surface stays open and unchanged.
+  Every AUTHENTICATED decision is witnessed in the ledger (`authz_grant` on a
+  mutating verb, `authz_deny` on a refusal), so the access-control trail is
+  tamper-evident on the same Merkle chain as the runs it guards; unauthenticated
+  401s are not written, so a tokenless flood cannot grow the audit log. Asymmetric
+  verification (RS256 / JWKS) stays an edge adapter: implement the `TokenVerifier`
+  protocol and pass it in. `issue_hs256` mints tokens for callers and tests.
+- Durable scale-out ledger storage: adds `SqliteStorage`, a stdlib-only (`sqlite3`)
+  `Storage` backend that keeps the ledger on disk instead of resident in memory. Where
+  `InMemoryStorage` and `FileStorage` both hold the whole ledger and every payload in
+  RAM (`FileStorage` reads it all in on construction), `SqliteStorage` serves
+  `head`/`get`/`count`/`get_payload` as indexed point reads that never materialize the
+  full log, so resident memory stays flat as the ledger grows into the millions of
+  entries; only `all()` (used by verify/checkpoint/replay/query) streams the full set.
+  WAL mode is on, so many readers and one writer can share the file, the substrate a
+  stateless multi-worker deployment builds on. The Merkle chain and every receipt verify
+  byte-for-byte against the other backends, and durability is tunable (`fsync_each`)
+  exactly as for `FileStorage`. Ledger subcommands and the daemon select it by path
+  convention: a `.db` ledger path is SQLite, any other path is a `FileStorage`
+  directory, with no new flags. Evidence: the `forum.storage-scaling-benchmark/v1`
+  receipt (`python -m forum.bench_storage`) reports append throughput, verify latency,
+  and resident memory for all three backends at scale, showing the RAM ceiling removed.
+- Concurrent multi-writer ledger append: `Ledger.append` retries on a `SeqCollision`
+  raised by storage, so several worker processes appending to one `SqliteStorage`
+  (WAL mode, with `busy_timeout` set) cannot corrupt the seq/prev chain. The loser of
+  a seq race re-reads the advanced head and retries; `put_payload` is content-keyed so
+  the retry is a no-op. Single-process backends never collide, so their behavior is
+  unchanged and append stays await-free. This is the concurrency substrate stateless
+  multi-worker serving builds on. Proven by a test where six concurrent writers on one
+  shared database land every append as a dense, `verify(deep=True)`-clean chain with
+  nothing lost.
 - Deep verify benchmark: adds `forum bench-deep-verify`, a zero-dependency benchmark
   for ledger integrity scaling. It times chain-only `verify()`, payload-only
   `verify_payloads()`, and full `verify(deep=True)` across entry counts, payload body
