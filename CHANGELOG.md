@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Presentation parity
+
+- README now exposes the current source version and the operator commands for
+  status, doctor, HTTP, and MCP surfaces.
+
 - OpenTelemetry metrics that emit. `forum.metrics` is a stdlib-only `MetricsRegistry`
   that records the one STABLE semconv HTTP server instrument,
   `http.server.request.duration` (a cumulative explicit-bucket histogram, unit `s`, the

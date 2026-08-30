@@ -10,10 +10,24 @@ Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `doc
 [![downloads](https://img.shields.io/pypi/dm/forum-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/forum-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none](https://img.shields.io/badge/deps-none-success?style=flat-square&labelColor=14041b)
+![version: 1.13.0](https://img.shields.io/badge/version-1.13.0-26dfe8?style=flat-square&labelColor=14041b)
 
 forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
+
+## Current status
+
+`forum-engine 1.13.0` is the current source version. Routing, bounded
+multi-agent runs, approvals, context budgets, replayable ledgers, daemon and
+MCP surfaces are present; a run result remains distinct from an external
+effect or outcome.
+
+## Operator surface
+
+Use `forum status --json` and `forum doctor --json` to inspect the local
+installation, then `forum mcp` or `forum serve` to expose the same routing,
+ledger, gate, campaign, and runtime operations to an MCP or HTTP host.
 
 ## Features
 
