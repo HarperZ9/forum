@@ -91,6 +91,18 @@ hash-only storage usable, and it is also the reason a green deep check is not a
 claim that every payload was examined. It is a claim about the ones that are
 still there.
 
+## What a tight budget does to context
+
+`ContextBudget` caps how much text one run may carry, per source and in
+total. When a cap binds, something has to give. What a task actually ends
+up seeing is the question this answers.
+
+<p align="center"><img src="docs/art/context-pressure.svg" alt="Seven things that can happen to one piece of context on its way to a task, and why each one lands that way. Text under its cap is kept whole, text over it is trimmed to the cap and measured again from what survived, and when two caps bind equally the reason names the total so a reader can tell the run is nearly out. Empty text is still recorded as a check. A character sitting on the cut is dropped rather than mangled, because the trim is measured in bytes. The marked row is the one where a piece is dropped whole, and even then the record keeps a row for it." width="100%"></p>
+
+Every piece leaves a row behind, dropped ones included. `forum context
+preflight` runs the same arithmetic on the same inputs before a model call
+is spent.
+
 ## A worked example: catch a tampered record
 
 No install needed beyond a clone, and no model is called:

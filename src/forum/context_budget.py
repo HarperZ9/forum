@@ -95,6 +95,17 @@ def apply_context_budget(
     budget: ContextBudget,
     meter: ContextBudgetMeter,
 ) -> tuple[str, ContextPressure]:
+    """Fit one piece of context to what is left of the budget.
+
+    Returns the text a task may actually be given, and a record of what
+    happened to it. Every call records something, so a run that trimmed
+    nothing still says how much it was carrying, and a piece that was
+    dropped entirely leaves a row behind instead of going missing.
+
+    Whichever cap binds first is the one named in the reason, and the
+    total is named on a tie. A trim cuts bytes, not characters, so a
+    character split by the cut is dropped rather than mangled.
+    """
     if source not in SOURCES:
         raise ValueError(f"unknown context source: {source}")
     original_bytes = len(text.encode("utf-8"))
