@@ -1,1 +1,5 @@
+# The art under docs/art/ is generated. render_repo_art.py writes LF on every
+# platform, so pin the checkout to LF as well and each file's byte count and
+# SHA-256 stay the same whoever cloned the repository.
 docs/art/*.svg text eol=lf
+docs/art/*.json text eol=lf
