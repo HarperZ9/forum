@@ -32,5 +32,25 @@
         {"label": "HASH ONLY", "note": "the body was never kept, so deep skips it", "tone": "none"}
       ]
     }
+  ],
+  "cards": [
+    {
+      "file": "context-pressure.svg",
+      "kicker": "no model runs, and nothing goes missing quietly",
+      "title": "What happens to a piece of context when the budget is tight",
+      "source": "python -c \"import forum.context_budget as c; print(c.apply_context_budget.__doc__)\"",
+      "alt": "Seven things that can happen to one piece of context on its way to a task, and why each one lands that way. Text under its cap is kept whole, text over it is trimmed to the cap and measured again from what survived, and when two caps bind equally the reason names the total so a reader can tell the run is nearly out. Empty text is still recorded as a check. A character sitting on the cut is dropped rather than mangled, because the trim is measured in bytes. The marked row is the one where a piece is dropped whole, and even then the record keeps a row for it.",
+      "footnote": "Four numbers ride with every row: bytes and tokens on arrival, bytes and tokens admitted. Tokens are approximate, UTF-8 bytes over four rounded up, so a cap is a guardrail rather than a measurement. forum context preflight runs the same arithmetic before a model call is spent, and the run record carries the tally.",
+      "heads": ["what arrives", "what the task gets", "why it lands that way"],
+      "fields": [
+        {"key": "no cap is set", "value": "retained, whole", "note": "Neither the source cap nor the total is set, so nothing binds and the text still gets a row."},
+        {"key": "under its cap", "value": "retained, whole", "note": "A run that trimmed nothing says so, which is what makes a quiet run readable later."},
+        {"key": "over its cap", "value": "trimmed to the cap", "note": "What was admitted is measured again from what survived, rather than assumed from the cap."},
+        {"key": "two caps bind alike", "value": "trimmed, total named", "note": "On a tie the reason names the total, so it reads as a run running out and not one large input."},
+        {"key": "nothing left to spend", "value": "omitted, row kept", "tone": "drift", "note": "A cap at or below zero drops the text whole. The record still carries the piece that went."},
+        {"key": "empty text", "value": "retained, reason empty", "note": "Zero tokens costs nothing and still counts, so the tally matches the work done."},
+        {"key": "a character on the cut", "value": "dropped, not mangled", "note": "The trim counts bytes, so a half character decodes away before a task sees it."}
+      ]
+    }
   ]
 }
