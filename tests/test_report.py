@@ -31,8 +31,12 @@ def test_flagship_brand_assets_exist_and_are_referenced():
         "examples/forum-demo.html",
     ]:
         assert (root / rel).exists(), rel
+    # The banner is the 1280x640 social-preview image, uploaded through the
+    # repository settings rather than linked from prose. What the README shows
+    # a reader is the generated header and the run-lifecycle diagram.
     for rel in [
-        ".github/assets/zentropy-banner.png",
+        "docs/art/forum-header.svg",
+        "docs/art/run-lifecycle.svg",
         "examples/forum-demo.html",
     ]:
         assert rel in readme, rel

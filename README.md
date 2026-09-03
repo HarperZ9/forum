@@ -1,4 +1,4 @@
-<p align="center"><img src=".github/assets/zentropy-banner.png" alt="forum: Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger." width="100%"></p>
+<p align="center"><img src="docs/art/forum-header.svg" alt="forum: route a request, run it in waves, keep a record you can re-check." width="100%"></p>
 
 Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `docs/brand/forum-hero.png`.
 
@@ -68,6 +68,28 @@ forum mcp --cmd "ollama run llama3"
 ```
 
 `forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `bench`, and `bench-deep-verify`. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
+
+## How a run works
+
+`forum submit` turns one plain request into one answer, and leaves behind a
+record of everything that produced it. This is the path a request takes.
+
+<p align="center"><img src="docs/art/run-lifecycle.svg" alt="Eight stages from a routed request to a hash-chained record: route, context, plan, dispatch, verdict, escalate, synthesize, ledger. A result that fails its verdict sends the task up a ladder of stronger models and is graded again. Re-checking the record reports the chain and the payloads separately, and a payload that was never stored is skipped rather than counted as held." width="100%"></p>
+
+The edge that loops back is escalation, and what makes it auditable is where it
+starts. A task does not climb to a stronger model because a model reported low
+confidence. It climbs because a judge wrote a verdict into the ledger, that
+verdict said the result failed, and the retry is chained to it. Read the record
+later and the reason a frontier model was spent is right there as an entry, not
+an inference.
+
+The band at the bottom is the part worth reading twice. `forum ledger verify`
+reports two booleans, not one: the chain recomputes, and the stored bodies still
+hash to their keys. They can disagree. A body that was redacted down to its
+fingerprint is skipped by the deep pass rather than failed, which is what makes
+hash-only storage usable, and it is also the reason a green deep check is not a
+claim that every payload was examined. It is a claim about the ones that are
+still there.
 
 ## A worked example: catch a tampered record
 
