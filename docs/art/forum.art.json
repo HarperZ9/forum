@@ -1,0 +1,36 @@
+{
+  "$comment": "Source of truth for the artwork on this repository's front page. Edit a sentence here and re-run scripts/render_repo_art.py; tests/test_repo_art.py fails if the committed SVG stops matching.",
+  "header": {
+    "name": "forum",
+    "role": "agent fleet orchestration",
+    "tagline": "Route a request, run it in waves, keep a record you can re-check.",
+    "words": ["route", "plan", "dispatch", "verdict", "ledger"]
+  },
+  "flows": [
+    {
+      "file": "run-lifecycle.svg",
+      "kicker": "one request, end to end",
+      "title": "How a plain request becomes an answer with a record behind it",
+      "alt": "Eight stages from a routed request to a hash-chained record: route, context, plan, dispatch, verdict, escalate, synthesize, ledger. A result that fails its verdict sends the task up a ladder of stronger models and is graded again. Re-checking the record reports the chain and the payloads separately, and a payload that was never stored is skipped rather than counted as held.",
+      "footnote": "Re-checking a run reads the record. It does not re-run the models that produced it.",
+      "stages": [
+        {"title": "Route", "note": "A roster picks the lane, and no model is called to do it."},
+        {"title": "Context", "note": "What shaped the plan is written down before the plan is."},
+        {"title": "Plan", "note": "A dependency graph, resolved into waves that run at once."},
+        {"title": "Dispatch", "note": "Waves run across whichever executors the run was given."},
+        {"title": "Verdict", "note": "A judge grades each result, and the grade is recorded."},
+        {"title": "Escalate", "note": "A failed grade sends the task up a ladder of models."},
+        {"title": "Synthesize", "note": "One answer, held to the contract the route selected."},
+        {"title": "Ledger", "note": "Each step above already sits in a hash-chained log."}
+      ],
+      "returns": [
+        {"from": 5, "to": 4, "label": "VERDICT FAILED: THE TASK CLIMBS TO A STRONGER MODEL"}
+      ],
+      "outcomes": [
+        {"label": "CHAIN AND PAYLOADS", "note": "every link recomputes, every body still hashes", "tone": "verified"},
+        {"label": "CHAIN ONLY", "note": "the links hold, a stored body no longer does", "tone": "drift"},
+        {"label": "HASH ONLY", "note": "the body was never kept, so deep skips it", "tone": "none"}
+      ]
+    }
+  ]
+}
