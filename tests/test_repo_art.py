@@ -3,8 +3,8 @@
 A picture in a README is never diffed, so it drifts from the text silently:
 somebody edits a stage name, nobody re-renders, and the diagram now describes
 a version of the tool that no longer exists. Here the picture is a pure
-function of a spec that IS diffable, and this re-renders it and compares
-bytes.
+function of a spec that IS diffable, and this re-renders it and compares the
+result against what is committed.
 
 The truncation test is the one that earns its place. Card notes are wrapped to
 three lines and the wrapper drops the rest, so an edited sentence can lose its
@@ -159,22 +159,38 @@ def test_the_tagline_stays_inside_its_rule():
 # line wraps and neither is clipped, so an over-long note simply runs out of its
 # box and into the next one. Like the tagline budget above, these count
 # characters rather than measure glyphs: a guardrail, not a typographic fact.
-# The widths come from the box at three outcomes, which is what every spec so
-# far uses, and shrink with the box when a spec uses more.
+# The widths shrink with the box as a spec adds outcomes, and they are read back
+# out of the renderer rather than written down here, so moving a margin in
+# repo_flow moves this budget with it instead of leaving it quietly wrong.
 def _outcome_budgets(count: int) -> tuple[int, int]:
-    span = (960 - 44 * 2 - 26 * (count - 1)) / count
+    span = (FLOW.W - FLOW.PAD * 2 - FLOW.GAP * (count - 1)) / count
     usable = span - 14 - 10
     return int(usable / 7.0), int(usable / 5.4)
+
+
+def _outcomes_that_overflow(flow: dict) -> list[str]:
+    label_budget, note_budget = _outcome_budgets(len(flow["outcomes"]))
+    bad = []
+    for item in flow["outcomes"]:
+        if len(item["label"]) > label_budget:
+            bad.append(f'{item["label"]!r} is wider than its box')
+        if len(item["note"]) > note_budget:
+            bad.append(f'the note under {item["label"]} is wider than its '
+                       f'box: {item["note"]!r}')
+    return bad
 
 
 def test_no_outcome_runs_out_of_its_box():
     for spec in _specs():
         for flow in spec.get("flows", []):
-            outcomes = flow["outcomes"]
-            label_budget, note_budget = _outcome_budgets(len(outcomes))
-            for item in outcomes:
-                assert len(item["label"]) <= label_budget, (
-                    f'{item["label"]!r} is wider than its box')
-                assert len(item["note"]) <= note_budget, (
-                    f'the note under {item["label"]} is wider than its box: '
-                    f'{item["note"]!r}')
+            assert not _outcomes_that_overflow(flow)
+
+
+def test_that_check_can_actually_fail():
+    """A green suite otherwise proves only that the check ran. Widen a note
+    past its box and the check has to say so."""
+    flow = {"outcomes": [
+        {"label": "OK", "note": "x" * 200, "tone": "verified"},
+        {"label": "y" * 200, "note": "short", "tone": "drift"},
+    ]}
+    assert len(_outcomes_that_overflow(flow)) == 2
