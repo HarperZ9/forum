@@ -36,6 +36,62 @@ python examples/run_context_capsule.py
 python examples/run_delivery_profile.py
 ```
 
+## Codex route-preflight skill asset
+
+Use the reviewed `forum-route-preflight` Codex skill before a Forum model run to preview routing, context pressure, runtime readiness, and the prose contract. The helper is advisory only: it never calls `forum submit`, never runs the configured model command, and keeps `decision.safe_to_submit: false`.
+
+There are two distribution paths:
+
+1. **Standalone ZIP release.** This is the current skill release path. It uses the GitHub tag `forum-route-preflight-v0.1.0`, attaches `forum-route-preflight-skill-20260907-final.zip`, and marks the release `--latest=false` so it does not replace the engine release line. It does not bump `forum-engine`, push a `v*` tag, or publish to PyPI.
+2. **Engine package asset.** Future `forum-engine` releases that include this source change carry the same four reviewed files under `forum/skills/forum-route-preflight/`, with `forum/skills/forum-route-preflight.sha256` recording their hashes.
+
+Download and verify the standalone ZIP without cloning the repository:
+
+```bash
+python - <<'PY'
+from hashlib import sha256
+from pathlib import Path
+from urllib.request import urlretrieve
+from zipfile import ZipFile
+
+url = "https://github.com/HarperZ9/forum/releases/download/forum-route-preflight-v0.1.0/forum-route-preflight-skill-20260907-final.zip"
+expected = "1827a9673414e73722ba7bd74be15316534bb6c66fc55ecc26845a5e5c953450"
+archive = Path("forum-route-preflight-skill-20260907-final.zip")
+target = Path("forum-route-preflight-skill")
+urlretrieve(url, archive)
+actual = sha256(archive.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"archive hash mismatch: {actual}")
+with ZipFile(archive) as zf:
+    zf.extractall(target)
+print(target.resolve())
+PY
+```
+
+Copy the packaged asset from an installed `forum-engine` release that includes this source change:
+
+```bash
+python - <<'PY'
+import hashlib
+import shutil
+from importlib.resources import files
+from pathlib import Path
+
+source = files("forum") / "skills" / "forum-route-preflight"
+manifest = files("forum") / "skills" / "forum-route-preflight.sha256"
+target = Path("forum-route-preflight")
+shutil.copytree(source, target, dirs_exist_ok=True)
+for line in manifest.read_text(encoding="utf-8").splitlines():
+    digest, relative = line.split(maxsplit=1)
+    data = (files("forum") / "skills" / relative).read_bytes()
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise SystemExit(f"packaged skill hash mismatch: {relative}")
+print(target.resolve())
+PY
+```
+
+The asset was validated against the `forum-engine==1.13.0` CLI/API shape; revalidate it before claiming compatibility with another Forum version. The shareable helper receipt stores only a task-text hash at top level. Failed subprocess and invalid-JSON diagnostics store stdout/stderr byte counts and SHA-256 digests, not raw output. Successful JSON is scrubbed for exact helper-supplied task text, paths, runtime commands, chat URLs, model names, API-key environment variable names, and the current values of those supplied API-key variables. It is not a universal secret detector for transformed or previously unknown values.
+
 ## Context Pressure
 
 ```bash
