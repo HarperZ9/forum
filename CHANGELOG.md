@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Codex route-preflight skill distribution: adds the independently reviewed
+  `forum-route-preflight` four-file skill under `forum/skills/` with a SHA-256
+  manifest and wheel verification for future engine releases. The standalone
+  skill release is separate: tag `forum-route-preflight-v0.1.0`, attach
+  `forum-route-preflight-skill-20260907-final.zip`, and mark it `--latest=false`,
+  without bumping `forum-engine`, pushing a `v*` tag, or publishing to PyPI.
+  The helper previews route/context/runtime/prose contracts before spending
+  model calls, stays advisory only, never submits work, and is bounded to the
+  `forum-engine==1.13.0` CLI/API shape until revalidated for another Forum
+  version. Failed subprocess receipts keep only exit code, byte counts, and
+  SHA-256 diagnostic digests; successful JSON is scrubbed for exact
+  helper-supplied task text, runtime/path/model/API-key inputs, and current
+  supplied API-key values, not for transformed or unknown secrets.
 - OpenTelemetry metrics that emit. `forum.metrics` is a stdlib-only `MetricsRegistry`
   that records the one STABLE semconv HTTP server instrument,
   `http.server.request.duration` (a cumulative explicit-bucket histogram, unit `s`, the

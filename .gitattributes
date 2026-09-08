@@ -3,3 +3,7 @@
 # SHA-256 stay the same whoever cloned the repository.
 docs/art/*.svg text eol=lf
 docs/art/*.json text eol=lf
+
+# Reviewed standalone skill assets are byte-pinned release material. Preserve
+# their checksums across Git, installed packages, and the downloadable archive.
+src/forum/skills/forum-route-preflight/** -text

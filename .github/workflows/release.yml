@@ -24,6 +24,18 @@ jobs:
           /tmp/v/bin/pip install dist/*.whl
           /tmp/v/bin/forum --version
           /tmp/v/bin/python -I -c "from forum.roster import load_default; assert len(load_default().agents) == 28"
+          /tmp/v/bin/python -I - <<'PY'
+          import hashlib
+          from importlib.resources import files
+
+          manifest = files("forum") / "skills" / "forum-route-preflight.sha256"
+          for line in manifest.read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              digest, relative = line.split(maxsplit=1)
+              data = (files("forum") / "skills" / relative).read_bytes()
+              assert hashlib.sha256(data).hexdigest() == digest
+          PY
       - uses: actions/upload-artifact@v7
         with:
           name: dist
