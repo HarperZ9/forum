@@ -42,7 +42,7 @@ def test_flagship_brand_assets_exist_and_are_referenced():
         assert rel in readme, rel
     assert (root / "docs/brand/forum-hero.svg").exists()
     assert "## Why it matters" in readme
-    assert "## Work with it" in readme
+    assert "## Install and quickstart" in readme
     demo = (root / "examples/forum-demo.html").read_text(encoding="utf-8")
     assert "deep verification catches body tampering" in demo
     assert "Skip to content" in demo
