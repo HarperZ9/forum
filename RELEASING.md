@@ -24,7 +24,8 @@ gated behind a tag and a one-time PyPI setup.
    git push origin vX.Y.Z
    ```
 4. The Release workflow builds the sdist and wheel, verifies the wheel installs and that
-   `forum --version` runs and the default roster loads, then publishes to PyPI.
+   `forum --version` runs, the default roster loads, and packaged skill assets match
+   their reviewed SHA-256 manifest, then publishes to PyPI.
 5. Create a GitHub Release with the changelog notes for the tag.
 
 ## Verifying a build locally
@@ -34,4 +35,15 @@ python -m build
 python -m venv /tmp/v && /tmp/v/bin/pip install dist/*.whl
 /tmp/v/bin/forum --version
 /tmp/v/bin/python -c "from forum.roster import load_default; print(len(load_default().agents))"
+/tmp/v/bin/python - <<'PY'
+import hashlib
+from importlib.resources import files
+
+manifest = files("forum") / "skills" / "forum-route-preflight.sha256"
+for line in manifest.read_text(encoding="utf-8").splitlines():
+    digest, relative = line.split(maxsplit=1)
+    data = (files("forum") / "skills" / relative).read_bytes()
+    assert hashlib.sha256(data).hexdigest() == digest
+print("forum-route-preflight skill asset verified")
+PY
 ```

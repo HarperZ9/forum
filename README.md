@@ -23,6 +23,7 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 - **Human-in-the-loop approvals.** Pause a run at a wave boundary until you approve, edit, or reject it: `forum gate list / approve / edit / reject`. Gates can carry durable deadlines with a witnessed auto-decision on expiry, so an unattended run never stalls silently. See [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md).
 - **Campaigns.** Declare a multi-project campaign as a JSON feature graph, then drive it to a fixed point: `forum campaign declare / status / next / run / ingest-status`. Cycles are caught up front; external project status can be ingested without execution.
 - **Bounded everything.** `RunBudget` caps a run by model calls and wall clock. `ContextBudget` admits, trims, or omits request context, per-task context, upstream injection, and synthesis inputs under approximate-token caps. `forum context preflight` estimates the pressure before you spend a model call.
+- **Codex route-preflight skill.** The package carries a reviewed `forum-route-preflight` skill asset for Codex hosts. It previews route, context pressure, runtime readiness, and the prose contract before spending model calls; the helper is advisory only and never submits work.
 - **Delivery quality checks.** A deterministic concision floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. Expert delivery profiles (`operator`, `engineer`, `researcher`, `executive`) check the final answer against a local prose contract, selected from the route by default.
 - **Deterministic routing with a human contract.** `forum route` picks a route from a 28-route default roster without a model, and attaches a `forum.route-frame/v1` frame: domain, intent, posture, delivery profile, runtime tier, and an embedded communication contract that synthesis follows.
 - **Witnessed escalation.** Every result records the model that produced it; a failed task escalates up a ladder of stronger executors on an auditable verdict.
@@ -68,6 +69,8 @@ forum mcp --cmd "ollama run llama3"
 ```
 
 `forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `bench`, and `bench-deep-verify`. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
+
+The packaged Codex skill asset is available at `forum/skills/forum-route-preflight` inside releases that include this change, with `forum/skills/forum-route-preflight.sha256` recording the reviewed file hashes. It is tested against the `forum-engine==1.13.0` CLI/API shape. Use it to check route/runtime readiness before spending model calls; it remains no-execute and reports `decision.safe_to_submit: false`. Failed subprocess diagnostics in its shareable receipt contain only byte counts and SHA-256 digests, while successful JSON is scrubbed for exact helper-supplied task text, paths, runtime commands, chat URLs, model names, API-key environment variable names, and the current values of those supplied API-key variables. It is not a universal secret detector for transformed or previously unknown values.
 
 ## A worked example: catch a tampered record
 

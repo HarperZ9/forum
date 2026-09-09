@@ -28,7 +28,14 @@ Repository = "https://github.com/HarperZ9/forum"
 where = ["src"]
 
 [tool.setuptools.package-data]
-forum = ["manifests/*.toml"]
+forum = [
+  "manifests/*.toml",
+  "skills/forum-route-preflight.sha256",
+  "skills/forum-route-preflight/SKILL.md",
+  "skills/forum-route-preflight/agents/openai.yaml",
+  "skills/forum-route-preflight/references/validation-cases.md",
+  "skills/forum-route-preflight/scripts/forum_route_preflight.py",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

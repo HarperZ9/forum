@@ -24,6 +24,28 @@ jobs:
           /tmp/v/bin/pip install dist/*.whl
           /tmp/v/bin/forum --version
           /tmp/v/bin/python -I -c "from forum.roster import load_default; assert len(load_default().agents) == 28"
+          /tmp/v/bin/python -I - <<'PY'
+          import hashlib
+          from importlib.resources import files
+
+          expected = {
+              "SKILL.md": "21be47969dc238d27ba764df166e7890e316f602ec11d06970c223644e558fd2",
+              "agents/openai.yaml": "103e3d990c3d212c4cd4a533e54e3a5b1384812444fd3ff55d09a570b125f47d",
+              "references/validation-cases.md": "14dba75d78bc63ea655e077d2dca7dd5b95f5ee8c2d0759a530307d21995083e",
+              "scripts/forum_route_preflight.py": "95775506296e6171eb006d5cd8d1526a047ed19cfcb188d79c02af8c75607879",
+          }
+          root = files("forum") / "skills" / "forum-route-preflight"
+          for relative, digest in expected.items():
+              assert hashlib.sha256((root / relative).read_bytes()).hexdigest() == digest
+          checksum = (files("forum") / "skills" / "forum-route-preflight.sha256").read_text(encoding="utf-8")
+          observed = {}
+          for line in checksum.splitlines():
+              if not line.strip():
+                  continue
+              digest, relative = line.split(maxsplit=1)
+              observed[relative] = digest
+          assert observed == {f"forum-route-preflight/{key}": value for key, value in expected.items()}
+          PY
       - uses: actions/upload-artifact@v7
         with:
           name: dist

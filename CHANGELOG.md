@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Codex route-preflight skill asset: packages the independently reviewed
+  `forum-route-preflight` four-file skill under `forum/skills/` with a
+  SHA-256 manifest, so Codex hosts can preview Forum route/context/runtime/prose
+  contracts before spending model calls. The helper is advisory only, never
+  submits or executes a configured model command, and is bounded to the
+  `forum-engine==1.13.0` CLI/API shape until revalidated for another Forum
+  version. Failed subprocess receipts keep only command shape, exit code, and
+  stdout/stderr byte-count plus SHA-256 metadata; successful JSON is scrubbed for
+  exact helper-supplied task text and runtime/path/model/API-key inputs, not for
+  transformed or unknown secrets.
 - OpenTelemetry metrics that emit. `forum.metrics` is a stdlib-only `MetricsRegistry`
   that records the one STABLE semconv HTTP server instrument,
   `http.server.request.duration` (a cumulative explicit-bucket histogram, unit `s`, the

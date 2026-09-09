@@ -1,0 +1,4 @@
+492884f155645d55dc8f5767e3e3bd0350af52587eab6b8834988537424d1ef2  forum-route-preflight/SKILL.md
+103e3d990c3d212c4cd4a533e54e3a5b1384812444fd3ff55d09a570b125f47d  forum-route-preflight/agents/openai.yaml
+14dba75d78bc63ea655e077d2dca7dd5b95f5ee8c2d0759a530307d21995083e  forum-route-preflight/references/validation-cases.md
+95775506296e6171eb006d5cd8d1526a047ed19cfcb188d79c02af8c75607879  forum-route-preflight/scripts/forum_route_preflight.py

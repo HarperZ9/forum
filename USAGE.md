@@ -36,6 +36,39 @@ python examples/run_context_capsule.py
 python examples/run_delivery_profile.py
 ```
 
+## Codex route-preflight skill asset
+
+Releases that include this change carry the reviewed `forum-route-preflight`
+Codex skill as package data. It lets a Codex host preview Forum routing, context
+pressure, runtime readiness, and the prose contract before spending model calls.
+The helper is advisory only: it never calls `forum submit`, never runs the
+configured model command, and keeps `decision.safe_to_submit: false`.
+
+Copy the asset from an installed package or source checkout into a local review
+directory:
+
+```bash
+python - <<'PY'
+import shutil
+from importlib.resources import files
+
+source = files("forum") / "skills" / "forum-route-preflight"
+target = "forum-route-preflight"
+shutil.copytree(source, target)
+print(files("forum") / "skills" / "forum-route-preflight.sha256")
+PY
+```
+
+The packaged checksum file lists the four reviewed skill files. The asset was
+validated against the `forum-engine==1.13.0` CLI/API shape; revalidate it before
+claiming compatibility with another Forum version. The shareable helper receipt
+stores only a task-text hash at top level. Failed subprocess and invalid-JSON
+diagnostics store stdout/stderr byte counts and SHA-256 digests, not raw output.
+Successful JSON is scrubbed for exact helper-supplied task text, paths, runtime
+commands, chat URLs, model names, API-key environment variable names, and the
+current values of those supplied API-key variables. It is not a universal secret
+detector for transformed or previously unknown values.
+
 ## Context Pressure
 
 ```bash
