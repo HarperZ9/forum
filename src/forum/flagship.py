@@ -69,7 +69,7 @@ def status_payload() -> dict:
                 "forum.ledger.summary",
             ],
             "current_status": (
-                "1.13.0 campaign orchestration, approval gates with durable "
+                "1.14.0 observability, auth, route-preflight skill packaging, 1.13.0 campaign orchestration, approval gates with durable "
                 "deadlines, proof and domain lanes, and run room operator surfaces"
             ),
             "telos_contracts": TELOS_CONTRACTS,
