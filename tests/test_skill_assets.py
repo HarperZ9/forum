@@ -46,7 +46,7 @@ def test_pyproject_packages_route_preflight_skill_assets_without_version_bump():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     package_data = pyproject["tool"]["setuptools"]["package-data"]["forum"]
 
-    assert pyproject["project"]["version"] == "1.13.0"
+    assert pyproject["project"]["version"] == "1.14.0"
     assert "manifests/*.toml" in package_data
     assert "skills/forum-route-preflight.sha256" in package_data
     for relative in EXPECTED_HASHES:
