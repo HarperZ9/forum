@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Presentation parity
+
+- README now exposes the current source version and the operator commands for
+  status, doctor, HTTP, and MCP surfaces without claiming an external effect from
+  a run result.
+
 ## 1.14.0 (2026-09-10)
 
 - Codex route-preflight skill distribution: adds the independently reviewed
