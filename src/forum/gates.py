@@ -3,17 +3,33 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from forum.gate_state import (
+    DECISION_KINDS,
+    GateContent,
+    decision_entry,
+    gate_edits,
+    gate_resolution,
+    matches,
+    pending_gates,
+    shows,
+)
 from forum.ledger import Ledger, LedgerEntry
 
-# The decision entry kinds an operator can append to resolve a pending gate, and
-# the resolution string each maps to. gate_pending on its own (no decision) reads
-# as "pending": the run is blocked waiting for the operator.
-_DECISION_KINDS = {
-    "gate_approved": "approved",
-    "gate_edited": "edited",
-    "gate_rejected": "rejected",
-}
-_RESOLVE_KINDS = frozenset(_DECISION_KINDS)
+__all__ = [
+    "GateContent",
+    "GateEditRefused",
+    "GateNotFound",
+    "GatePolicy",
+    "decision_entry",
+    "expire_gate",
+    "gate_edits",
+    "gate_resolution",
+    "pending_deadline",
+    "pending_gates",
+    "resolve_gate",
+]
+
+_RESOLVE_KINDS = frozenset(DECISION_KINDS)
 
 # The on-expiry decisions a deadline policy may choose, and the gate_expired
 # payload ``decision`` each writes. reject is the safe default: an unattended
@@ -27,7 +43,8 @@ class GatePolicy:
 
     A gate fires at a wave boundary: before dispatching wave ``i`` (i in
     ``gated_waves``), dispatch reads the ledger for a resolution keyed to
-    (run_seq, wave=i). ``question`` is copied into the gate_pending entry so the
+    (run_seq, wave=i) and to the wave's content. ``question``, the wave's task
+    ids and their instructions are copied into the gate_pending entry so the
     operator sees what they are approving.
 
     ``deadline_seconds`` (optional) makes the gate durable-but-bounded: the
@@ -54,71 +71,28 @@ class GatePolicy:
             )
 
 
-def _matches(body: object, run_seq: object, wave: object) -> bool:
-    """True if a payload body targets this (run_seq, wave). Pure dict read, no await."""
-    if not isinstance(body, dict):
-        return False
-    return body.get("run_seq") == run_seq and body.get("wave") == wave
+class GateNotFound(LookupError):
+    """No gate_pending exists for this (run_seq, wave), so a decision has nothing to resolve.
 
-
-def gate_resolution(
-    ledger: Ledger, run_seq: object, wave: object
-) -> str | None:
-    """Read the ledger for this gate's state: 'approved'|'edited'|'rejected'|'pending'|None.
-
-    Pure ``ledger.query`` scans, no await, so it is safe to call inside the wave
-    loop under concurrent scheduling (it never yields). A decision entry
-    (gate_approved / gate_edited / gate_rejected) for (run_seq, wave) wins; the
-    latest decision is authoritative. With only a gate_pending and no decision,
-    the gate is 'pending' (the run is blocked). With nothing, None (no gate has
-    fired yet, so dispatch should raise one).
+    Raised by ``resolve_gate(..., require_pending=True)`` before anything is
+    written. ``code`` is the closed error slug the CLI, HTTP and MCP surfaces report.
     """
-    best_seq: int | None = None
-    resolution: str | None = None
-    for kind, name in _DECISION_KINDS.items():
-        for entry in ledger.query(kind=kind):
-            if _matches(ledger.get_payload(entry.payload_hash), run_seq, wave):
-                # a later decision (higher seq) supersedes an earlier one,
-                # across kinds: the single highest-seq decision wins so a
-                # changed-mind (e.g. reject then approve) resolves correctly.
-                if best_seq is None or entry.seq > best_seq:
-                    best_seq = entry.seq
-                    resolution = name
-    # A gate_expired is a witnessed auto-decision (deadline lapsed with no
-    # operator action). It competes on the same highest-seq-wins rule, so an
-    # operator decision recorded before OR after expiry still resolves correctly:
-    # the latest witnessed decision is authoritative.
-    for entry in ledger.query(kind="gate_expired"):
-        body = ledger.get_payload(entry.payload_hash)
-        if _matches(body, run_seq, wave):
-            if best_seq is None or entry.seq > best_seq:
-                best_seq = entry.seq
-                resolution = str(body.get("decision") or "rejected")
-    if resolution is not None:
-        return resolution
-    for entry in ledger.query(kind="gate_pending"):
-        if _matches(ledger.get_payload(entry.payload_hash), run_seq, wave):
-            return "pending"
-    return None
+
+    code = "NOT_FOUND"
 
 
-def gate_edits(ledger: Ledger, run_seq: object, wave: object) -> dict[str, str]:
-    """Task-id -> replacement instruction from the latest gate_edited for this gate.
+class GateEditRefused(ValueError):
+    """An edit names a task the gate did not show, so nothing is written.
 
-    Pure ledger read, no await. Returns {} when no gate_edited resolves this
-    (run_seq, wave). The latest gate_edited wins so a re-edit supersedes.
+    A gate covers one wave; an edit may rewrite only the tasks of that wave.
     """
-    edits: dict[str, str] = {}
-    for entry in ledger.query(kind="gate_edited"):
-        body = ledger.get_payload(entry.payload_hash)
-        if _matches(body, run_seq, wave):
-            raw = body.get("edits") or {}
-            if isinstance(raw, dict):
-                edits = {str(k): str(v) for k, v in raw.items()}
-    return edits
+
+    code = "INVALID_ARGUMENT"
 
 
-def pending_deadline(ledger: Ledger, run_seq: object, wave: object) -> float | None:
+def pending_deadline(
+    ledger: Ledger, run_seq: object, wave: object, *, content: GateContent | None = None
+) -> float | None:
     """Absolute deadline recorded on this gate's gate_pending, or None.
 
     Pure ledger read. None when the gate carries no deadline (an unbounded gate)
@@ -128,7 +102,7 @@ def pending_deadline(ledger: Ledger, run_seq: object, wave: object) -> float | N
     deadline: float | None = None
     for entry in ledger.query(kind="gate_pending"):
         body = ledger.get_payload(entry.payload_hash)
-        if _matches(body, run_seq, wave):
+        if matches(body, run_seq, wave) and shows(body, content):
             raw = body.get("deadline")
             deadline = float(raw) if isinstance(raw, (int, float)) else None
     return deadline
@@ -140,6 +114,7 @@ def expire_gate(
     wave: object,
     *,
     clock=time.time,
+    content: GateContent | None = None,
 ) -> str | None:
     """Auto-resolve a still-pending gate whose deadline has lapsed; else no-op.
 
@@ -156,16 +131,16 @@ def expire_gate(
     INVARIANT: no await. Called inside the wave loop under cooperative
     scheduling; the read + append window must not yield (see Ledger.append).
     """
-    if gate_resolution(ledger, run_seq, wave) != "pending":
+    if gate_resolution(ledger, run_seq, wave, content=content) != "pending":
         return None
-    deadline = pending_deadline(ledger, run_seq, wave)
+    deadline = pending_deadline(ledger, run_seq, wave, content=content)
     if deadline is None or float(clock()) < deadline:
         return None
     pend: LedgerEntry | None = None
     on_expiry = "reject"
     for entry in ledger.query(kind="gate_pending"):
         body = ledger.get_payload(entry.payload_hash)
-        if _matches(body, run_seq, wave):
+        if matches(body, run_seq, wave) and shows(body, content):
             pend = entry
             raw = body.get("on_expiry")
             if raw in _EXPIRY_DECISIONS:
@@ -202,22 +177,52 @@ def resolve_gate(
     note: str = "",
     reason: str = "",
     edits: dict[str, str] | None = None,
+    require_pending: bool = False,
+    approver_source: str | None = None,
+    asserted_approver: str | None = None,
 ) -> LedgerEntry:
-    """Append an operator's decision for a pending gate and sync the ledger.
+    """Append a decision for a pending gate and sync the ledger.
 
     ``kind`` is one of 'gate_approved', 'gate_edited', 'gate_rejected'. The entry
-    is chained to the gate_pending it resolves (found by (run_seq, wave)); if no
-    gate_pending exists it chains to run_seq so the entry is still witnessed.
-    Writes are synchronous (append + sync), like the checkpoint at the wave
-    boundary; the read that finds the pending seq is a pure query.
+    is chained to the gate_pending it resolves (found by (run_seq, wave)). An edit
+    naming a task outside that gate's wave raises GateEditRefused and writes nothing.
+
+    With ``require_pending=True``, which every CLI, HTTP and MCP path uses, a
+    (run_seq, wave) with no gate_pending raises GateNotFound and nothing is
+    written. The default keeps the 1.14 library contract: with no gate_pending the
+    entry chains to run_seq so it is still witnessed, but it is inert, because
+    gate_resolution counts only decisions chained to a raised gate.
+
+    ``approver_source`` records how the approver was established ('asserted' when
+    the caller named it, 'authenticated' when a verified token did), and
+    ``asserted_approver`` keeps a name the caller gave that differs from the
+    authenticated one. Both are omitted from the payload when None.
+    Writes are synchronous (append + sync); the pending lookup is a pure query.
     """
     if kind not in _RESOLVE_KINDS:
         raise ValueError(f"unknown gate decision kind: {kind!r}")
-    parent = run_seq
+    parent: int | None = None
+    shown: list[str] = []
     for entry in ledger.query(kind="gate_pending"):
-        if _matches(ledger.get_payload(entry.payload_hash), run_seq, wave):
+        body = ledger.get_payload(entry.payload_hash)
+        if matches(body, run_seq, wave):
             parent = entry.seq
+            shown = [str(t) for t in body.get("tasks") or []]
+    if parent is None:
+        if require_pending:
+            raise GateNotFound(f"no gate is pending for run_seq {run_seq} wave {wave}")
+        parent = run_seq
+    elif kind == "gate_edited":
+        outside = sorted(set(edits or {}) - set(shown))
+        if outside:
+            raise GateEditRefused(
+                f"an edit may rewrite only the tasks this gate shows; not in wave {wave}: {outside}"
+            )
     payload: dict[str, object] = {"run_seq": run_seq, "wave": wave, "approver": approver}
+    if approver_source is not None:
+        payload["approver_source"] = approver_source
+    if asserted_approver is not None:
+        payload["asserted_approver"] = asserted_approver
     if kind == "gate_rejected":
         payload["reason"] = reason
     elif kind == "gate_edited":

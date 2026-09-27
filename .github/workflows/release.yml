@@ -4,16 +4,33 @@ on:
   push:
     tags: ["v*"]
 
+# Nothing by default; each job names the one permission it needs.
+permissions: {}
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Check the tag matches the package version
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          test "${GITHUB_REF_NAME}" = "v${version}" || { echo "tag ${GITHUB_REF_NAME} does not match version ${version}"; exit 1; }
+      - name: Run the test suite at the tagged commit
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python -m pip install "pytest>=8"
+          python -m pytest -q -p no:cacheprovider
       - name: Build sdist and wheel
         run: |
           python -m pip install --upgrade build
@@ -22,7 +39,10 @@ jobs:
         run: |
           python -m venv /tmp/v
           /tmp/v/bin/pip install dist/*.whl
-          /tmp/v/bin/forum --version
+          # The installed command and the installed metadata both report the tag's
+          # version: a bump that missed one version site stops the release here.
+          test "$(/tmp/v/bin/forum --version)" = "forum ${GITHUB_REF_NAME#v}" || { echo "installed forum --version does not match ${GITHUB_REF_NAME}"; exit 1; }
+          /tmp/v/bin/python -I -c "import importlib.metadata as m, os, sys; v = m.version('forum-engine'); sys.exit(0 if 'v' + v == os.environ['GITHUB_REF_NAME'] else 'installed metadata ' + v + ' does not match the tag')"
           /tmp/v/bin/python -I -c "from forum.roster import load_default; assert len(load_default().agents) == 28"
           /tmp/v/bin/python -I - <<'PY'
           import hashlib
@@ -36,19 +56,40 @@ jobs:
               data = (files("forum") / "skills" / relative).read_bytes()
               assert hashlib.sha256(data).hexdigest() == digest
           PY
+      - name: Verify the vendored helper in the wheel matches its record
+        run: |
+          python - <<'PY'
+          import glob, hashlib, zipfile
+          record = dict(reversed(line.split()) for line in open("VENDORED.sha256") if line.strip() and not line.startswith("#"))
+          wheel = zipfile.ZipFile(glob.glob("dist/*.whl")[0])
+          data = wheel.read("forum/_vendor/safe_spawn.py")
+          assert hashlib.sha256(data).hexdigest() == record["src/forum/_vendor/safe_spawn.py"], "vendored helper drifted"
+          PY
+      - name: Write checksums and release notes
+        run: |
+          mkdir release
+          (cd dist && sha256sum *.whl *.tar.gz > ../release/SHA256SUMS.txt)
+          cat release/SHA256SUMS.txt
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on {print}' CHANGELOG.md > release/notes.md
+          test -s release/notes.md || echo "See CHANGELOG.md for ${GITHUB_REF_NAME}." > release/notes.md
       - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: release/
 
   publish:
     needs: build
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     environment: pypi
     permissions:
       id-token: write   # trusted publishing (OIDC); no API token stored
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/download-artifact@v7
         with:
@@ -56,3 +97,69 @@ jobs:
           path: dist/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true   # a re-run after a partial upload finishes instead of failing
+
+  github-release:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the release and attach its files
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+      - uses: actions/download-artifact@v7
+        with:
+          name: release
+          path: release/
+      - name: Verify the files match the checksums
+        run: (cd dist && sha256sum -c ../release/SHA256SUMS.txt)
+      - name: Check PyPI serves exactly the files SHA256SUMS.txt names
+        # skip-existing lets a re-run finish, but it also keeps any file already on
+        # PyPI for this version. Stop before the GitHub Release if the two differ.
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, time, urllib.request
+
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          want = {}
+          for line in open("release/SHA256SUMS.txt", encoding="utf-8"):
+              if line.strip():
+                  digest, name = line.split()
+                  want[name.lstrip("*")] = digest
+          url = f"https://pypi.org/pypi/forum-engine/{version}/json"
+          request = urllib.request.Request(url, headers={"User-Agent": "forum-release-check"})
+          have = {}
+          for attempt in range(10):
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      files = json.load(response)["urls"]
+                  have = {f["filename"]: f["digests"]["sha256"] for f in files}
+              except Exception as exc:
+                  print(f"attempt {attempt + 1}: {type(exc).__name__}: {exc}")
+              if set(have) >= set(want):
+                  break
+              time.sleep(30)
+          if have != want:
+              print("PyPI serves different files than SHA256SUMS.txt names:")
+              for name in sorted(set(want) | set(have)):
+                  print(f"  {name}: release {want.get(name, '-')} pypi {have.get(name, '-')}")
+              sys.exit(1)
+          print("PyPI serves the same files:", ", ".join(sorted(have)))
+          PY
+      - name: Create the GitHub Release, or refresh its files on a re-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp release/SHA256SUMS.txt SHA256SUMS.txt
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/*.whl dist/*.tar.gz SHA256SUMS.txt --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/*.whl dist/*.tar.gz SHA256SUMS.txt \
+              --verify-tag --title "${GITHUB_REF_NAME}" --notes-file release/notes.md
+          fi

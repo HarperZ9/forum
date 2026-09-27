@@ -14,9 +14,10 @@ DEFAULT_LEDGER = "forum-ledger"
 
 
 def _command_executor(cmd: str):
-    from forum.executor import SubprocessExecutor
+    """A command executor with the launch grants (FORUM_CHILD_ENV, FORUM_ALLOW_EXEC_CLI)."""
+    from forum.executor import command_executor
 
-    return SubprocessExecutor(split_command(cmd))
+    return command_executor(split_command(cmd))
 
 
 def _chat_executor(model: str, base_url: str, api_key_env: str | None = None):
@@ -341,15 +342,45 @@ def _cmd_submit(args) -> int:
     return 0
 
 
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
+
+
 def _cmd_serve(args) -> int:
+    import secrets
+
     from forum.daemon import serve
 
     executor, executor_error = _make_executor_or_error(args)
     if executor_error is not None:
         print(executor_error, file=sys.stderr)
         return 2
+    verifier = None
+    if args.no_auth:
+        # Turning auth off is deliberate and loopback-only: an open daemon on a
+        # public interface is exactly the exposure the default guards against.
+        if args.host not in _LOOPBACK_HOSTS:
+            print(
+                f"--no-auth is loopback-only; refusing to serve unauthenticated on {args.host}. "
+                "Bind 127.0.0.1, or drop --no-auth to use a generated token.",
+                file=sys.stderr,
+            )
+            return 2
+    else:
+        from forum.auth import HmacVerifier, issue_hs256
+
+        secret = secrets.token_urlsafe(32)
+        verifier = HmacVerifier(secret)
+        token = issue_hs256(subject="local-operator", roles=["operator"], secret=secret, ttl_seconds=None)
+        # Print the token to stderr (never the ledger, never stdout) so the operator
+        # can use it; a client sends `Authorization: Bearer <token>`.
+        print(
+            "auth is on: send this token as `Authorization: Bearer <token>` "
+            "(use --no-auth on loopback to turn it off)",
+            file=sys.stderr,
+        )
+        print(f"forum daemon token: {token}", file=sys.stderr)
     asyncio.run(serve(
-        ledger_dir=args.ledger, host=args.host, port=args.port, executor=executor
+        ledger_dir=args.ledger, host=args.host, port=args.port, executor=executor, verifier=verifier
     ))
     return 0
 
@@ -363,7 +394,7 @@ def _cmd_mcp(args) -> int:
         print(executor_error, file=sys.stderr)
         return 2
     orch = build_orchestrator(args.ledger, executor=executor)
-    asyncio.run(serve_stdio(orch))
+    asyncio.run(serve_stdio(orch, allow_gate_decisions=args.allow_gate_decisions))
     return 0
 
 
@@ -504,29 +535,9 @@ def _cmd_ledger_room(args) -> int:
 
 def _pending_gates(led) -> list[dict]:
     """Unresolved gate_pending entries in the ledger, newest last."""
-    from forum.gates import gate_resolution
+    from forum.gates import pending_gates
 
-    pending: list[dict] = []
-    for entry in led.query(kind="gate_pending"):
-        body = led.get_payload(entry.payload_hash)
-        run_seq = body.get("run_seq")
-        wave = body.get("wave")
-        if gate_resolution(led, run_seq, wave) == "pending":
-            item = {
-                "seq": entry.seq,
-                "run_seq": run_seq,
-                "wave": wave,
-                "tasks": list(body.get("tasks") or []),
-                "question": body.get("question", ""),
-            }
-            deadline = body.get("deadline")
-            if isinstance(deadline, (int, float)):
-                # A bounded gate: surface its deadline and the auto-decision that
-                # fires on resume if it lapses, so the operator sees the clock.
-                item["deadline"] = float(deadline)
-                item["on_expiry"] = str(body.get("on_expiry") or "reject")
-            pending.append(item)
-    return pending
+    return pending_gates(led)
 
 
 def _cmd_gate_list(args) -> int:
@@ -543,6 +554,9 @@ def _cmd_gate_list(args) -> int:
         if "deadline" in gate:
             line += f" [deadline={gate['deadline']:.0f} on_expiry={gate['on_expiry']}]"
         print(line)
+        # What the approval covers: each task's instruction as it will run.
+        for tid, instruction in (gate.get("instructions") or {}).items():
+            print(f"  {tid}: {instruction}")
     return 0
 
 
@@ -557,7 +571,7 @@ def _parse_edits(pairs) -> tuple[dict, str | None]:
 
 
 def _cmd_gate_resolve(args, kind: str) -> int:
-    from forum.gates import resolve_gate
+    from forum.gates import GateEditRefused, GateNotFound, resolve_gate
 
     led = _open_ledger(args.ledger)
     edits: dict[str, str] = {}
@@ -569,13 +583,26 @@ def _cmd_gate_resolve(args, kind: str) -> int:
         if not edits:
             print("gate edit needs at least one --edit TASK_ID=INSTRUCTION", file=sys.stderr)
             return 2
-    entry = resolve_gate(
-        led, args.run_seq, args.wave, kind,
-        approver=args.approver,
-        note=getattr(args, "note", "") or "",
-        reason=getattr(args, "reason", "") or "",
-        edits=edits,
-    )
+    try:
+        entry = resolve_gate(
+            led, args.run_seq, args.wave, kind,
+            approver=args.approver,
+            note=getattr(args, "note", "") or "",
+            reason=getattr(args, "reason", "") or "",
+            edits=edits,
+            require_pending=True,
+            approver_source="asserted",
+        )
+    except GateNotFound:
+        print(
+            f"no gate is pending for run_seq {args.run_seq} wave {args.wave}; "
+            "`forum gate list` shows the open gates",
+            file=sys.stderr,
+        )
+        return 1
+    except GateEditRefused as exc:
+        print(f"edit refused: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps({"resolved": kind, "seq": entry.seq, "run_seq": args.run_seq, "wave": args.wave}))
     return 0
 
@@ -864,6 +891,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="run the HTTP daemon")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8080)
+    serve.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="serve without a bearer token (loopback only; the default generates one)",
+    )
     _add_ledger(serve)
     _add_executor(serve)
     serve.set_defaults(func=_cmd_serve)
@@ -871,6 +903,12 @@ def build_parser() -> argparse.ArgumentParser:
     mcp = sub.add_parser("mcp", help="run the MCP (stdio) server")
     _add_ledger(mcp)
     _add_executor(mcp)
+    mcp.add_argument(
+        "--allow-gate-decisions",
+        action="store_true",
+        help="list gate_approve, gate_edit and gate_reject to the connected client "
+        "(off by default: a model should not approve its own gates)",
+    )
     mcp.set_defaults(func=_cmd_mcp)
 
     context = sub.add_parser("context", help="inspect and preflight context pressure")

@@ -23,14 +23,6 @@ TELOS_CONTRACTS = {
     "privacy_boundary": "hosts receive receipts, hashes, redacted refs, and verdicts; raw private payloads stay in local adapters",
 }
 
-PRIVATE_LINE_ROUTE_PROBE = (
-    "Continue advancing Seed, Kun, Sofer, ORCA, and behavior-transform.io "
-    "toward private-line flagship state while preserving safe publication "
-    "boundaries, native doctor receipts, CI health, MCP CLI compatibility, "
-    "and enterprise presentation."
-)
-
-
 def envelope(command: str, *, status: str = "MATCH", native: dict | None = None,
              next_actions: list[dict] | None = None,
              diagnostics: list[dict] | None = None) -> dict:
@@ -69,8 +61,11 @@ def status_payload() -> dict:
                 "forum.ledger.summary",
             ],
             "current_status": (
-                "1.14.0 observability, auth, route-preflight skill packaging, 1.13.0 campaign orchestration, approval gates with durable "
-                "deadlines, proof and domain lanes, and run room operator surfaces"
+                "1.15.0 gate-integrity, executor isolation, daemon Origin/Host/"
+                "content-type checks and a default auth token, over the 1.14 "
+                "observability, auth, context budgets, capsules, delivery profiles, "
+                "route frames, run rooms, runtime inspection, approval gates and "
+                "campaign orchestration"
             ),
             "telos_contracts": TELOS_CONTRACTS,
         },
@@ -79,32 +74,18 @@ def status_payload() -> dict:
 
 
 def doctor_payload() -> dict:
-    from forum.roster import load_default
-    from forum.routing import LexicalRouter
-
-    route_result = LexicalRouter().score(PRIVATE_LINE_ROUTE_PROBE, load_default())
-    route_status = (
-        "MATCH"
-        if route_result.decided == "project-telos" and not route_result.needs_escalation
-        else "DRIFT"
-    )
-    checks: list[dict[str, Any]] = [
-        {"name": "default_roster", "status": "MATCH"},
-        {"name": "ledger_verification", "status": "MATCH"},
-        {"name": "model_agnostic_executor", "status": "MATCH"},
-        {
-            "name": "private_line_project_telos_route",
-            "status": route_status,
-            "decided": route_result.decided,
-            "needs_escalation": route_result.needs_escalation,
-            "confidence": route_result.confidence,
-        },
-    ]
+    """Real readiness checks, run without a model: the roster loads, and a fresh
+    ledger appends and deep-verifies. It does not yet grade results as
+    PASS/WARN/FAIL or check executors, key presence or the state directory. It
+    replaced hardcoded MATCH placeholders and a route probe for unpublished work.
+    """
+    checks: list[dict[str, Any]] = [_roster_check(), _ledger_check()]
     status = "MATCH" if all(check["status"] == "MATCH" for check in checks) else "DRIFT"
-    diagnostics = [] if status == "MATCH" else [{
-        "code": "private_line_route_drift",
-        "message": "private-line flagship request did not route to project-telos",
-    }]
+    diagnostics = [
+        {"code": f"{check['name']}_failed", "message": check.get("detail", "check failed")}
+        for check in checks
+        if check["status"] != "MATCH"
+    ]
     return envelope(
         "doctor",
         status=status,
@@ -112,6 +93,33 @@ def doctor_payload() -> dict:
         next_actions=[_next("index", "context", "refresh structural context for routing")],
         diagnostics=diagnostics,
     )
+
+
+def _roster_check() -> dict[str, Any]:
+    """The default roster loads and carries the full agent set."""
+    try:
+        from forum.roster import load_default
+
+        count = len(load_default().agents)
+    except Exception as exc:  # noqa: BLE001 - a doctor check reports, never raises
+        return {"name": "default_roster", "status": "DRIFT",
+                "detail": f"the default roster failed to load ({type(exc).__name__})"}
+    status = "MATCH" if count > 0 else "DRIFT"
+    return {"name": "default_roster", "status": status, "agents": count}
+
+
+def _ledger_check() -> dict[str, Any]:
+    """A fresh in-memory ledger appends and deep-verifies (the chain + payload check)."""
+    try:
+        from forum.ledger import InMemoryStorage, Ledger
+
+        led = Ledger(InMemoryStorage())
+        led.append(actor="doctor", kind="probe", payload={"ok": True})
+        verified = led.verify(deep=True)
+    except Exception as exc:  # noqa: BLE001 - a doctor check reports, never raises
+        return {"name": "ledger_verification", "status": "DRIFT",
+                "detail": f"the ledger check raised ({type(exc).__name__})"}
+    return {"name": "ledger_verification", "status": "MATCH" if verified else "DRIFT"}
 
 
 def demo_payload() -> dict:

@@ -2,11 +2,156 @@
 
 ## Unreleased
 
+## 1.15.0 (2026-09-27)
+
+Security release. Fixes gate pre-approval, approvals that carried across runs
+or covered content the person never saw, model-held gate approval, executor
+inheritance of the working folder and the full environment, an unauthenticated
+daemon with no cross-origin defense, and a false "no shell-injection surface"
+claim. See the advisory for affected versions (1.14.0 and earlier).
+
+### Security
+
+- Gate integrity. A gate decision (approve, edit, reject) counts only when it is
+  chained to the `gate_pending` it resolves and was written after it, so a
+  decision recorded before a gate opens can no longer let a gated wave run
+  unpaused. A fresh run is keyed to its own plan entry instead of the first plan
+  in the ledger, and a resume continues the run of the same plan (see Gate
+  binding), so one approval no longer opens the same wave of every later run in
+  the same ledger. The CLI, HTTP and MCP decision paths refuse a decision for a
+  gate that was never raised with `NOT_FOUND` (HTTP 404, CLI exit 1) and write
+  nothing.
+- Gate binding. A resume continues the latest run of the same plan, found by a
+  digest of every task, instead of the latest plan in the ledger: approving one
+  run no longer opens another run's gate, an approved run still resumes after a
+  later run starts, and a resume with a different or rewritten plan (instruction,
+  agent or done criteria) raises a gate of its own. Each `gate_pending` records
+  the wave's instructions and a `wave_digest`, and `forum gate list`, `GET
+  /gates` and the MCP `gate_list` show the instructions, so the person sees what
+  they approve. An edit may rewrite only tasks of the gated wave; one naming
+  another wave's task is refused (`INVALID_ARGUMENT`, HTTP 400, CLI exit 2) and
+  writes nothing. A run paused under 1.14.0 still resumes: its gates bind by task
+  ids, the only content those entries recorded.
+- Gate decision standing. A decision made with a verified token outranks every
+  decision a caller only asserted (a CLI user, an MCP client, an HTTP call with
+  auth off), so a later asserted approval or edit cannot reverse a person's
+  authenticated rejection or edit. Within one standing the latest decision still
+  wins, so a person can change their mind.
+- Gate approval authority. `forum mcp` lists `gate_approve`, `gate_edit` and
+  `gate_reject` only with the new `--allow-gate-decisions` launch grant; without
+  it a call, including the `forum.gate.*` aliases, returns `GRANT_REQUIRED`. A
+  connected model cannot approve its own human-in-the-loop gate by default. The
+  grant is off for a Python embedder too: `McpSurface(orch)` lists no decision
+  tools unless built with `allow_gate_decisions=True`. A refused decision
+  (`NOT_FOUND`, `INVALID_ARGUMENT`) returns the closed error shape
+  `{"code", "retryable", "setup", "detail"}` in `structuredContent`.
+  Decisions record how the approver was established: the authenticated identity
+  over HTTP with a token, `asserted` otherwise.
+- Executor isolation. `SubprocessExecutor` starts every child through a vendored
+  `safe_spawn` helper: the executable resolves to an absolute path (a bare name is
+  looked up on `PATH` only, and the working folder is never searched by name; the
+  next item covers `PATH` entries that point into it), the child runs in a new
+  private empty folder, its environment is an allowlist rather than the whole
+  environment, a `.cmd` or `.bat` target refuses cmd.exe metacharacters in the
+  instruction, and a Python target gets `-P`. A known agent CLI gets the
+  isolation profile proven for it (claude and codex, each checked against a
+  recorded CLI version); an unproven profile is refused unless
+  `FORUM_ALLOW_EXEC_CLI` names it. `FORUM_CHILD_ENV` adds named variables to the
+  allowlist; both apply to `--cmd`, the tier flags and a `--runtime-config`
+  command alike. The route-preflight helper runs `python -P -m forum` so a planted
+  `forum.py` cannot shadow the package.
+- Working folder kept out of command lookup. A `PATH` entry that resolves inside
+  the folder forum runs in (written directly, through a junction or symlink, or
+  added by npm as `node_modules/.bin`) is skipped for the lookup and removed from
+  the child's `PATH`, and a drive-relative name such as `C:claude` is refused
+  with `BAD_PATH`. The Python environment forum runs from stays on `PATH`, and
+  the guard stands down when the working folder is a filesystem root or holds the
+  home folder.
+- Agent CLIs read the task on stdin. claude and codex receive the task on stdin
+  (codex with `-`) instead of as the last argument, so npm's `.cmd` shims run
+  tasks that carry upstream results or done criteria rather than refusing them,
+  and the task text no longer shows in a process listing. `--cmd "codex exec"`
+  passes `exec` once. Other commands keep the instruction as their last argument.
+- Network timeouts. `ApiExecutor` and `ChatExecutor` cap each request (default
+  120 s), so a stalled provider no longer hangs a task.
+- Daemon hardening. `forum serve` requires a bearer token by default (printed at
+  startup; `--no-auth` turns it off and is refused on a non-loopback host), and
+  the daemon rejects a foreign `Origin` with 403 and a non-JSON POST with 415 on
+  every path except `/health`. An `Origin` counts only when it is the daemon's own
+  (a loopback host and the daemon's port), so a page another local program serves
+  is refused. An open daemon also refuses a non-loopback `Host` (compared without
+  case); a daemon that requires a token serves any host name, so clients can
+  reach one bound to the network by the machine's name.
+- `SECURITY.md` no longer claims a flat "no shell-injection surface"; it states
+  the argv-list start and the explicit cmd.exe metacharacter refusal for batch
+  targets, and documents the new daemon and gate defenses.
+
+### Packaging and hygiene
+
+- `release.yml` grants nothing at the top level, runs least-privilege jobs, uses
+  `skip-existing` on the PyPI upload, and adds a GitHub Release job that attaches
+  the wheel, sdist and `SHA256SUMS.txt` and verifies them. The build runs the test
+  suite before it builds, requires the installed `forum --version` and package
+  metadata to equal the tag, and the release stops unless PyPI serves exactly the
+  files and SHA-256 digests in `SHA256SUMS.txt`. CI runs on `ubuntu-latest` and
+  `windows-latest` for Python 3.11 to 3.13.
+- The shipped roster and `flagship.py` no longer carry the private-line route
+  probe or its codename keywords; `forum doctor` runs real roster and ledger
+  checks instead of hardcoded MATCH placeholders and the private-line route probe.
+- README shows the current version, an FSL-1.1-MIT badge, the flight-recorder
+  commands (`import-trace`, `grade`, `export-gradable`, `mine`), a stable credo
+  link, and no operator-surface or local-path copy. A version-sites drift test
+  fails when any version site disagrees.
+
+### Upgrading from 1.14
+
+- Daemon clients send the token. `forum serve` prints a token to stderr at
+  startup, and every request except `GET /health` needs
+  `Authorization: Bearer <token>`, or the daemon answers 401. `forum serve
+  --no-auth` keeps the open daemon, on a loopback address only.
+- Commands get a short environment. A command child no longer inherits your
+  environment: it sees the platform base (`PATH`, the home and temp folders and
+  similar) plus the variables `FORUM_CHILD_ENV` names. Provider keys are left
+  out, so `claude -p` with API-key sign-in needs
+  `FORUM_CHILD_ENV=ANTHROPIC_API_KEY`, and a command that reads `OLLAMA_HOST`
+  or `HTTPS_PROXY` needs those names too.
+- Relative paths stop resolving. Each command runs in a new private empty
+  folder, so a relative argument such as `--cmd "python adapter.py"` finds
+  nothing there, and a relative executable such as `./model` is refused with
+  `BAD_PATH`. Give full paths.
+- Batch targets refuse multi-line tasks. On Windows a `.cmd` or `.bat` command
+  other than claude and codex still takes the task as its last argument, and it
+  refuses a task holding a line break or a cmd.exe metacharacter with
+  `UNSAFE_ARGUMENT`. A task that builds on upstream results or carries done
+  criteria always holds a line break. Point `--cmd` at the program the shim
+  wraps, or at a Python adapter. claude and codex read the task on stdin and are
+  not affected.
+- The daemon checks `Origin` and `Host`. Every daemon refuses an `Origin` other
+  than its own (a loopback host on the daemon's port), so a page served from
+  another origin, another local port included, gets 403. A daemon started with
+  `--no-auth` also refuses a `Host` that is not a loopback name, so a reverse
+  proxy in front of one must forward `Host: 127.0.0.1` or `localhost`. A daemon
+  that requires the token accepts any host name.
+- MCP gate decisions need the grant. `forum mcp` lists `gate_approve`,
+  `gate_edit` and `gate_reject` only when started with `--allow-gate-decisions`,
+  and a Python embedder gets them only from
+  `McpSurface(orch, allow_gate_decisions=True)`. A host that decides gates over
+  MCP adds the grant to its launch; otherwise a person decides with
+  `forum gate approve|edit|reject` or over HTTP with the token.
+- A library caller that resumes a gated run passes the same plan it started; a
+  changed plan starts a new run with its own gates.
+- A program inside the folder forum runs in, found before through a `PATH`
+  entry that points there (a project's `node_modules/.bin`, for example), needs
+  a full path in `--cmd` or the runtime config. forum's own Python environment
+  stays on `PATH`.
+- gemini and opencode need a launch grant. Their isolation profiles are not
+  proven, so set `FORUM_ALLOW_EXEC_CLI=gemini` (or `opencode`) to run them.
+
 ### Presentation parity
 
-- README now exposes the current source version and the operator commands for
-  status, doctor, HTTP, and MCP surfaces without claiming an external effect from
-  a run result.
+- README now exposes the current source version and the commands for status,
+  doctor, HTTP, and MCP surfaces without claiming an external effect from a run
+  result.
 
 ## 1.14.0 (2026-09-10)
 
@@ -135,7 +280,7 @@ A run is no longer the largest unit Forum can witness. This release adds campaig
 - Expert Delivery Profiles: adds deterministic profile checks for `operator`, `engineer`, `researcher`, and `executive` prose, with `delivery_profile_check` ledger entries, summary/bench metrics, receipt fields, and CLI/HTTP/MCP profile selection for `humanize` and `submit`.
 - Context pressure: adds `ContextBudget`, deterministic approximate-token accounting, witnessed `context_budget` entries, summary/bench metrics, and CLI/HTTP/MCP budget fields for request context, per-task context, and upstream data injection.
 - Proof lanes: adds `forum.lanes`, a closed vocabulary of five proof lanes (observe, execute, validate, synthesize, verify), each with a declared authority and an explicit scope grant. `witness_route` refuses a route that names a lane outside the vocabulary or claims a scope its lane does not grant (over-routing), with a typed reason (`LaneViolation`), and witnesses the rejection as a first-class `lane_rejection` ledger entry, never a silent drop; a well-formed route passes unchanged and is witnessed as `lane_route`. The gate keys off vocabulary membership and scope set arithmetic, not any string the route's author supplies, and negative tests cover both rejection paths.
-- Routing: private-line flagship requests mentioning Seed, Kun, Sofer, ORCA, or behavior-transform now route to `project-telos` without classifier escalation.
+- Routing: a set of internal flagship-integration requests now route to `project-telos` without classifier escalation. (The internal project codenames those requests named were removed from the shipped package and this note in 1.15.0.)
 - Routing: broad Project Telos operator requests now use a decisive-hit floor so `project-telos` can win when it has enough raw keyword evidence, while secondary lanes such as `render-pipeline`, `deep-research`, and `function-routing` stay visible instead of forcing escalation.
 - Submit receipts: HTTP `/submit`, MCP `submit` / `forum.submit`, and `forum submit --json` now return a `project-telos.action-receipt/v1` packet with ledger join fields, payload hashes, model identity, checkpoint, budget state, and a verification verdict.
 - CLI compatibility: `forum submit --cmd` now parses commands with Windows-safe rules on Windows, preserving absolute paths for IDE, CLI, and MCP host launches.

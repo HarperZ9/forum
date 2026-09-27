@@ -7,3 +7,6 @@ docs/art/*.json text eol=lf
 # Reviewed standalone skill assets are byte-pinned release material. Preserve
 # their checksums across Git, installed packages, and the downloadable archive.
 src/forum/skills/forum-route-preflight/** -text
+
+# Vendored helpers are hash-pinned (VENDORED.sha256); keep their bytes exactly as copied.
+**/_vendor/safe_spawn.py -text

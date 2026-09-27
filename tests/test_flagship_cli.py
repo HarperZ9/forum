@@ -26,12 +26,23 @@ def test_doctor_human_prints_next_action(capsys):
     assert "next: index context" in out
 
 
-def test_doctor_probes_private_line_project_telos_route(capsys):
+def test_doctor_runs_real_checks(capsys):
     assert main(["doctor", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     checks = {check["name"]: check for check in payload["native"]["checks"]}
-    assert checks["private_line_project_telos_route"]["status"] == "MATCH"
-    assert checks["private_line_project_telos_route"]["decided"] == "project-telos"
+    # The roster and ledger checks are real; the private-line route probe is gone.
+    assert checks["default_roster"]["status"] == "MATCH"
+    assert checks["default_roster"]["agents"] > 0
+    assert checks["ledger_verification"]["status"] == "MATCH"
+    assert "private_line_project_telos_route" not in checks
+    assert payload["status"] == "MATCH"
+
+
+def test_doctor_ships_no_private_line_names(capsys):
+    assert main(["doctor", "--json"]) == 0
+    blob = capsys.readouterr().out.lower()
+    for name in ("seed", "kun", "sofer", "orca", "behavior-transform"):
+        assert name not in blob
 
 
 def test_project_telos_route_lane(capsys):

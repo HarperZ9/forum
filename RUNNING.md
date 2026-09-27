@@ -21,7 +21,21 @@ forum submit "ship a login API with docs" --cmd "ollama run llama3"
 
 Neither needs a key. `--cmd` is the most agnostic option: any program that takes a
 prompt as its last argument is a valid executor, so Forum stays independent of any one
-provider and its updates.
+provider and its updates. The claude and codex CLIs are the exception: `--cmd "claude -p"`
+and `--cmd "codex exec"` receive each task on stdin, which also works through the `.cmd`
+shims npm installs on Windows.
+
+A bare command name is looked up on `PATH`, and the folder Forum runs in is never
+searched by name. A `PATH` entry inside that folder, such as a project's
+`node_modules/.bin`, is skipped too, except the Python environment Forum itself runs
+from. Give a full path to run a program that lives there.
+
+Each command runs in a new empty folder with a short environment. Give full paths in
+its arguments: `--cmd "python adapter.py"` finds no `adapter.py` in that folder. The
+command sees the platform base variables (`PATH`, the home and temp folders and similar)
+and no provider keys. Name any others it needs in `FORUM_CHILD_ENV`, for example
+`FORUM_CHILD_ENV=ANTHROPIC_API_KEY` for `claude -p` with API-key sign-in, or
+`FORUM_CHILD_ENV="OLLAMA_HOST HTTPS_PROXY"`.
 
 ## Persistent tier config
 
@@ -87,17 +101,24 @@ forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
 forum mcp --cmd "ollama run llama3"
 ```
 
+`forum serve` listens on `127.0.0.1:8080` and prints a bearer token to stderr at
+startup (`forum daemon token: ...`). Send it with every request except `GET /health`.
 The daemon exposes pre-submit inspection endpoints over the same durable ledger:
 
 ```bash
-curl http://127.0.0.1:8000/runtime
-curl -X POST http://127.0.0.1:8000/context/preflight \
+export FORUM_TOKEN=...   # the token forum serve printed
+curl -H "Authorization: Bearer $FORUM_TOKEN" http://127.0.0.1:8080/runtime
+curl -X POST http://127.0.0.1:8080/context/preflight \
+  -H "Authorization: Bearer $FORUM_TOKEN" \
   -H "content-type: application/json" \
   -d '{"request":"continue the run","use_capsule_context":true,"context_token_budget":0}'
-curl -X POST http://127.0.0.1:8000/prose/contract \
+curl -X POST http://127.0.0.1:8080/prose/contract \
+  -H "Authorization: Bearer $FORUM_TOKEN" \
   -H "content-type: application/json" \
   -d '{"text":"build the API endpoint","profile":"engineer"}'
 ```
+
+On a loopback address, `forum serve --no-auth` runs without a token.
 
 MCP hosts get the same payloads through `forum.runtime.inspect`,
 `forum.context.preflight`, and `forum.prose.contract`.

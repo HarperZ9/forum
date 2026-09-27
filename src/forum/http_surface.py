@@ -6,6 +6,7 @@ from forum.auth import (
     SCOPE_PLAN,
     SCOPE_ROUTE,
     SCOPE_SUBMIT,
+    Claims,
     InvalidToken,
     RolePolicy,
     TokenVerifier,
@@ -171,42 +172,47 @@ class HttpSurface(HttpReadMixin, HttpActionMixin):
         self, method: str, path: str, body: bytes, authorization: str | None
     ) -> Response:
         try:
-            denied = self._authorize(method, path, authorization)
+            denied, claims = self._authorize(method, path, authorization)
             if denied is not None:
                 return denied
-            return await self._route(method, path, body)
+            return await self._route(method, path, body, claims)
         except Exception as exc:  # never swallow: report with context
             return error(500, f"{type(exc).__name__}: {exc}")
 
     def _authorize(
         self, method: str, path: str, authorization: str | None
-    ) -> Response | None:
-        """Enforce bearer-JWT + scope for one request. Returns a 401/403 Response
-        to reject, or None to allow. Authenticated decisions are witnessed in the
-        ledger for a tamper-evident audit; unauthenticated 401s are not, so an
-        unauthenticated flood cannot grow the audit log."""
+    ) -> tuple[Response | None, Claims | None]:
+        """Enforce bearer-JWT + scope for one request.
+
+        Returns (a 401/403 Response, None) to reject, or (None, the verified
+        claims) to allow; the claims are None when auth is off or the endpoint is
+        public. Authenticated decisions are witnessed in the ledger for a
+        tamper-evident audit; unauthenticated 401s are not, so an unauthenticated
+        flood cannot grow the audit log."""
         if self._verifier is None:
-            return None
+            return None, None
         scope = required_scope(method, path)
         if scope is None:
-            return None  # public endpoint (for example /health)
+            return None, None  # public endpoint (for example /health)
         token = bearer_token(authorization)
         if token is None:
-            return error(401, "missing bearer token")
+            return error(401, "missing bearer token"), None
         try:
             claims = self._verifier.verify(token)
         except InvalidToken as exc:
-            return error(401, f"invalid token: {exc}")
+            return error(401, f"invalid token: {exc}"), None
         resource = f"{method} {path}"
         decision = authorize(claims, scope, self._role_policy)
         if not decision.granted:
             witness_authz(self._orch.ledger, decision, resource=resource)
-            return error(403, decision.reason)
+            return error(403, decision.reason), None
         if scope in _MUTATING_SCOPES:
             witness_authz(self._orch.ledger, decision, resource=resource)
-        return None
+        return None, claims
 
-    async def _route(self, method: str, path: str, body: bytes) -> Response:
+    async def _route(
+        self, method: str, path: str, body: bytes, claims: Claims | None = None
+    ) -> Response:
         if method == "GET" and path == "/health":
             return json_response({"ok": True})
         if method == "GET" and path == "/status":
@@ -224,7 +230,7 @@ class HttpSurface(HttpReadMixin, HttpActionMixin):
         if method == "GET" and path == "/gates":
             return self._gates()
         if method == "POST" and path in ("/gate/approve", "/gate/edit", "/gate/reject"):
-            return self._gate_resolve(path.rsplit("/", 1)[1], body)
+            return self._gate_resolve(path.rsplit("/", 1)[1], body, claims)
         if method == "GET" and path == "/runtime":
             return self._runtime()
         if method == "GET" and path.startswith("/ledger/"):

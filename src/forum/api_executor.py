@@ -25,13 +25,18 @@ class ApiExecutor:
         api_key_env: str = "ANTHROPIC_API_KEY",
         base_url: str = "https://api.anthropic.com/v1/messages",
         max_tokens: int = 1024,
+        timeout: float = 120.0,
         opener=None,
     ) -> None:
         self._model = model
         self._api_key_env = api_key_env
         self._base_url = base_url
         self._max_tokens = max_tokens
-        self._opener = opener or _default_opener
+        self._timeout = timeout
+        # An injected opener keeps the one-argument (request) -> bytes contract for
+        # tests; the default opener binds the configured timeout so a stalled
+        # provider cannot hang the task forever.
+        self._opener = opener or (lambda request: _default_opener(request, timeout))
 
     @property
     def model_id(self) -> str:
@@ -81,6 +86,6 @@ def _extract_text(raw) -> str | None:
     return None
 
 
-def _default_opener(request: urllib.request.Request) -> bytes:
-    with urllib.request.urlopen(request) as response:
+def _default_opener(request: urllib.request.Request, timeout: float | None = None) -> bytes:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()

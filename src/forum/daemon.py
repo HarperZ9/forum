@@ -10,6 +10,7 @@ from forum.control import IntentJudge
 from forum.delivery import Reviser
 from forum.engine import Orchestrator
 from forum.executor import EchoExecutor, Executor
+from forum.http_guard import check_http_headers
 from forum.http_surface import MAX_BODY, HttpSurface, Response, error
 from forum.ledger import Ledger
 from forum.metrics import MetricsRegistry
@@ -29,8 +30,8 @@ class _BodyTooLarge(Exception):
 
 async def _read_request(
     reader: asyncio.StreamReader,
-) -> tuple[str, str, bytes, str | None, str | None]:
-    """Parse one HTTP/1.1 request into (method, path, body, authorization, traceparent).
+) -> tuple[str, str, bytes, dict[str, str]]:
+    """Parse one HTTP/1.1 request into (method, path, body, headers).
 
     Raises _BodyTooLarge if the advertised Content-Length exceeds MAX_BODY, and
     ValueError / asyncio read errors on a malformed or truncated request.
@@ -65,7 +66,7 @@ async def _read_request(
         if n > MAX_BODY:
             raise _BodyTooLarge()
         body = await reader.readexactly(n)
-    return method, path, body, headers.get("authorization"), headers.get("traceparent")
+    return method, path, body, headers
 
 
 async def _write_response(writer: asyncio.StreamWriter, response: Response) -> None:
@@ -99,8 +100,15 @@ class Daemon:
         tracer: Tracer | None = None,
         metrics: MetricsRegistry | None = None,
         metric_exporter: OtlpHttpMetricExporter | None = None,
+        check_headers: bool = True,
     ) -> None:
         self.orchestrator = orchestrator
+        # Transport defenses (Origin, Host, content-type) are on by default; a test
+        # or embedder can turn them off. They never touch the stdio MCP surface.
+        # With a verifier the bearer token authenticates every non-public request,
+        # so the Host allowlist (a defense for an open daemon) steps aside.
+        self._check_headers = check_headers
+        self._check_host = verifier is None
         # A verifier turns on bearer-JWT auth for every non-public endpoint; None
         # keeps the daemon open, unchanged for existing deployments. A tracer
         # turns on OTLP server-span emission per request; None keeps it off. A
@@ -133,7 +141,7 @@ class Daemon:
             self._inflight.add(task)
         try:
             try:
-                method, path, body, authorization, traceparent = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
+                method, path, body, headers = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
             except asyncio.TimeoutError:
                 await _write_response(writer, error(408, "request timed out"))
                 return
@@ -143,7 +151,16 @@ class Daemon:
             except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError):
                 await _write_response(writer, error(400, "malformed HTTP request"))
                 return
-            response = await self._surface.dispatch(method, path, body, authorization, traceparent)
+            if self._check_headers:
+                denied = check_http_headers(
+                    method, path, headers, port=self.port, check_host=self._check_host
+                )
+                if denied is not None:
+                    await _write_response(writer, denied)
+                    return
+            response = await self._surface.dispatch(
+                method, path, body, headers.get("authorization"), headers.get("traceparent")
+            )
             await _write_response(writer, response)
         finally:
             if task is not None:
@@ -267,6 +284,7 @@ async def serve(
     host: str = "127.0.0.1",
     port: int = 8080,
     executor: Executor | None = None,
+    verifier: TokenVerifier | None = None,
 ) -> None:
     from forum.otlp import tracer_from_env
     from forum.otlp_metrics import meter_from_env
@@ -278,14 +296,15 @@ async def serve(
     metrics, metric_exporter = meter if meter is not None else (None, None)
     daemon = Daemon(
         build_orchestrator(ledger_dir, executor=executor), host, port,
-        tracer=tracer, metrics=metrics, metric_exporter=metric_exporter,
+        verifier=verifier, tracer=tracer, metrics=metrics, metric_exporter=metric_exporter,
     )
     await daemon.start()
     tracing = "off" if tracer is None else "on"
     metering = "off" if meter is None else "on"
+    auth = "off" if verifier is None else "on"
     print(
         f"forum daemon on http://{daemon.host}:{daemon.port} "
-        f"(ledger: {ledger_dir}, tracing: {tracing}, metrics: {metering})"
+        f"(ledger: {ledger_dir}, tracing: {tracing}, metrics: {metering}, auth: {auth})"
     )
     # Serve under a shutdown guard so the metrics exporter is flushed on exit.
     await _run_until_shutdown(daemon)

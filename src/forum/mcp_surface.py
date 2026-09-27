@@ -8,6 +8,7 @@ from typing import Any
 from forum import __version__
 from forum.engine import Orchestrator
 from forum.http_surface import HttpSurface
+from forum.mcp_errors import GATE_WRITE_TOOLS, gate_decision_error, gate_grant_required
 
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
@@ -127,6 +128,12 @@ _TOOL_ALIASES = {
     "forum.gate.edit": "gate_edit",
     "forum.gate.reject": "gate_reject",
 }
+
+_GATE_WRITE_NOTE = (
+    " Writes a witnessed decision to the ledger. Refused with NOT_FOUND when no gate"
+    " is pending for run_seq and wave. Listed only when the server was launched with"
+    " --allow-gate-decisions."
+)
 
 _GATE_DECISION_PROPERTIES = {
     "run_seq": {"type": "integer", "description": "the plan (run) seq the gate belongs to"},
@@ -326,7 +333,7 @@ _TOOL_SPECS = [
     },
     {
         "name": "gate_approve",
-        "description": "Approve a paused gate so its wave runs when the plan is resumed.",
+        "description": "Approve a paused gate so its wave runs when the plan is resumed." + _GATE_WRITE_NOTE,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -338,7 +345,8 @@ _TOOL_SPECS = [
     },
     {
         "name": "gate_edit",
-        "description": "Approve a paused gate and rewrite its tasks' instructions before the wave runs.",
+        "description": "Approve a paused gate and rewrite its tasks' instructions before the wave runs."
+        + _GATE_WRITE_NOTE,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -354,7 +362,7 @@ _TOOL_SPECS = [
     },
     {
         "name": "gate_reject",
-        "description": "Reject a paused gate so its wave never runs.",
+        "description": "Reject a paused gate so its wave never runs." + _GATE_WRITE_NOTE,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -374,11 +382,26 @@ class McpSurface:
     served by the shared HttpSurface, so the MCP and HTTP surfaces never drift.
     No stdio lives in handle(); serve_stdio() wires real streams around it, and
     process_line() is the testable seam between a raw line and a response line.
+
+    ``allow_gate_decisions`` is the launch grant for the gate decision tools
+    (gate_approve, gate_edit, gate_reject and their forum.gate.* aliases). Without
+    it they are absent from tools/list and a call returns GRANT_REQUIRED before
+    anything is written, so a connected model cannot approve its own gates.
+    The grant is off by default everywhere: serve_stdio(), `forum mcp` and a
+    Python embedder that builds the surface itself all start without it unless
+    the person who launches the server passes --allow-gate-decisions (or
+    ``allow_gate_decisions=True``). A failed gate decision returns the closed error
+    shape of forum.mcp_errors.
     """
 
-    def __init__(self, orchestrator: Orchestrator) -> None:
+    def __init__(self, orchestrator: Orchestrator, *, allow_gate_decisions: bool = False) -> None:
         self._orchestrator = orchestrator
         self._surface = HttpSurface(orchestrator)
+        self._allow_gate_decisions = allow_gate_decisions
+        self._tools = [
+            spec for spec in _TOOL_SPECS
+            if allow_gate_decisions or spec["name"] not in GATE_WRITE_TOOLS
+        ]
 
     async def handle(self, message: dict) -> dict | None:
         mid = message.get("id")
@@ -394,7 +417,7 @@ class McpSurface:
                 "serverInfo": {"name": "forum", "version": __version__},
             })
         if method == "tools/list":
-            return _ok(mid, {"tools": _TOOL_SPECS})
+            return _ok(mid, {"tools": self._tools})
         if method == "tools/call":
             return await self._call_tool(mid, message.get("params") or {})
         if method == "ping":
@@ -404,6 +427,8 @@ class McpSurface:
     async def _call_tool(self, mid: Any, params: dict) -> dict:
         name = params.get("name")
         canonical = _TOOL_ALIASES.get(name, name) if isinstance(name, str) else None
+        if canonical in GATE_WRITE_TOOLS and not self._allow_gate_decisions:
+            return _ok(mid, gate_grant_required())
         if canonical in {"flagship_status", "flagship_doctor"}:
             from forum.flagship import doctor_payload, status_payload
 
@@ -424,6 +449,8 @@ class McpSurface:
             return _err(mid, -32602, f"unknown tool: {name!r}")
         http_method, path, body = route(params.get("arguments") or {})
         response = await self._surface.dispatch(http_method, path, body)
+        if canonical in GATE_WRITE_TOOLS and response.status >= 400:
+            return _ok(mid, gate_decision_error(response.status, response.body))
         return _ok(mid, {
             "content": [{"type": "text", "text": response.body.decode("utf-8")}],
             "isError": response.status >= 400,
@@ -445,17 +472,24 @@ class McpSurface:
         return None if response is None else json.dumps(response)
 
 
-async def serve_stdio(orchestrator: Orchestrator | None = None, ledger_dir: str = "forum-ledger") -> None:
+async def serve_stdio(
+    orchestrator: Orchestrator | None = None,
+    ledger_dir: str = "forum-ledger",
+    *,
+    allow_gate_decisions: bool = False,
+) -> None:
     """Serve MCP over stdio: one JSON-RPC message per line, in and out.
 
     Builds a durable-ledger Orchestrator by default. Reads stdin in a thread so
-    the event loop is not blocked and the transport stays cross-platform.
+    the event loop is not blocked and the transport stays cross-platform. The
+    gate decision tools are off unless ``allow_gate_decisions`` is True, which
+    `forum mcp --allow-gate-decisions` sets.
     """
     if orchestrator is None:
         from forum.daemon import build_orchestrator
 
         orchestrator = build_orchestrator(ledger_dir)
-    surface = McpSurface(orchestrator)
+    surface = McpSurface(orchestrator, allow_gate_decisions=allow_gate_decisions)
     while True:
         line = await asyncio.to_thread(sys.stdin.readline)
         if not line:
