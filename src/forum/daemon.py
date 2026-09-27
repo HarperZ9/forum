@@ -10,6 +10,7 @@ from forum.control import IntentJudge
 from forum.delivery import Reviser
 from forum.engine import Orchestrator
 from forum.executor import EchoExecutor, Executor
+from forum.http_guard import check_http_headers
 from forum.http_surface import MAX_BODY, HttpSurface, Response, error
 from forum.ledger import Ledger
 from forum.metrics import MetricsRegistry
@@ -68,49 +69,6 @@ async def _read_request(
     return method, path, body, headers
 
 
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1"})
-_PUBLIC_PATHS = frozenset({"/health"})
-
-
-def _hostname(value: str) -> str:
-    """The host part of a Host or Origin authority, without the port. IPv6 kept in brackets."""
-    value = value.strip()
-    if value.startswith("["):  # [::1]:8080
-        end = value.find("]")
-        return value[: end + 1] if end != -1 else value
-    return value.rsplit(":", 1)[0] if ":" in value else value
-
-
-def check_http_headers(method: str, path: str, headers: dict[str, str]) -> Response | None:
-    """Transport-level defenses for the local daemon, or None to allow.
-
-    A browser attaches an Origin on a cross-site request and a Host it cannot
-    forge from a page, so these checks stop a web page in the user's browser from
-    driving the loopback daemon (DNS-rebinding and cross-origin CSRF), which a CLI
-    or curl client passes untouched. Applied to every path except /health.
-
-    - Origin, when present, must be a loopback origin, else 403.
-    - Host, when present, must be a loopback name, else 403.
-    - A POST/PUT/PATCH with a body must be application/json, else 415.
-
-    These are transport concerns and live here, not in HttpSurface, so the stdio
-    MCP surface (which shares HttpSurface) is untouched.
-    """
-    if path in _PUBLIC_PATHS:
-        return None
-    origin = headers.get("origin")
-    if origin and _hostname(origin.split("://", 1)[-1]) not in _LOOPBACK_HOSTS:
-        return error(403, "cross-origin request refused")
-    host = headers.get("host")
-    if host and _hostname(host) not in _LOOPBACK_HOSTS:
-        return error(403, "unrecognized Host header refused")
-    if method in ("POST", "PUT", "PATCH") and int(headers.get("content-length") or "0") > 0:
-        ctype = headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if ctype != "application/json":
-            return error(415, "Content-Type must be application/json")
-    return None
-
-
 async def _write_response(writer: asyncio.StreamWriter, response: Response) -> None:
     head = (
         f"HTTP/1.1 {response.status} {response.reason}\r\n"
@@ -147,7 +105,10 @@ class Daemon:
         self.orchestrator = orchestrator
         # Transport defenses (Origin, Host, content-type) are on by default; a test
         # or embedder can turn them off. They never touch the stdio MCP surface.
+        # With a verifier the bearer token authenticates every non-public request,
+        # so the Host allowlist (a defense for an open daemon) steps aside.
         self._check_headers = check_headers
+        self._check_host = verifier is None
         # A verifier turns on bearer-JWT auth for every non-public endpoint; None
         # keeps the daemon open, unchanged for existing deployments. A tracer
         # turns on OTLP server-span emission per request; None keeps it off. A
@@ -191,7 +152,9 @@ class Daemon:
                 await _write_response(writer, error(400, "malformed HTTP request"))
                 return
             if self._check_headers:
-                denied = check_http_headers(method, path, headers)
+                denied = check_http_headers(
+                    method, path, headers, port=self.port, check_host=self._check_host
+                )
                 if denied is not None:
                     await _write_response(writer, denied)
                     return
