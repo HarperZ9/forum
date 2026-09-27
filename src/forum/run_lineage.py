@@ -10,9 +10,10 @@ records a digest of the wave it shows. Both are pure functions of the plan.
 - ``wave_digest`` covers the tasks of one wave; a gate counts a decision only when
   the gate it resolves showed this same content.
 
-A plan entry written before 1.15.0 carries no digest. A resume still continues
-it when its waves hold the same task ids, and its gates bind by task ids, the
-only content those entries recorded.
+A plan entry written before 1.15.0 carries no digest, and 1.14.0 keyed every
+gate in a ledger to the first plan entry. A resume whose waves match such an
+entry continues under that key, and those gates bind by task ids, the only
+content they recorded.
 """
 from __future__ import annotations
 
@@ -50,20 +51,21 @@ def wave_instructions(tasks: list[Task]) -> dict[str, str]:
 def resume_lineage(ledger: Ledger, digest: str, waves: list[list[str]]) -> int | None:
     """The run key a resume of this plan continues, or None to start a fresh run.
 
-    The latest plan entry with the same ``plan_digest`` wins. With none, the latest
-    plan entry written before digests existed wins when its waves match.
-    The key is the entry's recorded ``run_seq`` (it was itself a resume) or its seq.
+    The latest plan entry with the same ``plan_digest`` wins; its key is its
+    recorded ``run_seq`` (it was itself a resume) or its seq. With none, a plan
+    entry written before digests existed whose waves match continues the run
+    1.14.0 keyed it to: the seq of the first plan entry in the ledger.
     """
-    legacy: int | None = None
-    for entry in reversed(ledger.query(kind="plan")):
+    plans = ledger.query(kind="plan")
+    legacy_match = False
+    for entry in reversed(plans):
         body = ledger.get_payload(entry.payload_hash)
         if not isinstance(body, dict):
             continue
-        recorded = body.get("run_seq")
-        key = recorded if type(recorded) is int else entry.seq
         if "plan_digest" in body:
             if body["plan_digest"] == digest:
-                return key
-        elif legacy is None and body.get("waves") == waves:
-            legacy = key
-    return legacy
+                recorded = body.get("run_seq")
+                return recorded if type(recorded) is int else entry.seq
+        elif body.get("waves") == waves:
+            legacy_match = True
+    return plans[0].seq if legacy_match else None
