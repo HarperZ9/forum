@@ -29,13 +29,19 @@ def test_the_helper_invokes_forum_with_safe_path():
 def test_a_planted_forum_module_in_the_working_folder_is_not_imported(tmp_path):
     # Write the packaged helper to disk, plant a hostile forum.py in the folder we
     # run it from, and confirm forum route still returns the real route, not the
-    # plant's output.
+    # plant's output. The plant also writes a marker when it runs: the helper reads
+    # only the subprocess's JSON, so the plant's stdout alone could go unseen
+    # (review finding F5: without the marker this test passed on 1.14.0, where the
+    # plant ran).
     helper = tmp_path / "forum_route_preflight.py"
     helper.write_bytes(_helper_bytes())
     run_from = tmp_path / "run_from"
     run_from.mkdir()
+    marker = tmp_path / "PLANTED-RAN"
     (run_from / "forum.py").write_text(
-        "import sys\nsys.stdout.write('PLANTED\\n')\nsys.exit(0)\n", encoding="utf-8"
+        f"open({str(marker)!r}, 'w').write('x')\n"
+        "import sys\nsys.stdout.write('PLANTED\\n')\nsys.exit(0)\n",
+        encoding="utf-8",
     )
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(
@@ -53,5 +59,6 @@ def test_a_planted_forum_module_in_the_working_folder_is_not_imported(tmp_path):
     route = payload["sections"]["route"] if "sections" in payload else payload
     blob = json.dumps(payload)
     assert "PLANTED" not in blob
+    assert not marker.exists(), "the planted forum.py ran"
     # the real forum route returns a decided lane / candidates structure
     assert "decided" in blob or "route" in route
