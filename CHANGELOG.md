@@ -4,7 +4,8 @@
 
 ## 1.15.0 (2026-09-27)
 
-Security release. Fixes gate pre-approval, model-held gate approval, executor
+Security release. Fixes gate pre-approval, approvals that carried across runs
+or covered content the person never saw, model-held gate approval, executor
 inheritance of the working folder and the full environment, an unauthenticated
 daemon with no cross-origin defense, and a false "no shell-injection surface"
 claim. See the advisory for affected versions (1.14.0 and earlier).
@@ -19,10 +20,30 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
   the same ledger. The CLI, HTTP and MCP decision paths refuse a decision for a
   gate that was never raised with `NOT_FOUND` (HTTP 404, CLI exit 1) and write
   nothing.
+- Gate binding. A resume continues the latest run of the same plan, found by a
+  digest of every task, instead of the latest plan in the ledger: approving one
+  run no longer opens another run's gate, an approved run still resumes after a
+  later run starts, and a resume with a different or rewritten plan (instruction,
+  agent or done criteria) raises a gate of its own. Each `gate_pending` records
+  the wave's instructions and a `wave_digest`, and `forum gate list`, `GET
+  /gates` and the MCP `gate_list` show the instructions, so the person sees what
+  they approve. An edit may rewrite only tasks of the gated wave; one naming
+  another wave's task is refused (`INVALID_ARGUMENT`, HTTP 400, CLI exit 2) and
+  writes nothing. A run paused under 1.14.0 still resumes: its gates bind by task
+  ids, the only content those entries recorded.
+- Gate decision standing. A decision made with a verified token outranks every
+  decision a caller only asserted (a CLI user, an MCP client, an HTTP call with
+  auth off), so a later asserted approval or edit cannot reverse a person's
+  authenticated rejection or edit. Within one standing the latest decision still
+  wins, so a person can change their mind.
 - Gate approval authority. `forum mcp` lists `gate_approve`, `gate_edit` and
   `gate_reject` only with the new `--allow-gate-decisions` launch grant; without
   it a call, including the `forum.gate.*` aliases, returns `GRANT_REQUIRED`. A
-  connected model cannot approve its own human-in-the-loop gate by default.
+  connected model cannot approve its own human-in-the-loop gate by default. The
+  grant is off for a Python embedder too: `McpSurface(orch)` lists no decision
+  tools unless built with `allow_gate_decisions=True`. A refused decision
+  (`NOT_FOUND`, `INVALID_ARGUMENT`) returns the closed error shape
+  `{"code", "retryable", "setup", "detail"}` in `structuredContent`.
   Decisions record how the approver was established: the authenticated identity
   over HTTP with a token, `asserted` otherwise.
 - Executor isolation. `SubprocessExecutor` starts every child through a vendored
@@ -33,14 +54,31 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
   instruction, and a Python target gets `-P`. A known agent CLI gets its Q0
   isolation profile; an unproven profile is refused unless
   `FORUM_ALLOW_EXEC_CLI` names it. `FORUM_CHILD_ENV` adds named variables to the
-  allowlist. The route-preflight helper runs `python -P -m forum` so a planted
+  allowlist; both apply to `--cmd`, the tier flags and a `--runtime-config`
+  command alike. The route-preflight helper runs `python -P -m forum` so a planted
   `forum.py` cannot shadow the package.
+- Working folder kept out of command lookup. A `PATH` entry that resolves inside
+  the folder forum runs in (written directly, through a junction or symlink, or
+  added by npm as `node_modules/.bin`) is skipped for the lookup and removed from
+  the child's `PATH`, and a drive-relative name such as `C:claude` is refused
+  with `BAD_PATH`. The Python environment forum runs from stays on `PATH`, and
+  the guard stands down when the working folder is a filesystem root or holds the
+  home folder.
+- Agent CLIs read the task on stdin. claude and codex receive the task on stdin
+  (codex with `-`) instead of as the last argument, so npm's `.cmd` shims run
+  tasks that carry upstream results or done criteria rather than refusing them,
+  and the task text no longer shows in a process listing. `--cmd "codex exec"`
+  passes `exec` once. Other commands keep the instruction as their last argument.
 - Network timeouts. `ApiExecutor` and `ChatExecutor` cap each request (default
   120 s), so a stalled provider no longer hangs a task.
 - Daemon hardening. `forum serve` requires a bearer token by default (printed at
   startup; `--no-auth` turns it off and is refused on a non-loopback host), and
-  the daemon rejects a foreign `Origin` or `Host` with 403 and a non-JSON POST
-  with 415 on every path except `/health`.
+  the daemon rejects a foreign `Origin` with 403 and a non-JSON POST with 415 on
+  every path except `/health`. An `Origin` counts only when it is the daemon's own
+  (a loopback host and the daemon's port), so a page another local program serves
+  is refused. An open daemon also refuses a non-loopback `Host` (compared without
+  case); a daemon that requires a token serves any host name, so clients can
+  reach one bound to the network by the machine's name.
 - `SECURITY.md` no longer claims a flat "no shell-injection surface"; it states
   the argv-list start and the explicit cmd.exe metacharacter refusal for batch
   targets, and documents the new daemon and gate defenses.
@@ -49,8 +87,11 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
 
 - `release.yml` grants nothing at the top level, runs least-privilege jobs, uses
   `skip-existing` on the PyPI upload, and adds a GitHub Release job that attaches
-  the wheel, sdist and `SHA256SUMS.txt` and verifies them. CI runs on
-  `ubuntu-latest` and `windows-latest` for Python 3.11 to 3.13.
+  the wheel, sdist and `SHA256SUMS.txt` and verifies them. The build runs the test
+  suite before it builds, requires the installed `forum --version` and package
+  metadata to equal the tag, and the release stops unless PyPI serves exactly the
+  files and SHA-256 digests in `SHA256SUMS.txt`. CI runs on `ubuntu-latest` and
+  `windows-latest` for Python 3.11 to 3.13.
 - The shipped roster and `flagship.py` no longer carry the private-line route
   probe or its codename keywords; `forum doctor` runs real roster and ledger
   checks instead of hardcoded MATCH placeholders and the private-line route probe.
@@ -58,6 +99,17 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
   commands (`import-trace`, `grade`, `export-gradable`, `mine`), a stable credo
   link, and no operator-surface or local-path copy. A version-sites drift test
   fails when any version site disagrees.
+
+### Upgrading
+
+- A Python embedder that builds `McpSurface` itself and wants a connected client
+  to decide gates passes `allow_gate_decisions=True`; `forum mcp` takes
+  `--allow-gate-decisions`.
+- A library caller that resumes a gated run passes the same plan it started; a
+  changed plan starts a new run with its own gates.
+- A command inside the project folder that forum used to find on `PATH` (other
+  than forum's own Python environment) needs a full path in `--cmd` or the
+  runtime config.
 
 ### Presentation parity
 

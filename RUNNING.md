@@ -21,7 +21,13 @@ forum submit "ship a login API with docs" --cmd "ollama run llama3"
 
 Neither needs a key. `--cmd` is the most agnostic option: any program that takes a
 prompt as its last argument is a valid executor, so Forum stays independent of any one
-provider and its updates.
+provider and its updates. The claude and codex CLIs are the exception: `--cmd "claude -p"`
+and `--cmd "codex exec"` receive each task on stdin, which also works through the `.cmd`
+shims npm installs on Windows.
+
+The command is looked up on `PATH`, never in the folder Forum runs in: a `PATH` entry
+inside that folder, such as a project's `node_modules/.bin`, is skipped. Give a full path
+to run a program that lives there.
 
 ## Persistent tier config
 
