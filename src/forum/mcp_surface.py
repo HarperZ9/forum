@@ -8,7 +8,7 @@ from typing import Any
 from forum import __version__
 from forum.engine import Orchestrator
 from forum.http_surface import HttpSurface
-from forum.mcp_errors import GATE_WRITE_TOOLS, gate_grant_required
+from forum.mcp_errors import GATE_WRITE_TOOLS, gate_decision_error, gate_grant_required
 
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
@@ -387,12 +387,14 @@ class McpSurface:
     (gate_approve, gate_edit, gate_reject and their forum.gate.* aliases). Without
     it they are absent from tools/list and a call returns GRANT_REQUIRED before
     anything is written, so a connected model cannot approve its own gates.
-    serve_stdio() and `forum mcp` start without the grant unless the person who
-    launches the server passes --allow-gate-decisions. The constructor default
-    stays True for Python embedders that build the surface themselves, as in 1.14.
+    The grant is off by default everywhere: serve_stdio(), `forum mcp` and a
+    Python embedder that builds the surface itself all start without it unless
+    the person who launches the server passes --allow-gate-decisions (or
+    ``allow_gate_decisions=True``). A failed gate decision returns the closed error
+    shape of forum.mcp_errors.
     """
 
-    def __init__(self, orchestrator: Orchestrator, *, allow_gate_decisions: bool = True) -> None:
+    def __init__(self, orchestrator: Orchestrator, *, allow_gate_decisions: bool = False) -> None:
         self._orchestrator = orchestrator
         self._surface = HttpSurface(orchestrator)
         self._allow_gate_decisions = allow_gate_decisions
@@ -447,6 +449,8 @@ class McpSurface:
             return _err(mid, -32602, f"unknown tool: {name!r}")
         http_method, path, body = route(params.get("arguments") or {})
         response = await self._surface.dispatch(http_method, path, body)
+        if canonical in GATE_WRITE_TOOLS and response.status >= 400:
+            return _ok(mid, gate_decision_error(response.status, response.body))
         return _ok(mid, {
             "content": [{"type": "text", "text": response.body.decode("utf-8")}],
             "isError": response.status >= 400,

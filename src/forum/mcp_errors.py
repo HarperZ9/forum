@@ -32,3 +32,24 @@ def tool_error(code: str, detail: str, *, setup: str | None = None, retryable: b
 def gate_grant_required() -> dict:
     """The result for a gate decision tool called without the launch grant."""
     return tool_error("GRANT_REQUIRED", GATE_GRANT_DETAIL, setup=GATE_GRANT_SETUP)
+
+
+# A failed gate decision, by the code the shared HTTP handler reports. Each
+# detail is fixed text: nothing from the request or the ledger is echoed.
+_GATE_DECISION_DETAILS = {
+    "NOT_FOUND": "no gate is pending for that run_seq and wave; gate_list shows the open gates",
+    "INVALID_ARGUMENT": "the decision's arguments are invalid: run_seq and wave are integers, "
+                        "approver is a non-empty string, and an edit names only tasks of the gated wave",
+}
+
+
+def gate_decision_error(status: int, body: bytes) -> dict:
+    """The closed error for a gate decision the HTTP handler refused with ``status``."""
+    try:
+        code = json.loads(body.decode("utf-8")).get("code")
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        code = None
+    if code not in _GATE_DECISION_DETAILS:
+        code = "INVALID_ARGUMENT" if 400 <= status < 500 else "INTERNAL"
+    detail = _GATE_DECISION_DETAILS.get(code, "the gate decision failed on the server")
+    return tool_error(code, detail)

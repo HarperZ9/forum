@@ -110,30 +110,9 @@ class HttpReadMixin:
         return json_response(build_run_room(self._orch.ledger))
 
     def _gates(self) -> Response:
-        from forum.gates import gate_resolution
+        from forum.gates import pending_gates
 
-        led = self._orch.ledger
-        pending = []
-        for entry in led.query(kind="gate_pending"):
-            body = led.get_payload(entry.payload_hash)
-            run_seq = body.get("run_seq")
-            wave = body.get("wave")
-            if gate_resolution(led, run_seq, wave) == "pending":
-                item = {
-                    "seq": entry.seq,
-                    "run_seq": run_seq,
-                    "wave": wave,
-                    "tasks": list(body.get("tasks") or []),
-                    "question": body.get("question", ""),
-                }
-                deadline = body.get("deadline")
-                if isinstance(deadline, (int, float)):
-                    # bounded gate: expose the deadline and the auto-decision that
-                    # fires on resume if it lapses (reject unless operator opted in)
-                    item["deadline"] = float(deadline)
-                    item["on_expiry"] = str(body.get("on_expiry") or "reject")
-                pending.append(item)
-        return json_response({"pending": pending})
+        return json_response({"pending": pending_gates(self._orch.ledger)})
 
     def _runtime(self) -> Response:
         from forum.runtime_descriptor import descriptors_from_executor

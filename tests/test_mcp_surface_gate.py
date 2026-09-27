@@ -61,7 +61,7 @@ def test_gate_list_tool_lists_pending():
 def test_gate_approve_tool_resolves():
     orch = _orch()
     run_seq = _seed_pending(orch.ledger)
-    resp = _call(McpSurface(orch), "gate_approve", {"run_seq": run_seq, "wave": 1, "approver": "op"})
+    resp = _call(McpSurface(orch, allow_gate_decisions=True), "gate_approve", {"run_seq": run_seq, "wave": 1, "approver": "op"})
     assert resp["result"]["isError"] is False
     assert gate_resolution(orch.ledger, run_seq, 1) == "approved"
 
@@ -69,7 +69,7 @@ def test_gate_approve_tool_resolves():
 def test_gate_edit_tool_resolves_with_edits():
     orch = _orch()
     run_seq = _seed_pending(orch.ledger)
-    resp = _call(McpSurface(orch), "gate_edit", {"run_seq": run_seq, "wave": 1, "approver": "op", "edits": {"T2": "NEW"}})
+    resp = _call(McpSurface(orch, allow_gate_decisions=True), "gate_edit", {"run_seq": run_seq, "wave": 1, "approver": "op", "edits": {"T2": "NEW"}})
     assert resp["result"]["isError"] is False
     assert gate_edits(orch.ledger, run_seq, 1) == {"T2": "NEW"}
 
@@ -77,13 +77,15 @@ def test_gate_edit_tool_resolves_with_edits():
 def test_gate_reject_tool_resolves():
     orch = _orch()
     run_seq = _seed_pending(orch.ledger)
-    _call(McpSurface(orch), "gate_reject", {"run_seq": run_seq, "wave": 1, "approver": "op", "reason": "no"})
+    _call(McpSurface(orch, allow_gate_decisions=True), "gate_reject", {"run_seq": run_seq, "wave": 1, "approver": "op", "reason": "no"})
     assert gate_resolution(orch.ledger, run_seq, 1) == "rejected"
 
 
 def test_gate_tools_are_advertised():
+    # Listed under the launch grant; the default lists none (test_mcp_gate_defaults).
     orch = _orch()
-    resp = asyncio.run(McpSurface(orch).handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}))
+    resp = asyncio.run(McpSurface(orch, allow_gate_decisions=True).handle(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}))
     names = {t["name"] for t in resp["result"]["tools"]}
     assert {"gate_list", "gate_approve", "gate_edit", "gate_reject"} <= names
 
@@ -99,7 +101,7 @@ def test_mcp_and_http_gate_approve_parity():
 
     orch_mcp = _orch()
     run_seq_m = _seed_pending(orch_mcp.ledger)
-    resp_mcp = _call(McpSurface(orch_mcp), "gate_approve", {"run_seq": run_seq_m, "wave": 1, "approver": "op"})
+    resp_mcp = _call(McpSurface(orch_mcp, allow_gate_decisions=True), "gate_approve", {"run_seq": run_seq_m, "wave": 1, "approver": "op"})
 
     assert resp_http.status == 200
     assert resp_mcp["result"]["isError"] is False

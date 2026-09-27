@@ -561,29 +561,9 @@ def _cmd_ledger_room(args) -> int:
 
 def _pending_gates(led) -> list[dict]:
     """Unresolved gate_pending entries in the ledger, newest last."""
-    from forum.gates import gate_resolution
+    from forum.gates import pending_gates
 
-    pending: list[dict] = []
-    for entry in led.query(kind="gate_pending"):
-        body = led.get_payload(entry.payload_hash)
-        run_seq = body.get("run_seq")
-        wave = body.get("wave")
-        if gate_resolution(led, run_seq, wave) == "pending":
-            item = {
-                "seq": entry.seq,
-                "run_seq": run_seq,
-                "wave": wave,
-                "tasks": list(body.get("tasks") or []),
-                "question": body.get("question", ""),
-            }
-            deadline = body.get("deadline")
-            if isinstance(deadline, (int, float)):
-                # A bounded gate: surface its deadline and the auto-decision that
-                # fires on resume if it lapses, so the operator sees the clock.
-                item["deadline"] = float(deadline)
-                item["on_expiry"] = str(body.get("on_expiry") or "reject")
-            pending.append(item)
-    return pending
+    return pending_gates(led)
 
 
 def _cmd_gate_list(args) -> int:
@@ -600,6 +580,9 @@ def _cmd_gate_list(args) -> int:
         if "deadline" in gate:
             line += f" [deadline={gate['deadline']:.0f} on_expiry={gate['on_expiry']}]"
         print(line)
+        # What the approval covers: each task's instruction as it will run.
+        for tid, instruction in (gate.get("instructions") or {}).items():
+            print(f"  {tid}: {instruction}")
     return 0
 
 
@@ -614,7 +597,7 @@ def _parse_edits(pairs) -> tuple[dict, str | None]:
 
 
 def _cmd_gate_resolve(args, kind: str) -> int:
-    from forum.gates import GateNotFound, resolve_gate
+    from forum.gates import GateEditRefused, GateNotFound, resolve_gate
 
     led = _open_ledger(args.ledger)
     edits: dict[str, str] = {}
@@ -643,6 +626,9 @@ def _cmd_gate_resolve(args, kind: str) -> int:
             file=sys.stderr,
         )
         return 1
+    except GateEditRefused as exc:
+        print(f"edit refused: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps({"resolved": kind, "seq": entry.seq, "run_seq": args.run_seq, "wave": args.wave}))
     return 0
 

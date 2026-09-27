@@ -62,7 +62,7 @@ class HttpActionMixin:
         return who, None
 
     def _gate_resolve(self, action: str, body: bytes, claims: Claims | None = None) -> Response:
-        from forum.gates import GateNotFound, resolve_gate
+        from forum.gates import GateEditRefused, GateNotFound, resolve_gate
 
         kind = _GATE_DECISION_KINDS[action]
         data, err = self._read_json(body)
@@ -99,6 +99,12 @@ class HttpActionMixin:
             return json_response(
                 {"error": "no gate is pending for that run_seq and wave", "code": GateNotFound.code},
                 404,
+            )
+        except GateEditRefused:
+            return json_response(
+                {"error": "an edit may rewrite only the tasks of the gated wave",
+                 "code": GateEditRefused.code},
+                400,
             )
         return json_response({"resolved": kind, "seq": entry.seq, "run_seq": run_seq, "wave": wave})
 
