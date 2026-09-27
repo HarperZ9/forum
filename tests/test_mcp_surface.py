@@ -121,13 +121,12 @@ def test_call_prefixed_route_decides_model_foundry_lane():
     assert payload["needs_escalation"] is False
 
 
-def test_call_prefixed_route_decides_private_line_flagship_lane():
+def test_call_prefixed_route_decides_flagship_integration_lane():
     resp = _call(_mcp(), "forum.route", {
         "text": (
-            "Continue advancing Seed, Kun, Sofer, ORCA, and behavior-transform.io "
-            "toward private-line flagship state while preserving safe publication "
-            "boundaries, native doctor receipts, CI health, MCP CLI compatibility, "
-            "and enterprise presentation."
+            "Continue the Project Telos flagship integration across gather, crucible, "
+            "index and forum, preserving provenance workflows, browser evidence, "
+            "receipts, CI health, MCP CLI compatibility, and enterprise presentation."
         )
     })
     result = resp["result"]

@@ -5,12 +5,12 @@ Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `doc
 **Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger.**
 
 [![PyPI](https://img.shields.io/pypi/v/forum-engine?style=flat-square&labelColor=14041b&color=99f147)](https://pypi.org/project/forum-engine/)
-[![license](https://img.shields.io/badge/license-Forum%20Fair--Source-8f8095?style=flat-square&labelColor=14041b)](LICENSE)
+[![license](https://img.shields.io/badge/license-FSL--1.1--MIT-8f8095?style=flat-square&labelColor=14041b)](LICENSE)
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
 [![downloads](https://img.shields.io/pypi/dm/forum-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/forum-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none](https://img.shields.io/badge/deps-none-success?style=flat-square&labelColor=14041b)
-![version: 1.14.0](https://img.shields.io/badge/version-1.14.0-26dfe8?style=flat-square&labelColor=14041b)
+![version: 1.15.0](https://img.shields.io/badge/version-1.15.0-26dfe8?style=flat-square&labelColor=14041b)
 
 forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
 
@@ -18,18 +18,22 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 
 ## Current status
 
-`forum-engine 1.14.0` is the current source version. Routing, bounded
+`forum-engine 1.15.0` is the current source version. Routing, bounded
 multi-agent runs, context budgets and preflight, replayable ledgers, durable
 approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
 surfaces are present; a run result remains distinct from an external effect or
 outcome.
 
-## Operator surface
+Approval gates and resume run through the Python API and the daemon; the CLI and
+MCP server list and resolve gates but do not yet open a gated or resumable run.
+
+## Inspect and serve
 
 Use `forum status --json` and `forum doctor --json` to inspect the local
 installation, then `forum serve` or `forum mcp` to expose the same routing,
 ledger, gate, campaign, context, runtime, and prose-contract operations to an
-HTTP or MCP host.
+HTTP or MCP host. `forum serve` requires a bearer token by default and prints one
+at startup; pass `--no-auth` only on loopback.
 
 ## Features
 
@@ -84,7 +88,7 @@ forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
 forum mcp --cmd "ollama run llama3"
 ```
 
-`forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `bench`, and `bench-deep-verify`. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
+`forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `import-trace`, `grade`, `export-gradable`, `mine`, `bench`, and `bench-deep-verify`. The last four are the flight-recorder and gradable-export commands: `import-trace` ingests an external run, `grade` and `export-gradable` score and export a gradable record, and `mine` extracts examples from the ledger. They are CLI-only; the MCP server does not expose them. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
 
 ### Codex route-preflight skill asset
 
@@ -175,7 +179,7 @@ The daemon exposes route, plan, submit, humanize, prose contracts, gates, run ro
 
 ## Status
 
-The latest release is `forum-engine 1.14.0` (observability, auth, route-preflight skill packaging, context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and readable briefs, runtime inspection, approvals with durable deadlines, proof and domain routes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). The test suite currently collects 533 tests, including gated real-model tests, and CI runs on every push.
+The latest release is `forum-engine 1.15.0` (gate integrity, executor isolation through a vendored spawn helper, daemon Origin/Host/content-type checks and a default auth token, over the 1.14 observability, auth, route-preflight skill packaging, context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and readable briefs, runtime inspection, approvals with durable deadlines, proof and domain routes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). CI runs the full test suite and ruff on every push.
 
 ## Docs
 
@@ -214,7 +218,7 @@ every surface: knowledge open to anyone who can attain the means; acceptance
 decided by external checks, never reputation; every result re-runnable;
 honest nulls first-class; ownership earned by comprehension; learning woven
 into the work. The full text lives in [CREDO.md](CREDO.md).
-The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywheel/blob/fix/release-model-identity/docs/essays/2026-07-13-the-unbundling.md).
+The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywheel/blob/main/docs/essays/2026-07-13-the-unbundling.md).
 
 ---
 

@@ -2,11 +2,68 @@
 
 ## Unreleased
 
+## 1.15.0 (2026-09-27)
+
+Security release. Fixes gate pre-approval, model-held gate approval, executor
+inheritance of the working folder and the full environment, an unauthenticated
+daemon with no cross-origin defense, and a false "no shell-injection surface"
+claim. See the advisory for affected versions (1.14.0 and earlier).
+
+### Security
+
+- Gate integrity. A gate decision (approve, edit, reject) counts only when it is
+  chained to the `gate_pending` it resolves and was written after it, so a
+  decision recorded before a gate opens can no longer let a gated wave run
+  unpaused. Each run is keyed to its own plan entry instead of the first plan in
+  the ledger, so one approval no longer opens the same wave of every later run in
+  the same ledger. The CLI, HTTP and MCP decision paths refuse a decision for a
+  gate that was never raised with `NOT_FOUND` (HTTP 404, CLI exit 1) and write
+  nothing.
+- Gate approval authority. `forum mcp` lists `gate_approve`, `gate_edit` and
+  `gate_reject` only with the new `--allow-gate-decisions` launch grant; without
+  it a call, including the `forum.gate.*` aliases, returns `GRANT_REQUIRED`. A
+  connected model cannot approve its own human-in-the-loop gate by default.
+  Decisions record how the approver was established: the authenticated identity
+  over HTTP with a token, `asserted` otherwise.
+- Executor isolation. `SubprocessExecutor` starts every child through a vendored
+  `safe_spawn` helper: the executable resolves to an absolute path (a bare name is
+  looked up on `PATH` only, never the working folder), the child runs in a new
+  private empty folder, its environment is an allowlist rather than the whole
+  environment, a `.cmd` or `.bat` target refuses cmd.exe metacharacters in the
+  instruction, and a Python target gets `-P`. A known agent CLI gets its Q0
+  isolation profile; an unproven profile is refused unless
+  `FORUM_ALLOW_EXEC_CLI` names it. `FORUM_CHILD_ENV` adds named variables to the
+  allowlist. The route-preflight helper runs `python -P -m forum` so a planted
+  `forum.py` cannot shadow the package.
+- Network timeouts. `ApiExecutor` and `ChatExecutor` cap each request (default
+  120 s), so a stalled provider no longer hangs a task.
+- Daemon hardening. `forum serve` requires a bearer token by default (printed at
+  startup; `--no-auth` turns it off and is refused on a non-loopback host), and
+  the daemon rejects a foreign `Origin` or `Host` with 403 and a non-JSON POST
+  with 415 on every path except `/health`.
+- `SECURITY.md` no longer claims a flat "no shell-injection surface"; it states
+  the argv-list start and the explicit cmd.exe metacharacter refusal for batch
+  targets, and documents the new daemon and gate defenses.
+
+### Packaging and hygiene
+
+- `release.yml` grants nothing at the top level, runs least-privilege jobs, uses
+  `skip-existing` on the PyPI upload, and adds a GitHub Release job that attaches
+  the wheel, sdist and `SHA256SUMS.txt` and verifies them. CI runs on
+  `ubuntu-latest` and `windows-latest` for Python 3.11 to 3.13.
+- The shipped roster and `flagship.py` no longer carry the private-line route
+  probe or its codename keywords; `forum doctor` runs real roster and ledger
+  checks instead of hardcoded MATCH placeholders and the private-line route probe.
+- README shows the current version, an FSL-1.1-MIT badge, the flight-recorder
+  commands (`import-trace`, `grade`, `export-gradable`, `mine`), a stable credo
+  link, and no operator-surface or local-path copy. A version-sites drift test
+  fails when any version site disagrees.
+
 ### Presentation parity
 
-- README now exposes the current source version and the operator commands for
-  status, doctor, HTTP, and MCP surfaces without claiming an external effect from
-  a run result.
+- README now exposes the current source version and the commands for status,
+  doctor, HTTP, and MCP surfaces without claiming an external effect from a run
+  result.
 
 ## 1.14.0 (2026-09-10)
 
