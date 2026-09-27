@@ -24,8 +24,9 @@ approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
 surfaces are present; a run result remains distinct from an external effect or
 outcome.
 
-Approval gates and resume run through the Python API and the daemon; the CLI and
-MCP server list and resolve gates but do not yet open a gated or resumable run.
+Approval gates and resume run through the Python API. The CLI, the daemon and the
+MCP server list and resolve gates, but none of them opens a gated or resumable
+run yet.
 
 ## Inspect and serve
 
@@ -35,11 +36,16 @@ ledger, gate, campaign, context, runtime, and prose-contract operations to an
 HTTP or MCP host. `forum serve` requires a bearer token by default and prints one
 at startup; pass `--no-auth` only on loopback.
 
+Coming from 1.14? Read [Upgrading from 1.14](CHANGELOG.md#upgrading-from-114)
+first. Daemon clients now need the token, commands start in an empty folder with
+a short environment allowlist, and `forum mcp` offers the gate decision tools
+only with `--allow-gate-decisions`.
+
 ## Features
 
 - **One command, three model backends.** `forum submit "ship a login API" --cmd "ollama run llama3"` plans the request, runs it across agents, and returns one synthesized answer. Swap `--cmd` for `--chat-url` (any OpenAI-compatible server) or `--api` (Anthropic). A local CLI needs no account.
 - **Tiered executors.** Route task agents to cheap, capable, and frontier models by roster tier: `--cheap-cmd`, `--capable-cmd`, `--frontier-cmd`, or per-tier chat endpoints. Put the whole policy in a TOML file and load it with `--runtime-config`; `forum runtime inspect` explains the merged policy before anything runs.
-- **Crash-safe runs.** Runs checkpoint at wave boundaries and resume from the durable ledger, reusing every task already witnessed as successful and re-running only the rest.
+- **Crash-safe runs.** Runs checkpoint at wave boundaries, and the Python API resumes them from the durable ledger, reusing every task already witnessed as successful and re-running only the rest.
 - **Human-in-the-loop approvals.** Pause a run at a wave boundary until you approve, edit, or reject it: `forum gate list / approve / edit / reject`. Gates can carry durable deadlines with a witnessed auto-decision on expiry, so an unattended run never stalls silently. See [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md).
 - **Campaigns.** Declare a multi-project campaign as a JSON feature graph, then drive it to a fixed point: `forum campaign declare / status / next / run / ingest-status`. Cycles are caught up front; external project status can be ingested without execution.
 - **Bounded everything.** `RunBudget` caps a run by model calls and wall clock. `ContextBudget` admits, trims, or omits request context, per-task context, upstream injection, and synthesis inputs under approximate-token caps. `forum context preflight` estimates the pressure before you spend a model call.

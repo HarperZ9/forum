@@ -29,10 +29,11 @@ document states what Forum does, what it guarantees, and how to run it safely.
   is not a claim of "no shell-injection surface" for a batch target: it is an explicit
   refusal of the characters that would create one.
 - **Children start isolated.** The executable is resolved to an absolute path (a bare
-  name is looked up on `PATH` only, never the working folder, and `NoDefaultCurrent`
-  `DirectoryInExePath=1` is set on Windows). A `PATH` entry that resolves inside the
-  working folder, directly or through a junction or symlink, is skipped and removed from
-  the child's `PATH`, except the Python environment forum itself runs from; the check
+  name is looked up on `PATH` only, the working folder is never searched by name, and
+  `NoDefaultCurrentDirectoryInExePath=1` is set on Windows). A `PATH` entry that
+  resolves inside the working folder, directly or through a junction or symlink, is
+  skipped and removed from the child's `PATH`, except the Python environment forum
+  itself runs from; the check
   stands down when the working folder is a filesystem root or holds the home folder. A
   drive-relative name such as `C:claude` is refused. The child runs in a new private empty
   folder, and its environment is an allowlist (the platform base plus the variables the
@@ -65,9 +66,16 @@ document states what Forum does, what it guarantees, and how to run it safely.
   `Host`, when present, must be a loopback name compared without case, which stops a
   rebound DNS name (else 403); and a POST/PUT/PATCH with a body must be
   `application/json` (else 415). With a token, any host name is served, because a
-  rebinding page never holds the token. It still binds `127.0.0.1` by default. There is no rate
-  limiting or built-in TLS; put a TLS-terminating reverse proxy in front of any public
-  bind.
+  rebinding page never holds the token. It still binds `127.0.0.1` by default.
+- **A reverse proxy must meet the transport checks.** There is no rate limiting or
+  built-in TLS, so put a TLS-terminating reverse proxy in front of any network bind,
+  and keep the token on: the proxy passes the `Authorization` header through, and the
+  daemon serves the public host name. An open daemon (`--no-auth`) serves only a
+  loopback `Host`, so a proxy in front of one must forward `Host: 127.0.0.1` or
+  `localhost`, or every request gets 403. A browser page reached through the proxy
+  sends the proxy's `Origin`, which the daemon refuses with 403. Rewrite that header
+  at the proxy only while the token is on, because the token is then what stops a
+  cross-site request.
 - **A gate decision needs a raised, pending gate.** An approval, edit or rejection
   counts only when it is chained to the `gate_pending` it resolves and was written after
   it, so a decision recorded before a gate opens cannot let a gated wave run. Over MCP

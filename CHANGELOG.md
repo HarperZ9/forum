@@ -15,8 +15,9 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
 - Gate integrity. A gate decision (approve, edit, reject) counts only when it is
   chained to the `gate_pending` it resolves and was written after it, so a
   decision recorded before a gate opens can no longer let a gated wave run
-  unpaused. Each run is keyed to its own plan entry instead of the first plan in
-  the ledger, so one approval no longer opens the same wave of every later run in
+  unpaused. A fresh run is keyed to its own plan entry instead of the first plan
+  in the ledger, and a resume continues the run of the same plan (see Gate
+  binding), so one approval no longer opens the same wave of every later run in
   the same ledger. The CLI, HTTP and MCP decision paths refuse a decision for a
   gate that was never raised with `NOT_FOUND` (HTTP 404, CLI exit 1) and write
   nothing.
@@ -48,7 +49,8 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
   over HTTP with a token, `asserted` otherwise.
 - Executor isolation. `SubprocessExecutor` starts every child through a vendored
   `safe_spawn` helper: the executable resolves to an absolute path (a bare name is
-  looked up on `PATH` only, never the working folder), the child runs in a new
+  looked up on `PATH` only, and the working folder is never searched by name; the
+  next item covers `PATH` entries that point into it), the child runs in a new
   private empty folder, its environment is an allowlist rather than the whole
   environment, a `.cmd` or `.bat` target refuses cmd.exe metacharacters in the
   instruction, and a Python target gets `-P`. A known agent CLI gets the
@@ -101,16 +103,49 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
   link, and no operator-surface or local-path copy. A version-sites drift test
   fails when any version site disagrees.
 
-### Upgrading
+### Upgrading from 1.14
 
-- A Python embedder that builds `McpSurface` itself and wants a connected client
-  to decide gates passes `allow_gate_decisions=True`; `forum mcp` takes
-  `--allow-gate-decisions`.
+- Daemon clients send the token. `forum serve` prints a token to stderr at
+  startup, and every request except `GET /health` needs
+  `Authorization: Bearer <token>`, or the daemon answers 401. `forum serve
+  --no-auth` keeps the open daemon, on a loopback address only.
+- Commands get a short environment. A command child no longer inherits your
+  environment: it sees the platform base (`PATH`, the home and temp folders and
+  similar) plus the variables `FORUM_CHILD_ENV` names. Provider keys are left
+  out, so `claude -p` with API-key sign-in needs
+  `FORUM_CHILD_ENV=ANTHROPIC_API_KEY`, and a command that reads `OLLAMA_HOST`
+  or `HTTPS_PROXY` needs those names too.
+- Relative paths stop resolving. Each command runs in a new private empty
+  folder, so a relative argument such as `--cmd "python adapter.py"` finds
+  nothing there, and a relative executable such as `./model` is refused with
+  `BAD_PATH`. Give full paths.
+- Batch targets refuse multi-line tasks. On Windows a `.cmd` or `.bat` command
+  other than claude and codex still takes the task as its last argument, and it
+  refuses a task holding a line break or a cmd.exe metacharacter with
+  `UNSAFE_ARGUMENT`. A task that builds on upstream results or carries done
+  criteria always holds a line break. Point `--cmd` at the program the shim
+  wraps, or at a Python adapter. claude and codex read the task on stdin and are
+  not affected.
+- The daemon checks `Origin` and `Host`. Every daemon refuses an `Origin` other
+  than its own (a loopback host on the daemon's port), so a page served from
+  another origin, another local port included, gets 403. A daemon started with
+  `--no-auth` also refuses a `Host` that is not a loopback name, so a reverse
+  proxy in front of one must forward `Host: 127.0.0.1` or `localhost`. A daemon
+  that requires the token accepts any host name.
+- MCP gate decisions need the grant. `forum mcp` lists `gate_approve`,
+  `gate_edit` and `gate_reject` only when started with `--allow-gate-decisions`,
+  and a Python embedder gets them only from
+  `McpSurface(orch, allow_gate_decisions=True)`. A host that decides gates over
+  MCP adds the grant to its launch; otherwise a person decides with
+  `forum gate approve|edit|reject` or over HTTP with the token.
 - A library caller that resumes a gated run passes the same plan it started; a
   changed plan starts a new run with its own gates.
-- A command inside the project folder that forum used to find on `PATH` (other
-  than forum's own Python environment) needs a full path in `--cmd` or the
-  runtime config.
+- A program inside the folder forum runs in, found before through a `PATH`
+  entry that points there (a project's `node_modules/.bin`, for example), needs
+  a full path in `--cmd` or the runtime config. forum's own Python environment
+  stays on `PATH`.
+- gemini and opencode need a launch grant. Their isolation profiles are not
+  proven, so set `FORUM_ALLOW_EXEC_CLI=gemini` (or `opencode`) to run them.
 
 ### Presentation parity
 

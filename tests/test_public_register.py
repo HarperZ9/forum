@@ -119,6 +119,50 @@ def test_readme_lists_the_flight_recorder_commands():
         assert cmd in text, f"README omits the {cmd!r} command"
 
 
+def _release_notes(version: str) -> str:
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    start = text.index(f"## {version} ")
+    end = text.find("\n## ", start + 1)
+    return text[start:] if end == -1 else text[start:end]
+
+
+def test_the_upgrade_notes_cover_each_change_a_1_14_setup_meets():
+    notes = _release_notes("1.15.0")
+    section = notes[notes.index("### Upgrading from 1.14"):]
+    section = section[: section.find("\n### ", 1)]
+    for change, needle in {
+        "daemon clients need the token": "Authorization: Bearer",
+        "provider keys need FORUM_CHILD_ENV": "FORUM_CHILD_ENV=ANTHROPIC_API_KEY",
+        "relative paths resolve in an empty folder": "private empty",
+        "batch targets refuse multi-line tasks": "UNSAFE_ARGUMENT",
+        "the daemon checks Host": "`Host`",
+        "the daemon checks Origin": "`Origin`",
+        "MCP gate decisions need the grant": "--allow-gate-decisions",
+    }.items():
+        assert needle in section, f"the upgrade notes omit: {change}"
+
+
+def test_the_readme_puts_gated_runs_and_resume_on_the_python_api_only():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "Approval gates and resume run through the Python API." in readme
+    assert "the Python API and the daemon" not in readme
+    # The claim holds while the daemon's submit handler reads neither field.
+    actions = (ROOT / "src/forum/http_actions.py").read_text(encoding="utf-8")
+    submit = actions[actions.index("async def _submit"):]
+    assert "gates" not in submit and "resume" not in submit
+
+
+def test_public_docs_drop_the_claims_the_review_disproved():
+    docs = {name: (ROOT / name).read_text(encoding="utf-8") for name in PUBLIC_DOCS}
+    for name, text in docs.items():
+        flat = " ".join(text.split())
+        assert "never the working folder" not in flat, name
+        assert "never in the folder Forum runs in" not in flat, name
+        assert "Each run is keyed to its own plan entry" not in flat, name
+    security = " ".join(docs["SECURITY.md"].split())
+    assert "forward `Host: 127.0.0.1`" in security  # the reverse-proxy requirement
+
+
 def test_security_md_does_not_claim_no_shell_injection_surface_outright():
     text = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     # The old flat claim is gone; the batch-target refusal is stated instead.
