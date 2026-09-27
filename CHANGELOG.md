@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+## 1.15.1 (2026-09-27)
+
+Security release. The working-folder guard in 1.15.0 compared PATH entries by name
+and handed each kept entry to the child as written, so three routes could still
+start a program planted in the folder forum runs in. The vendored `safe_spawn`
+helper moves to 1.0.1, which closes them, and forum's own guard module is removed
+in favor of the helper's. See the advisory for affected versions.
+
+### Security
+
+- Working-folder aliases are caught by file identity. A PATH entry that names the
+  working folder through an alias the name check missed now leaves. On Windows this
+  covers the `\\?\` long-path prefix and the `\\localhost\C$` admin share; on Linux
+  it covers a bind mount. The guard resolves each entry and compares it to the
+  working folder by device and file index, not by spelling alone, and on a
+  filesystem that reports no file index it treats any folder on that device as the
+  working folder, so it fails closed.
+- A repointed PATH link no longer changes what starts. The helper hands the child,
+  and starts, each kept entry as its real folder. A junction or symlink on PATH that
+  points outside the working folder when the guard checks it, then is repointed into
+  the folder before the child starts, can no longer start a planted program, in
+  forum's own lookup or in a child's bare-name lookup.
+- Quoted PATH entries are read as cmd.exe reads them. Windows PATH is split on `;`
+  outside double quotes and every quote is dropped, so an entry such as
+  `"<folder>"\bin`, which a child's cmd.exe reads as `<folder>\bin`, is recognized
+  and dropped instead of being handed to the child intact. An entry whose real
+  folder name holds the PATH separator leaves, because programs disagree on it.
+- A filesystem root or the home folder now narrows to that folder itself rather than
+  standing the guard down, so a service in `/` or a terminal in `~` keeps the tools
+  installed below it while the folder's own entry still drops. The interpreter's
+  folder and, on Windows, the Windows, System32 and SysWOW64 folders stay exempt,
+  and a working folder that is one of them guards nothing.
+- `SubprocessExecutor` calls the helper directly. The separate `spawn_guard` module
+  is removed: its drive-relative refusal and working-folder filtering now live in the
+  helper, which carries a stronger, tested version of the same rules under one pinned
+  hash. Behavior a caller sees is unchanged except that the routes above are closed.
+
+### Upgrading from 1.15.0
+
+- No configuration change is needed. A command that resolved before still resolves.
+  A PATH entry that only ever reached the working folder through one of the routes
+  above stops reaching it; a legitimate tool in a folder that is not the working
+  folder is unaffected.
+- The child's PATH now lists each kept entry as its resolved real folder, so a
+  child that read a symlinked PATH entry by its link name now sees the target. Point
+  any such expectation at the real folder.
+
 ## 1.15.0 (2026-09-27)
 
 Security release. Fixes gate pre-approval, approvals that carried across runs

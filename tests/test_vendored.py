@@ -1,11 +1,13 @@
-"""The vendored safe_spawn helper stays byte-identical to the canonical 1.0.0 release."""
+"""The vendored safe_spawn helper stays byte-identical to the canonical 1.0.1 release."""
 import hashlib
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# The canonical SHA-256 of safe_spawn.py 1.0.0, from the helper's own SHA256SUMS.
-CANONICAL = {"safe_spawn.py": "cb2dfa9447380f637d294244c6bdf591db1a4a1abf40312a4671b785b8e1bea6"}
+# The canonical SHA-256 of safe_spawn.py 1.0.1, from the helper's own SHA256SUMS.
+CANONICAL = {"safe_spawn.py": "557d223ba51807a7a2ab89b9bda5c6291a4b4aa2392680e7916c3fdd61bc0a48"}
+# The superseded 1.0.0 hash, so the drift test proves it is rejected, not merely absent.
+SUPERSEDED = {"safe_spawn.py": "cb2dfa9447380f637d294244c6bdf591db1a4a1abf40312a4671b785b8e1bea6"}
 
 
 def _records():
@@ -33,7 +35,7 @@ def test_the_record_names_the_packaged_copy():
 def test_the_package_imports_the_vendored_helper():
     from forum._vendor import safe_spawn
 
-    assert safe_spawn.SAFE_SPAWN_VERSION == "1.0.0"
+    assert safe_spawn.SAFE_SPAWN_VERSION == "1.0.1"
 
 
 def test_a_one_byte_edit_is_caught(tmp_path):
@@ -42,6 +44,15 @@ def test_a_one_byte_edit_is_caught(tmp_path):
     data = bytearray((ROOT / "src/forum/_vendor/safe_spawn.py").read_bytes())
     data[-2] ^= 0x01
     assert hashlib.sha256(bytes(data)).hexdigest() != CANONICAL["safe_spawn.py"]
+
+
+def test_the_superseded_version_is_not_the_pinned_hash():
+    # The 1.0.0 helper left routes open (a link repointed between the check and the
+    # start, an alias the name check missed, a quoted PATH entry). The record must
+    # pin the current bytes, not the superseded ones.
+    digest = {d for d, _ in _records()}
+    assert SUPERSEDED["safe_spawn.py"] not in digest, "the record still pins superseded 1.0.0"
+    assert CANONICAL["safe_spawn.py"] in digest
 
 
 def test_a_built_wheel_carries_the_same_bytes(tmp_path):
