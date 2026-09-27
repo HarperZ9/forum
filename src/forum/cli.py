@@ -363,7 +363,7 @@ def _cmd_mcp(args) -> int:
         print(executor_error, file=sys.stderr)
         return 2
     orch = build_orchestrator(args.ledger, executor=executor)
-    asyncio.run(serve_stdio(orch))
+    asyncio.run(serve_stdio(orch, allow_gate_decisions=args.allow_gate_decisions))
     return 0
 
 
@@ -557,7 +557,7 @@ def _parse_edits(pairs) -> tuple[dict, str | None]:
 
 
 def _cmd_gate_resolve(args, kind: str) -> int:
-    from forum.gates import resolve_gate
+    from forum.gates import GateNotFound, resolve_gate
 
     led = _open_ledger(args.ledger)
     edits: dict[str, str] = {}
@@ -569,13 +569,23 @@ def _cmd_gate_resolve(args, kind: str) -> int:
         if not edits:
             print("gate edit needs at least one --edit TASK_ID=INSTRUCTION", file=sys.stderr)
             return 2
-    entry = resolve_gate(
-        led, args.run_seq, args.wave, kind,
-        approver=args.approver,
-        note=getattr(args, "note", "") or "",
-        reason=getattr(args, "reason", "") or "",
-        edits=edits,
-    )
+    try:
+        entry = resolve_gate(
+            led, args.run_seq, args.wave, kind,
+            approver=args.approver,
+            note=getattr(args, "note", "") or "",
+            reason=getattr(args, "reason", "") or "",
+            edits=edits,
+            require_pending=True,
+            approver_source="asserted",
+        )
+    except GateNotFound:
+        print(
+            f"no gate is pending for run_seq {args.run_seq} wave {args.wave}; "
+            "`forum gate list` shows the open gates",
+            file=sys.stderr,
+        )
+        return 1
     print(json.dumps({"resolved": kind, "seq": entry.seq, "run_seq": args.run_seq, "wave": args.wave}))
     return 0
 
@@ -871,6 +881,12 @@ def build_parser() -> argparse.ArgumentParser:
     mcp = sub.add_parser("mcp", help="run the MCP (stdio) server")
     _add_ledger(mcp)
     _add_executor(mcp)
+    mcp.add_argument(
+        "--allow-gate-decisions",
+        action="store_true",
+        help="list gate_approve, gate_edit and gate_reject to the connected client "
+        "(off by default: a model should not approve its own gates)",
+    )
     mcp.set_defaults(func=_cmd_mcp)
 
     context = sub.add_parser("context", help="inspect and preflight context pressure")

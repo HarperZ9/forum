@@ -6,6 +6,7 @@ from forum.http_response import Response, error, json_response
 from forum.receipts import submit_receipt
 
 if TYPE_CHECKING:
+    from forum.auth import Claims
     from forum.engine import Orchestrator
 
 # HTTP gate-decision path suffix -> the gate ledger entry kind it appends.
@@ -39,8 +40,29 @@ class HttpActionMixin:
             self, data: Any, name: str, *, default: int
         ) -> tuple[Any, Response | None]: ...
 
-    def _gate_resolve(self, action: str, body: bytes) -> Response:
-        from forum.gates import resolve_gate
+    def _approver(self, data: Any, claims: Claims | None) -> tuple[dict, Response | None]:
+        """Who decided, and how that was established.
+
+        With a verified token the approver is the token's subject ('authenticated');
+        a different name in the body is kept as ``asserted_approver``. Without one,
+        the body must name the approver and the record marks it 'asserted'.
+        """
+        if claims is None:
+            approver, err = self._str_field(data, "approver")
+            if err:
+                return {}, err
+            return {"approver": approver, "approver_source": "asserted"}, None
+        who: dict = {"approver": claims.subject, "approver_source": "authenticated"}
+        named = data.get("approver")
+        if named is not None:
+            if not isinstance(named, str) or not named:
+                return {}, error(400, "field 'approver' must be a non-empty string when provided")
+            if named != claims.subject:
+                who["asserted_approver"] = named
+        return who, None
+
+    def _gate_resolve(self, action: str, body: bytes, claims: Claims | None = None) -> Response:
+        from forum.gates import GateNotFound, resolve_gate
 
         kind = _GATE_DECISION_KINDS[action]
         data, err = self._read_json(body)
@@ -52,7 +74,7 @@ class HttpActionMixin:
             return error(400, "field 'run_seq' (an integer) is required")
         if type(wave) is not int:
             return error(400, "field 'wave' (an integer) is required")
-        approver, err = self._str_field(data, "approver")
+        who, err = self._approver(data, claims)
         if err:
             return err
         edits: dict[str, str] = {}
@@ -68,10 +90,16 @@ class HttpActionMixin:
         reason = data.get("reason", "")
         if not isinstance(note, str) or not isinstance(reason, str):
             return error(400, "fields 'note' and 'reason' must be strings when provided")
-        entry = resolve_gate(
-            self._orch.ledger, run_seq, wave, kind,
-            approver=approver, note=note, reason=reason, edits=edits,
-        )
+        try:
+            entry = resolve_gate(
+                self._orch.ledger, run_seq, wave, kind,
+                note=note, reason=reason, edits=edits, require_pending=True, **who,
+            )
+        except GateNotFound:
+            return json_response(
+                {"error": "no gate is pending for that run_seq and wave", "code": GateNotFound.code},
+                404,
+            )
         return json_response({"resolved": kind, "seq": entry.seq, "run_seq": run_seq, "wave": wave})
 
     def _context_preflight(self, body: bytes) -> Response:

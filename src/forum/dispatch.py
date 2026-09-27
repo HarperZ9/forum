@@ -13,7 +13,13 @@ from forum.context_budget import (
     pressure_payload,
 )
 from forum.executor import Assignment, Executor, Result, assignment_model_id
-from forum.gates import GatePolicy, expire_gate, gate_edits, gate_resolution
+from forum.gates import (
+    GatePolicy,
+    decision_entry,
+    expire_gate,
+    gate_edits,
+    gate_resolution,
+)
 from forum.ledger import Ledger
 from forum.plan import Plan, Task
 
@@ -116,6 +122,19 @@ def _completed_results(ledger: Ledger, ids: set[str]) -> dict[str, tuple[str, in
     return done
 
 
+def _resume_lineage(ledger: Ledger) -> int | None:
+    """The run key a resume continues: the latest plan entry's recorded run_seq, or its seq.
+
+    None when the ledger holds no plan yet, so the resume starts a fresh run.
+    """
+    prior = ledger.query(kind="plan")
+    if not prior:
+        return None
+    body = ledger.get_payload(prior[-1].payload_hash)
+    recorded = body.get("run_seq") if isinstance(body, dict) else None
+    return recorded if type(recorded) is int else prior[-1].seq
+
+
 async def dispatch_plan(
     plan: Plan,
     ledger: Ledger,
@@ -159,7 +178,9 @@ async def dispatch_plan(
     With a ``gates`` GatePolicy, a wave listed in ``gates.gated_waves`` pauses for
     human approval at its boundary: BEFORE that wave is dispatched, dispatch reads
     the ledger (a pure query, no callback) for a resolution keyed to
-    (run_seq=plan entry seq, wave). With no decision it appends a ``gate_pending``,
+    (run_seq, wave): run_seq is this run's own plan entry seq, and a resume reuses
+    the key of the run it continues. Only a decision chained to that gate's
+    ``gate_pending`` counts. With no decision it appends a ``gate_pending``,
     syncs, and returns early so the gated wave and everything downstream stay
     un-run (no result entry for them); the operator resolves the gate via
     gates.resolve_gate (CLI/HTTP/MCP) and re-invokes with resume=True over the same
@@ -182,15 +203,19 @@ async def dispatch_plan(
         for t in plan.tasks
         for dep in t.depends_on
     ]
-    prior_plans = ledger.query(kind="plan")
+    # run_seq keys gate entries to one run. A fresh run is keyed to its own plan
+    # entry, so a decision recorded for an earlier run, or ahead of time, never
+    # answers its gates. A resume continues the most recent run: it reuses that
+    # run's key and records it on its own plan entry, so gates resolved against
+    # the run are found again when the resume re-reaches their boundary.
+    lineage = _resume_lineage(ledger) if resume else None
+    plan_payload: dict[str, object] = {"waves": waves, "edges": edges}
+    if lineage is not None:
+        plan_payload["run_seq"] = lineage
     plan_entry = ledger.append(
-        actor="dispatch", kind="plan", payload={"waves": waves, "edges": edges}, causal_parent=parent_seq
+        actor="dispatch", kind="plan", payload=plan_payload, causal_parent=parent_seq
     )
-    # run_seq keys gate entries to ONE plan lineage per ledger dir. A resume appends
-    # a fresh plan entry, so the stable key is the earliest plan entry's seq (the
-    # first run), letting a gate resolved against the original run be found again
-    # when the resume re-reaches its boundary. First run: this plan entry itself.
-    run_seq = prior_plans[0].seq if prior_plans else plan_entry.seq
+    run_seq = plan_entry.seq if lineage is None else lineage
     if completed:
         ledger.append(
             actor="dispatch", kind="resume",
@@ -326,23 +351,7 @@ async def dispatch_plan(
                 # Chain the stop to the decision that caused it: an operator's
                 # gate_rejected, or (deadline lapsed with on_expiry=reject) the
                 # witnessed gate_expired. Either way the stop is causally grounded.
-                reject = next(
-                    (
-                        e for e in ledger.query(kind="gate_rejected")
-                        if (body := ledger.get_payload(e.payload_hash)).get("run_seq") == run_seq
-                        and body.get("wave") == i
-                    ),
-                    None,
-                )
-                if reject is None:
-                    reject = next(
-                        (
-                            e for e in ledger.query(kind="gate_expired")
-                            if (body := ledger.get_payload(e.payload_hash)).get("run_seq") == run_seq
-                            and body.get("wave") == i
-                        ),
-                        None,
-                    )
+                reject = decision_entry(ledger, run_seq, i, ("gate_rejected", "gate_expired"))
                 ledger.append(
                     actor="dispatch", kind="gate_stopped",
                     payload={"run_seq": run_seq, "wave": i, "reason": "gate rejected"},
