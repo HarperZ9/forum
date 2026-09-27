@@ -29,8 +29,8 @@ class _BodyTooLarge(Exception):
 
 async def _read_request(
     reader: asyncio.StreamReader,
-) -> tuple[str, str, bytes, str | None, str | None]:
-    """Parse one HTTP/1.1 request into (method, path, body, authorization, traceparent).
+) -> tuple[str, str, bytes, dict[str, str]]:
+    """Parse one HTTP/1.1 request into (method, path, body, headers).
 
     Raises _BodyTooLarge if the advertised Content-Length exceeds MAX_BODY, and
     ValueError / asyncio read errors on a malformed or truncated request.
@@ -65,7 +65,50 @@ async def _read_request(
         if n > MAX_BODY:
             raise _BodyTooLarge()
         body = await reader.readexactly(n)
-    return method, path, body, headers.get("authorization"), headers.get("traceparent")
+    return method, path, body, headers
+
+
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1"})
+_PUBLIC_PATHS = frozenset({"/health"})
+
+
+def _hostname(value: str) -> str:
+    """The host part of a Host or Origin authority, without the port. IPv6 kept in brackets."""
+    value = value.strip()
+    if value.startswith("["):  # [::1]:8080
+        end = value.find("]")
+        return value[: end + 1] if end != -1 else value
+    return value.rsplit(":", 1)[0] if ":" in value else value
+
+
+def check_http_headers(method: str, path: str, headers: dict[str, str]) -> Response | None:
+    """Transport-level defenses for the local daemon, or None to allow.
+
+    A browser attaches an Origin on a cross-site request and a Host it cannot
+    forge from a page, so these checks stop a web page in the user's browser from
+    driving the loopback daemon (DNS-rebinding and cross-origin CSRF), which a CLI
+    or curl client passes untouched. Applied to every path except /health.
+
+    - Origin, when present, must be a loopback origin, else 403.
+    - Host, when present, must be a loopback name, else 403.
+    - A POST/PUT/PATCH with a body must be application/json, else 415.
+
+    These are transport concerns and live here, not in HttpSurface, so the stdio
+    MCP surface (which shares HttpSurface) is untouched.
+    """
+    if path in _PUBLIC_PATHS:
+        return None
+    origin = headers.get("origin")
+    if origin and _hostname(origin.split("://", 1)[-1]) not in _LOOPBACK_HOSTS:
+        return error(403, "cross-origin request refused")
+    host = headers.get("host")
+    if host and _hostname(host) not in _LOOPBACK_HOSTS:
+        return error(403, "unrecognized Host header refused")
+    if method in ("POST", "PUT", "PATCH") and int(headers.get("content-length") or "0") > 0:
+        ctype = headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if ctype != "application/json":
+            return error(415, "Content-Type must be application/json")
+    return None
 
 
 async def _write_response(writer: asyncio.StreamWriter, response: Response) -> None:
@@ -99,8 +142,12 @@ class Daemon:
         tracer: Tracer | None = None,
         metrics: MetricsRegistry | None = None,
         metric_exporter: OtlpHttpMetricExporter | None = None,
+        check_headers: bool = True,
     ) -> None:
         self.orchestrator = orchestrator
+        # Transport defenses (Origin, Host, content-type) are on by default; a test
+        # or embedder can turn them off. They never touch the stdio MCP surface.
+        self._check_headers = check_headers
         # A verifier turns on bearer-JWT auth for every non-public endpoint; None
         # keeps the daemon open, unchanged for existing deployments. A tracer
         # turns on OTLP server-span emission per request; None keeps it off. A
@@ -133,7 +180,7 @@ class Daemon:
             self._inflight.add(task)
         try:
             try:
-                method, path, body, authorization, traceparent = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
+                method, path, body, headers = await asyncio.wait_for(_read_request(reader), timeout=self._read_timeout)
             except asyncio.TimeoutError:
                 await _write_response(writer, error(408, "request timed out"))
                 return
@@ -143,7 +190,14 @@ class Daemon:
             except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError):
                 await _write_response(writer, error(400, "malformed HTTP request"))
                 return
-            response = await self._surface.dispatch(method, path, body, authorization, traceparent)
+            if self._check_headers:
+                denied = check_http_headers(method, path, headers)
+                if denied is not None:
+                    await _write_response(writer, denied)
+                    return
+            response = await self._surface.dispatch(
+                method, path, body, headers.get("authorization"), headers.get("traceparent")
+            )
             await _write_response(writer, response)
         finally:
             if task is not None:
@@ -267,6 +321,7 @@ async def serve(
     host: str = "127.0.0.1",
     port: int = 8080,
     executor: Executor | None = None,
+    verifier: TokenVerifier | None = None,
 ) -> None:
     from forum.otlp import tracer_from_env
     from forum.otlp_metrics import meter_from_env
@@ -278,14 +333,15 @@ async def serve(
     metrics, metric_exporter = meter if meter is not None else (None, None)
     daemon = Daemon(
         build_orchestrator(ledger_dir, executor=executor), host, port,
-        tracer=tracer, metrics=metrics, metric_exporter=metric_exporter,
+        verifier=verifier, tracer=tracer, metrics=metrics, metric_exporter=metric_exporter,
     )
     await daemon.start()
     tracing = "off" if tracer is None else "on"
     metering = "off" if meter is None else "on"
+    auth = "off" if verifier is None else "on"
     print(
         f"forum daemon on http://{daemon.host}:{daemon.port} "
-        f"(ledger: {ledger_dir}, tracing: {tracing}, metrics: {metering})"
+        f"(ledger: {ledger_dir}, tracing: {tracing}, metrics: {metering}, auth: {auth})"
     )
     # Serve under a shutdown guard so the metrics exporter is flushed on exit.
     await _run_until_shutdown(daemon)

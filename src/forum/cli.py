@@ -368,15 +368,45 @@ def _cmd_submit(args) -> int:
     return 0
 
 
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
+
+
 def _cmd_serve(args) -> int:
+    import secrets
+
     from forum.daemon import serve
 
     executor, executor_error = _make_executor_or_error(args)
     if executor_error is not None:
         print(executor_error, file=sys.stderr)
         return 2
+    verifier = None
+    if args.no_auth:
+        # Turning auth off is deliberate and loopback-only: an open daemon on a
+        # public interface is exactly the exposure the default guards against.
+        if args.host not in _LOOPBACK_HOSTS:
+            print(
+                f"--no-auth is loopback-only; refusing to serve unauthenticated on {args.host}. "
+                "Bind 127.0.0.1, or drop --no-auth to use a generated token.",
+                file=sys.stderr,
+            )
+            return 2
+    else:
+        from forum.auth import HmacVerifier, issue_hs256
+
+        secret = secrets.token_urlsafe(32)
+        verifier = HmacVerifier(secret)
+        token = issue_hs256(subject="local-operator", roles=["operator"], secret=secret, ttl_seconds=None)
+        # Print the token to stderr (never the ledger, never stdout) so the operator
+        # can use it; a client sends `Authorization: Bearer <token>`.
+        print(
+            "auth is on: send this token as `Authorization: Bearer <token>` "
+            "(use --no-auth on loopback to turn it off)",
+            file=sys.stderr,
+        )
+        print(f"forum daemon token: {token}", file=sys.stderr)
     asyncio.run(serve(
-        ledger_dir=args.ledger, host=args.host, port=args.port, executor=executor
+        ledger_dir=args.ledger, host=args.host, port=args.port, executor=executor, verifier=verifier
     ))
     return 0
 
@@ -901,6 +931,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="run the HTTP daemon")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8080)
+    serve.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="serve without a bearer token (loopback only; the default generates one)",
+    )
     _add_ledger(serve)
     _add_executor(serve)
     serve.set_defaults(func=_cmd_serve)

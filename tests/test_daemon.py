@@ -37,13 +37,13 @@ async def _request(port, raw: bytes) -> tuple[int, bytes]:
 
 
 def _get(path):
-    return f"GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".encode()
+    return f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n".encode()
 
 
 def _post(path, payload: bytes):
     return (
-        f"POST {path} HTTP/1.1\r\nHost: x\r\nContent-Length: {len(payload)}\r\n"
-        f"Connection: close\r\n\r\n"
+        f"POST {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
+        f"Content-Length: {len(payload)}\r\nConnection: close\r\n\r\n"
     ).encode() + payload
 
 
