@@ -79,7 +79,8 @@ class SubprocessExecutor:
     check misses (matched by file identity), or with quotes cmd.exe reads as the
     folder, is dropped, and each kept entry is handed on as its real folder so a
     link repointed after the check cannot change what starts. The interpreter's
-    folder and, on Windows, the Windows, System32 and SysWOW64 folders stay. The
+    folder and, on Windows, the Windows, System32 and SysWOW64 folders stay, and a
+    working folder that is one of them is not guarded. The
     child runs in a new private empty folder, its environment is an allowlist (the
     platform base plus ``allow_env`` and the profile's variables, never the whole
     environment), a ``.cmd`` or ``.bat`` target refuses an instruction holding

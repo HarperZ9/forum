@@ -8,7 +8,9 @@ Security release. The working-folder guard in 1.15.0 compared PATH entries by na
 and handed each kept entry to the child as written, so three routes could still
 start a program planted in the folder forum runs in. The vendored `safe_spawn`
 helper moves to 1.0.1, which closes them, and forum's own guard module is removed
-in favor of the helper's. See the advisory for affected versions.
+in favor of the helper's. The helper's rules differ from the removed module's in a
+few layouts, so some PATH entries resolve differently; "Upgrading from 1.15.0" lists
+each one. See the advisory for affected versions.
 
 ### Security
 
@@ -26,28 +28,56 @@ in favor of the helper's. See the advisory for affected versions.
   forum's own lookup or in a child's bare-name lookup.
 - Quoted PATH entries are read as cmd.exe reads them. Windows PATH is split on `;`
   outside double quotes and every quote is dropped, so an entry such as
-  `"<folder>"\bin`, which a child's cmd.exe reads as `<folder>\bin`, is recognized
-  and dropped instead of being handed to the child intact. An entry whose real
-  folder name holds the PATH separator leaves, because programs disagree on it.
-- A filesystem root or the home folder now narrows to that folder itself rather than
-  standing the guard down, so a service in `/` or a terminal in `~` keeps the tools
-  installed below it while the folder's own entry still drops. The interpreter's
-  folder and, on Windows, the Windows, System32 and SysWOW64 folders stay exempt,
-  and a working folder that is one of them guards nothing.
-- `SubprocessExecutor` calls the helper directly. The separate `spawn_guard` module
-  is removed: its drive-relative refusal and working-folder filtering now live in the
+  `"<folder>"\bin` or `<parent>\"<folder>"`, which a child's cmd.exe reads as
+  `<folder>\bin` or as the folder itself, is recognized and dropped instead of being
+  handed to the child intact. An entry whose real folder name holds the PATH
+  separator leaves, because programs disagree on it.
+- A filesystem root or a folder that holds the home folder now narrows to that folder
+  itself rather than standing the guard down, so a service in `/` or a terminal in
+  `~` keeps the tools installed below it while the folder's own entry drops.
+- The exemption changes shape. 1.15.0 exempted every entry inside the Python
+  environment forum runs from (`sys.prefix` and `sys.exec_prefix`) and had no
+  exemption for the Windows folders. 1.15.1 exempts the exact folder of the running
+  interpreter and, on Windows, the exact Windows, System32 and SysWOW64 folders; a
+  folder below them gets the normal rule. The Windows-folder exemption is new in
+  1.15.1, and a working folder that is one of these folders guards nothing, because
+  forum already runs code from there.
+- `SubprocessExecutor` calls the helper directly. The `forum.spawn_guard` module is
+  removed: its drive-relative refusal and working-folder filtering now live in the
   helper, which carries a stronger, tested version of the same rules under one pinned
-  hash. Behavior a caller sees is unchanged except that the routes above are closed.
+  hash.
 
 ### Upgrading from 1.15.0
 
-- No configuration change is needed. A command that resolved before still resolves.
-  A PATH entry that only ever reached the working folder through one of the routes
-  above stops reaching it; a legitimate tool in a folder that is not the working
-  folder is unaffected.
+- No configuration change is needed when the folders that hold your tools lie
+  outside the folder forum runs in: a command that resolved there before still
+  resolves. The layouts below resolve differently.
+- An environment whose tool folders sit apart from its interpreter's folder and
+  inside the working folder loses those folders. A conda env created in the project
+  keeps its root, where `python.exe` lives, but its `Scripts` and `Library\bin`
+  drop, so a tool installed there is no longer found; the `Scripts` folder of an
+  embedded Python in the project drops the same way. Give such a tool's full path in
+  the command (`--cmd`, a tier flag or `--runtime-config`). A standard venv is
+  unaffected, because its `Scripts` or `bin` folder is the interpreter's own.
+- When forum runs in a filesystem root or in a folder that holds the home folder,
+  1.15.0 stood its guard down and kept every entry. 1.15.1 drops an entry equal to
+  that folder itself and keeps the entries below it.
+- When forum runs in the Windows, System32 or SysWOW64 folder, 1.15.0 dropped every
+  entry below it, such as PowerShell and Wbem, and could hand the child an empty
+  PATH. 1.15.1 does not guard such a folder, so those tools are found. A caller in
+  the interpreter's own folder keeps its tools under both versions.
+- On a filesystem that reports no file index, every PATH entry on the working
+  folder's device drops, tools on the same share included. A full path in the
+  command still reaches them.
+- An entry whose real folder name holds the PATH separator (`;` on Windows) drops.
+- On Linux and other POSIX systems, when the guard drops every entry, the child now
+  gets `/bin:/usr/bin`, where 1.15.0 handed it an empty PATH.
 - The child's PATH now lists each kept entry as its resolved real folder, so a
   child that read a symlinked PATH entry by its link name now sees the target. Point
   any such expectation at the real folder.
+- The `forum.spawn_guard` module (`guarded_environ`, `check_command_name`) is
+  removed. Code that imported it should call `forum._vendor.safe_spawn.resolve` and
+  `child_env`, which now guard the working folder themselves.
 
 ## 1.15.0 (2026-09-27)
 

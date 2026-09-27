@@ -2,18 +2,23 @@ r"""A planted program never runs through routes the first working-folder guard m
 
 Forum 1.15.0 kept the working folder out of a bare-name lookup, but its own guard
 compared PATH entries by name only and handed each entry to the child as written.
-Four routes still reached a planted program:
+Three routes still reached a planted program:
 
-- a junction on PATH pointing outside at the check, repointed into the working folder
-  before the child starts;
 - an alias of the working folder the name check misses but file identity catches
   (the ``\\?\`` long-path prefix, the ``\\localhost\C$`` admin share, a bind mount);
-- a PATH entry quoted so cmd.exe reads it as the working folder, handed to a child
-  whose own bare-name lookup then finds a plant there.
+- a junction on PATH pointing outside at the check, repointed into the working folder
+  before the child starts, in forum's own lookup or in the child's bare-name lookup;
+- a PATH entry quoted so cmd.exe reads it as the working folder or a folder below it
+  (``"<folder>"\bin`` or ``<parent>\"<folder>"``), handed to a child whose own
+  bare-name lookup then finds a plant there.
 
-Each test fails on the released version (vendored safe_spawn 1.0.0) by an assertion
-that shows the plant running, and passes after the upgrade to 1.0.1. Real processes
-run against local stand-ins; no model is reached.
+Every test drives forum's public executor, ``SubprocessExecutor``. The race tests
+repoint the link inside the vendored helper's ``bounded_run``, which forum's route
+calls after the lookup and the child's PATH are built, in 1.0.0 and 1.0.1 alike.
+Each test fails on the released version (1.15.0: vendored safe_spawn 1.0.0 behind
+forum's own guard) by an assertion that shows the plant winning the lookup or
+running, and passes after the upgrade to 1.0.1. Real processes run against local
+stand-ins; no model is reached.
 """
 import asyncio
 import os
@@ -71,18 +76,63 @@ def _decoy_sh(folder, name, marker):
     return path
 
 
+def _record_starts(monkeypatch):
+    """The executables forum's route starts, read at the helper's start seam."""
+    started, start = [], safe_spawn.bounded_run
+
+    def record_then_start(argv, **kw):
+        started.append(argv[0])
+        return start(argv, **kw)
+
+    monkeypatch.setattr(safe_spawn, "bounded_run", record_then_start)
+    return started
+
+
+def _repoint_before_start(monkeypatch, link, target):
+    """Replay the race: once the lookup and the child's PATH are built, repoint `link`
+    at `target`, then start the child."""
+    start = safe_spawn.bounded_run
+
+    def repoint_then_start(argv, **kw):
+        try:
+            os.rmdir(link)
+        except OSError:
+            os.remove(link)
+        _junction(target, link)
+        return start(argv, **kw)
+
+    monkeypatch.setattr(safe_spawn, "bounded_run", repoint_then_start)
+
+
+def _npm_tool_and_node(world):
+    """An npm-style `tool` shim in bin and a real `node` stand-in; the node folder."""
+    _write(str(world["bin"] / "tool.cmd"), NPM_SHIM, newline="")
+    os.makedirs(world["project"] / "node_modules" / "tool", exist_ok=True)
+    return os.path.dirname(stand_in(str(world["tmp"] / "nodejs"), "node",
+                                    str(world["tmp"] / "node.json")))
+
+
+def _alias_never_wins(world, monkeypatch, spelled, label):
+    # A .exe beats the real .cmd shim, so a kept alias entry lets the planted claude.exe
+    # displace the real tool; CreateProcess starts an .exe by an aliased path.
+    project = str(world["project"])
+    stand_in(str(world["bin"]), "claude", str(world["tmp"] / "claude.json"))
+    plant_binary(project, "claude", str(world["tmp"] / "PLANTED-RAN"))
+    monkeypatch.setenv("PATH", os.pathsep.join([spelled, str(world["bin"]), SYSTEM32]))
+    started = _record_starts(monkeypatch)
+    result = _run(SubprocessExecutor(["claude"], profile="claude"))
+    assert len(started) == 1, "the executor started nothing"
+    assert not os.path.samefile(os.path.dirname(started[0]), project), (
+        f"forum's lookup returned a planted claude.exe through the {label} alias")
+    assert result.output == "STUB-ANSWER", f"a planted claude.exe won through the {label} alias"
+
+
 @windows_only
 def test_a_long_path_prefix_alias_of_the_working_folder_never_runs_the_plant(world, monkeypatch):
-    # \\?\C:\...\project names the project folder; a name-only guard keeps it, so the
-    # planted claude.exe (a .exe beats the real .cmd shim) wins the lookup and displaces
-    # the real tool. CreateProcess starts an .exe by its \\?\ path, so a plant would run.
-    stand_in(str(world["bin"]), "claude", str(world["tmp"] / "claude.json"))
-    plant_binary(str(world["project"]), "claude", str(world["tmp"] / "PLANTED-RAN"))
+    # \\?\C:\...\project names the project folder; a name-only guard keeps it.
     spelled = "\\\\?\\" + str(world["project"])
     assert os.path.samefile(spelled, str(world["project"]))
-    monkeypatch.setenv("PATH", os.pathsep.join([spelled, str(world["bin"]), SYSTEM32]))
-    result = _run(SubprocessExecutor(["claude"], profile="claude"))
-    assert result.output == "STUB-ANSWER", "a planted claude.exe won the lookup through the \\\\?\\ alias"
+    _alias_never_wins(world, monkeypatch, spelled, "\\\\?\\")
 
 
 @windows_only
@@ -91,11 +141,33 @@ def test_an_admin_share_alias_of_the_working_folder_never_runs_the_plant(world, 
     unc = "\\\\localhost\\" + p[0] + "$" + p[2:]
     if not os.path.isdir(unc) or not os.path.samefile(unc, p):
         pytest.skip("the admin share does not reach this folder here")
-    stand_in(str(world["bin"]), "claude", str(world["tmp"] / "claude.json"))
-    plant_binary(str(world["project"]), "claude", str(world["tmp"] / "PLANTED-RAN"))
-    monkeypatch.setenv("PATH", os.pathsep.join([unc, str(world["bin"]), SYSTEM32]))
-    result = _run(SubprocessExecutor(["claude"], profile="claude"))
-    assert result.output == "STUB-ANSWER", "a planted claude.exe won the lookup through the admin share alias"
+    _alias_never_wins(world, monkeypatch, unc, "admin share")
+
+
+@pytest.mark.skipif(not LINUX_ROOT, reason="a bind mount needs Linux and root")
+def test_a_bind_mount_alias_of_the_working_folder_never_runs_the_plant(world, monkeypatch):
+    # Two names for one folder, no link between them: only file identity ties them.
+    project, marker = str(world["project"]), world["tmp"] / "PLANTED-RAN"
+    _decoy_sh(project, "tool", str(marker))
+    stand_in(str(world["bin"]), "tool", str(world["tmp"] / "tool.json"))
+    mnt = str(world["tmp"] / "mnt")
+    os.makedirs(mnt)
+    mount, umount = shutil.which("mount"), shutil.which("umount")
+    subprocess.run([mount, "--bind", project, mnt], check=True)
+    try:
+        assert os.path.realpath(mnt) != os.path.realpath(project)
+        assert os.path.samefile(mnt, project)
+        monkeypatch.setenv("PATH", os.pathsep.join([mnt, str(world["bin"]), "/usr/bin", "/bin"]))
+        started = _record_starts(monkeypatch)
+        result = _run(SubprocessExecutor(["tool"]))
+        assert len(started) == 1, "the executor started nothing"
+        assert not os.path.samefile(os.path.dirname(started[0]), project), (
+            "forum's lookup returned a planted tool through a bind-mount alias")
+        assert "PLANTED" not in result.output and not marker.exists(), (
+            "a planted tool ran through a bind-mount alias the name check misses")
+        assert result.output == "STUB-ANSWER"
+    finally:
+        subprocess.run([umount, mnt], check=True)
 
 
 @windows_only
@@ -104,10 +176,7 @@ def test_a_quoted_entry_never_hands_a_child_a_node_planted_below_the_folder(worl
     # (the inner quote names no folder), but the child's npm shim looks up `node` on the
     # PATH it inherits, and cmd.exe there reads the entry as the folder and finds the plant.
     project, marker = world["project"], world["tmp"] / "NODE-RAN"
-    _write(str(world["bin"] / "tool.cmd"), NPM_SHIM, newline="")  # the npm-style claude shim
-    os.makedirs(project / "node_modules" / "tool")
-    node_dir = os.path.dirname(stand_in(str(world["tmp"] / "nodejs"), "node",
-                                        str(world["tmp"] / "node.json")))
+    node_dir = _npm_tool_and_node(world)
     _decoy_cmd(str(project / "bin"), "node", str(marker))
     entry = f'"{project}"\\bin'
     monkeypatch.delenv("NoDefaultCurrentDirectoryInExePath", raising=False)
@@ -115,14 +184,29 @@ def test_a_quoted_entry_never_hands_a_child_a_node_planted_below_the_folder(worl
     result = _run(SubprocessExecutor(["tool"]))
     assert "PLANTED" not in result.output and not marker.exists(), (
         "a node planted below the working folder ran through the quoted PATH entry")
+    assert result.output == "STUB-ANSWER"
+
+
+@windows_only
+def test_a_quoted_folder_name_never_hands_a_child_the_working_folder_itself(world, monkeypatch):
+    # <parent>\"project": cmd.exe drops every quote and reads the working folder itself.
+    project, marker = world["project"], world["tmp"] / "NODE-RAN"
+    node_dir = _npm_tool_and_node(world)
+    _decoy_cmd(str(project), "node", str(marker))
+    entry = f'{world["tmp"]}\\"{project.name}"'
+    monkeypatch.setenv("PATH", os.pathsep.join([entry, node_dir, str(world["bin"]), SYSTEM32]))
+    result = _run(SubprocessExecutor(["tool"]))
+    assert "PLANTED" not in result.output and not marker.exists(), (
+        "a node planted in the working folder ran through the quoted folder name")
+    assert result.output == "STUB-ANSWER"
 
 
 @windows_only
 def test_a_junction_repointed_between_the_check_and_the_start_never_starts_the_plant(
         world, monkeypatch):
-    # A junction on PATH points at a trusted folder when the guard checks it, then the
-    # attacker repoints it into the working folder before the child starts. The helper
-    # anchors each kept entry to its real folder at check time, so the repoint has no effect.
+    # A junction on PATH points at a trusted folder when the guard checks it, then is
+    # repointed into the working folder before the child starts. The helper anchors each
+    # kept entry to its real folder at check time, so the repoint has no effect.
     trusted = str(world["tmp"] / "trusted")
     stand_in(trusted, "tool", str(world["tmp"] / "tool.json"))
     marker = world["tmp"] / "PLANTED-RAN"
@@ -130,40 +214,32 @@ def test_a_junction_repointed_between_the_check_and_the_start_never_starts_the_p
     link = str(world["tmp"] / "linkdir")
     _junction(trusted, link)
     monkeypatch.setenv("PATH", os.pathsep.join([link, SYSTEM32]))
-
-    def repoint_then_start(argv, **kw):  # between the check and the start
-        try:
-            os.rmdir(link)
-        except OSError:
-            os.remove(link)
-        _junction(str(world["project"]), link)
-        return safe_spawn.bounded_run(argv, **kw)
-
-    # Forum delegates the whole spawn to safe_spawn.run; the runner seam replays the race.
-    r = safe_spawn.run("tool", ["a"], input="doc", timeout=60, runner=repoint_then_start)
-    assert "PLANTED" not in (r.stdout or "") and not marker.exists(), (
+    _repoint_before_start(monkeypatch, link, str(world["project"]))
+    result = _run(SubprocessExecutor(["tool"]))
+    assert os.path.samefile(link, str(world["project"])), "the race was not replayed"
+    assert "PLANTED" not in result.output and not marker.exists(), (
         "a junction repointed after the check started the plant")
+    assert result.output == "STUB-ANSWER"
 
 
-@pytest.mark.skipif(not LINUX_ROOT, reason="a bind mount needs Linux and root")
-def test_a_bind_mount_alias_of_the_working_folder_never_runs_the_plant(world, monkeypatch):
-    # Two names for one folder, no link between them: only file identity ties them.
-    marker = world["tmp"] / "PLANTED-RAN"
-    _decoy_sh(str(world["project"]), "tool", str(marker))
-    real = os.path.dirname(stand_in(str(world["tmp"] / "toolbin"), "tool",
-                                    str(world["tmp"] / "tool.json")))
-    mnt = str(world["tmp"] / "mnt")
-    os.makedirs(mnt)
-    mount, umount = shutil.which("mount"), shutil.which("umount")
-    subprocess.run([mount, "--bind", str(world["project"]), mnt], check=True)
-    try:
-        assert os.path.realpath(mnt) != os.path.realpath(str(world["project"]))
-        monkeypatch.setenv("PATH", os.pathsep.join([mnt, real, "/usr/bin", "/bin"]))
-        got = safe_spawn.resolve("tool")
-        assert os.path.normcase(got) == os.path.normcase(os.path.join(real, "tool")), (
-            "a planted tool won through a bind-mount alias the name check misses")
-    finally:
-        subprocess.run([umount, mnt], check=True)
+@windows_only
+def test_a_junction_repointed_after_the_childs_path_is_built_never_hands_it_the_plant(
+        world, monkeypatch):
+    # The same race in the child's own lookup: the npm shim looks up `node` on the PATH
+    # forum hands it, and a junction there is repointed into the working folder after
+    # forum built that PATH and before the child starts.
+    marker = world["tmp"] / "NODE-RAN"
+    node_dir = _npm_tool_and_node(world)
+    _decoy_cmd(str(world["project"]), "node", str(marker))
+    link = str(world["tmp"] / "nodelink")
+    _junction(node_dir, link)
+    monkeypatch.setenv("PATH", os.pathsep.join([link, str(world["bin"]), SYSTEM32]))
+    _repoint_before_start(monkeypatch, link, str(world["project"]))
+    result = _run(SubprocessExecutor(["tool"]))
+    assert os.path.samefile(link, str(world["project"])), "the race was not replayed"
+    assert "PLANTED" not in result.output and not marker.exists(), (
+        "a junction repointed after the child's PATH was built handed it the planted node")
+    assert result.output == "STUB-ANSWER"
 
 
 def test_the_pinned_helper_carries_the_fix():

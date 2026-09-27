@@ -152,6 +152,42 @@ def test_the_interpreters_own_folder_stays_on_the_childs_path(monkeypatch):
     assert safe_spawn.child_env()["PATH"] == folder
 
 
+def test_the_python_environment_forum_runs_from_stays_on_path(tmp_path, monkeypatch):
+    # An activated project venv inside the working folder: the interpreter's own folder
+    # stays, while a sibling folder in the same project drops.
+    import sys
+
+    from forum._vendor import safe_spawn
+
+    project = tmp_path / "project"
+    venv_bin = project / ".venv" / ("Scripts" if WINDOWS else "bin")
+    tools = project / "tools"
+    venv_bin.mkdir(parents=True)
+    tools.mkdir()
+    monkeypatch.setattr(sys, "executable", str(venv_bin / ("python.exe" if WINDOWS else "python")))
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(venv_bin), str(tools)]))
+    kept = safe_spawn.child_env()["PATH"].split(os.pathsep)
+    assert [os.path.normcase(os.path.realpath(p)) for p in kept] == [
+        os.path.normcase(os.path.realpath(venv_bin))]
+
+
+def test_a_caller_in_the_filesystem_root_keeps_the_tools_below_it(tmp_path, monkeypatch):
+    # A service started in "/" or in a drive root: the root's own entry drops, and the
+    # tools installed below it stay.
+    from forum._vendor import safe_spawn
+
+    root = os.path.splitdrive(str(tmp_path))[0] + os.sep if WINDOWS else os.sep
+    bin_below = tmp_path / "bin"
+    bin_below.mkdir()
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("PATH", os.pathsep.join([root, str(bin_below)]))
+    kept = [os.path.normcase(os.path.realpath(p))
+            for p in safe_spawn.child_env()["PATH"].split(os.pathsep)]
+    assert os.path.normcase(os.path.realpath(bin_below)) in kept
+    assert os.path.normcase(os.path.realpath(root)) not in kept
+
+
 def test_a_root_or_home_caller_keeps_the_tools_below_it(tmp_path, monkeypatch):
     # A caller in "/" or "~" narrows to that folder itself, so the entries below it
     # (npm's global folder, ~/.local/bin) stay: only the folder's own entry drops.

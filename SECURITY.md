@@ -37,11 +37,17 @@ document states what Forum does, what it guarantees, and how to run it safely.
   check misses (matched by device and file index: the `\\?\` prefix and the admin
   share on Windows, a bind mount on Linux), or with quotes cmd.exe reads as the
   folder. Each kept entry is handed to the child as its resolved real folder, so a
-  link repointed between the check and the start cannot change what runs. The
-  interpreter's folder and, on Windows, the Windows, System32 and SysWOW64 folders
-  stay; a filesystem root or the home folder narrows to that folder itself, so the
-  tools installed below it stay while the folder's own entry drops. A drive-relative
-  name such as `C:claude` is refused. The child runs in a new private empty folder,
+  `PATH` link repointed between the check and the start can no longer redirect
+  forum's lookup or the child's own. A swap of the file itself, or of a folder inside
+  its real folder, between the check and the start still races; it needs write
+  access to a folder `PATH` already trusts. The exact folder of the running
+  interpreter and, on Windows, the exact Windows, System32 and SysWOW64 folders are
+  always kept, and a working folder that is one of them is not guarded, because
+  forum already runs code from there. A filesystem root or a folder that holds the
+  home folder narrows to that folder itself, so the tools installed below it stay
+  while the folder's own entry drops. On a filesystem that reports no file index,
+  every entry on the working folder's device is dropped. A drive-relative name such
+  as `C:claude` is refused. The child runs in a new private empty folder,
   and its environment is an allowlist (the platform base plus the variables the launch
   names in `FORUM_CHILD_ENV`, not the whole environment). A Python target gets `-P`. A
   known agent CLI (claude, codex, gemini, opencode) is started with its isolation
