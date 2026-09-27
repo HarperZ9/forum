@@ -79,3 +79,37 @@ def test_checkouts_do_not_keep_the_token():
     for name, job in _jobs(_text()).items():
         if "actions/checkout@" in job:
             assert "persist-credentials: false" in job, f"{name} keeps the checkout token"
+
+
+# Review findings F6 and F9: nothing reaches PyPI before the suite passes at the
+# tagged commit, the installed wheel reports the tag's version, and the release
+# stops when PyPI serves files other than the ones the checksums name.
+
+def test_publish_waits_for_the_test_suite():
+    jobs = _jobs(_text())
+    testing = [name for name, job in jobs.items() if re.search(r"\bpytest\b", job)]
+    assert testing, "no release job runs the test suite"
+    needs = re.search(r"needs:\s*\[?([^\]\n]*)", jobs["publish"]).group(1)
+    assert any(name in needs for name in testing), "publish does not wait for the tests"
+
+
+def test_the_suite_runs_before_the_build():
+    build = _jobs(_text())["build"]
+    assert build.index("pytest") < build.index("python -m build"), "the build runs before the tests"
+
+
+def test_the_build_compares_the_installed_version_to_the_tag():
+    build = _jobs(_text())["build"]
+    assert re.search(r'forum --version\)"?\s*=\s*"?forum \$\{GITHUB_REF_NAME#v\}', build), \
+        "the build never compares the installed command's version to the tag"
+    assert re.search(r'importlib\.metadata.*GITHUB_REF_NAME|GITHUB_REF_NAME.*importlib\.metadata',
+                     build, re.S), "the build never compares the installed metadata to the tag"
+
+
+def test_the_release_checks_pypi_holds_the_same_files():
+    jobs = _jobs(_text())
+    release = jobs["github-release"]
+    assert "pypi.org/pypi/" in release, "nothing compares PyPI's digests to SHA256SUMS"
+    assert release.index("pypi.org/pypi/") < release.index("gh release create"), \
+        "the PyPI comparison runs after the release is cut"
+    assert "SHA256SUMS.txt" in release[: release.index("gh release create")]
