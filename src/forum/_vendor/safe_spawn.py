@@ -3,14 +3,27 @@
 Vendored verbatim into each flagship; the conformance kit compares the copy's
 SHA-256 with the canonical one, so per-tool choices are arguments, never edits.
 Rules: an absolute executable (an override variable must hold one; a PATH walk
-skips relative entries, and on Windows a .exe anywhere beats a batch shim); a new
+skips relative entries and entries that reach a working folder, and on Windows a
+.exe anywhere beats a batch shim; a bare name holding ":" is refused); a new
 private empty working folder unless the caller names one; an environment
-allowlist whose PATH keeps only absolute entries, plus
+allowlist whose PATH keeps what the walk keeps (on POSIX, /bin:/usr/bin when that
+leaves nothing, since an empty PATH means the current folder there), plus
 NoDefaultCurrentDirectoryInExePath=1 on Windows; no cmd.exe metacharacters in
 any argument to a .cmd or .bat target; -P and PYTHONSAFEPATH=1 for a Python
 target (3.11 or later); the named CLI profile's flags, where an unproven profile
 needs a grant naming it. Messages never print a resolved path, an argument or a
 value. From articulate 0.5.0 claude_cli.py; safe_spawn.mjs ports it.
+
+The working folders are the caller's current folder and the folder named for the
+child. An entry reaches one when, resolved through links, it is that folder or
+lies below it, by name or by file identity; on a filesystem without file indices,
+any folder on the working folder's device counts. A filesystem root or a folder
+holding the home folder counts only as itself. The interpreter's folder and, on
+Windows, the Windows, System32 and SysWOW64 folders always stay, and a working
+folder that is one of them guards nothing: the caller already runs code from
+there. Each kept entry becomes its real folder, so a link repointed after the
+check cannot change what starts. Windows PATH is read as cmd.exe reads it, and
+an entry whose folder holds the PATH separator leaves: programs disagree on it.
 """
 import ntpath
 import os
@@ -22,7 +35,8 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
-SAFE_SPAWN_VERSION = "1.0.0"
+SAFE_SPAWN_VERSION = "1.0.1"
+POSIX_FALLBACK_PATH = "/bin:/usr/bin"
 BATCH_SUFFIXES = (".cmd", ".bat")
 _STARTABLE = (".com", ".exe") + BATCH_SUFFIXES
 CMD_UNSAFE = frozenset('"%^&|<>!\r\n')
@@ -105,14 +119,125 @@ def _from_absolute(path, exists, windows, suffixes, code):
     return found
 
 
-def _path_entries(value, windows):
-    """(as written, unquoted) for each PATH entry that is an absolute path."""
-    pairs = [(r, r.strip().strip('"')) for r in (value or "").split(";" if windows else ":")]
-    return [(r, bare) for r, bare in pairs if bare and _is_absolute(bare, windows)]
+def _identity(path):
+    """(device, file index), the index 0 where the filesystem keeps none; None if unreadable."""
+    try:
+        st = os.stat(path)
+    except (OSError, ValueError):
+        return None
+    return st.st_dev, st.st_ino
 
 
-def resolve(name, override_var=None, environ=None, exists=None, windows=None):
-    """The absolute path of `name` (a bare name, or an absolute path), or SpawnRefused."""
+def _same(a, b, unsure):
+    """One folder by identity. With `unsure`, a folder without a file index matches any
+    folder on its device, since such a filesystem can hide a second name for it."""
+    if a is None or b is None or a[0] != b[0]:
+        return False
+    return a[1] == b[1] != 0 or (unsure and 0 in (a[1], b[1]))
+
+
+def _real(path):
+    """`path` resolved through links, or None when it cannot be read."""
+    try:
+        return os.path.realpath(path)
+    except (OSError, ValueError):
+        return None
+
+
+def _chain(here):
+    """(name, identity) for the resolved folder `here`, then each folder above it."""
+    if not here:
+        return []
+    out = [(os.path.normcase(here), _identity(here))]
+    while os.path.dirname(here) != here:
+        here = os.path.dirname(here)
+        out.append((os.path.normcase(here), _identity(here)))
+    return out
+
+
+def _meets(chain, folder, unsure=False):
+    return any(n == folder[0] or _same(k, folder[1], unsure) for n, k in chain)
+
+
+def _trusted(windows):
+    """The exact folders the caller already runs code from; nothing below them."""
+    own = [os.path.dirname(sys.executable or "")]
+    root = _get(os.environ, "SystemRoot") if windows else ""
+    if root:
+        own += [root, os.path.join(root, "System32"), os.path.join(root, "SysWOW64")]
+    return [c[0] for c in (_chain(_real(f)) for f in own if f) if c]
+
+
+def _reach_test(cwd, windows):
+    """A function giving a PATH entry's real folder, or None when the entry reaches a
+    working folder (see above). None on a simulated platform: no real folders to read."""
+    if windows != (os.name == "nt"):
+        return None  # a simulated platform has no real folders to read
+    folders = [] if cwd is None else [cwd]
+    try:
+        folders.append(os.getcwd())
+    except OSError:
+        pass  # a deleted working folder: no path reaches it
+    home = os.path.expanduser("~")
+    home = _chain(_real(home)) if os.path.isabs(home) else []
+    trusted = _trusted(windows)
+    guarded = [(c[0], len(c) == 1 or _meets(home, c[0])) for c in map(_chain, map(_real, folders))
+               if c and not any(_meets(c[:1], t) for t in trusted)]
+
+    def admit(entry):
+        real = _real(entry)
+        chain = _chain(real)
+        if not chain:
+            return None
+        if any(_meets(chain[:1], t) for t in trusted):
+            return real
+        if any(_meets(chain[:1] if wide else chain, f, True) for f, wide in guarded):
+            return None
+        return real
+    return admit
+
+
+def _split(value, windows):
+    """(as written, as read) per entry. POSIX reads an entry literally, so a quote or a
+    leading space makes it relative there. Windows reads it as cmd.exe does: a ";"
+    between double quotes does not split, and every quote goes."""
+    if not windows:
+        return [(r, r) for r in value.split(":")]
+    out, start, quoted = [], 0, False
+    for i, ch in enumerate(value):
+        if ch == '"':
+            quoted = not quoted
+        elif ch == ";" and not quoted:
+            out.append(value[start:i])
+            start = i + 1
+    out.append(value[start:])
+    return [(r, r.replace('"', "").strip()) for r in out]
+
+
+def _path_entries(value, windows, admit=None):
+    """(to hand on, to search) for each absolute PATH entry that reaches no working folder.
+
+    With `admit`, the folder searched is the entry's real folder. A folder holding the
+    separator leaves: Windows programs disagree on a quoted one, and POSIX cannot write
+    one. The entry goes on as written only where every reader takes it the same way.
+    """
+    sep, out = ";" if windows else ":", []
+    for raw, bare in _split(value or "", windows):
+        if not bare or not _is_absolute(bare, windows):
+            continue
+        real = admit(bare) if admit else bare
+        if real is None or sep in real:
+            continue
+        same = raw in (bare, f'"{bare}"') and os.path.normcase(real) == os.path.normcase(bare)
+        out.append((raw if same else real, real))
+    return out
+
+
+def resolve(name, override_var=None, environ=None, exists=None, windows=None, cwd=None):
+    """The absolute path of `name` (a bare name, or an absolute path), or SpawnRefused.
+
+    `cwd` is the folder named for the child; PATH entries reaching it are skipped too.
+    """
     env = os.environ if environ is None else environ
     exists = _runnable if exists is None else exists
     windows = os.name == "nt" if windows is None else windows
@@ -123,8 +248,12 @@ def resolve(name, override_var=None, environ=None, exists=None, windows=None):
         return _from_absolute(configured, exists, windows, suffixes, "BAD_OVERRIDE")
     if any(sep in name for sep in ("/", "\\")):
         return _from_absolute(name, exists, windows, suffixes, "BAD_PATH")
+    if windows and ":" in name:  # "C:tool" names a file in the current folder of drive C:
+        raise SpawnRefused("BAD_PATH", "a bare name holding a colon was refused; "
+                                       "give a bare name or a full path")
     join = ntpath.join if windows else posixpath.join
-    dirs = [bare for _, bare in _path_entries(_get(env, "PATH"), windows)]
+    admit = _reach_test(cwd, windows)
+    dirs = [folder for _, folder in _path_entries(_get(env, "PATH"), windows, admit)]
     groups = [[name + ".exe"], [name + s for s in suffixes]] if windows else [[name]]
     for group in groups:
         for d in dirs:
@@ -154,15 +283,20 @@ def is_python(path):
     return base in _PYTHON_NAMES or (base.startswith("python3.") and base[8:].isdigit())
 
 
-def child_env(allow=(), set_env=None, environ=None, windows=None, python=False):
-    """The platform base plus `allow`, then `set_env` on top. Nothing else passes."""
+def child_env(allow=(), set_env=None, environ=None, windows=None, python=False, cwd=None):
+    """The platform base plus `allow`, then `set_env` on top. Nothing else passes.
+
+    PATH keeps what `resolve` walks; `cwd` is the folder named for the child.
+    """
     env = os.environ if environ is None else environ
     windows = os.name == "nt" if windows is None else windows
     base = WINDOWS_BASE_ENV if windows else POSIX_BASE_ENV
     wanted = {k.lower() if windows else k for k in (*base, *allow)}
     out = {k: v for k, v in env.items() if (k.lower() if windows else k) in wanted}
+    admit = _reach_test(cwd, windows)
     for key in [k for k in out if k.upper() == "PATH"]:  # a "." entry is a cwd search
-        out[key] = (";" if windows else ":").join(r for r, _ in _path_entries(out[key], windows))
+        kept = [r for r, _ in _path_entries(out[key], windows, admit)]
+        out[key] = ";".join(kept) if windows else (":".join(kept) or POSIX_FALLBACK_PATH)
     forced = dict(set_env or {})
     if python:
         forced["PYTHONSAFEPATH"] = "1"
@@ -272,7 +406,7 @@ def run(name, args=(), *, profile=None, override_var=None, input=None, timeout=6
     before any start; subprocess.TimeoutExpired passes through.
     """
     windows = os.name == "nt" if windows is None else windows
-    exe = resolve(name, override_var, environ, exists, windows)
+    exe = resolve(name, override_var, environ, exists, windows, cwd)
     label = os.path.basename(name)  # never the resolved path
     if runner is None:
         def runner(*a, **kw):
@@ -286,7 +420,7 @@ def run(name, args=(), *, profile=None, override_var=None, input=None, timeout=6
         argv, prof = build_argv(exe, list(args(paths) if callable(args) else args),
                                 profile, grants, windows)
         env = child_env((*allow_env, *(prof.env if prof else ())), set_env, environ,
-                        windows, python=is_python(exe))
+                        windows, python=is_python(exe), cwd=cwd)
         return runner(argv, input=input, timeout=timeout,
                       cwd=session.cwd if cwd is None else cwd, env=env)
     except OSError as exc:

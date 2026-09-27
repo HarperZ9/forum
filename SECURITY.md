@@ -31,17 +31,29 @@ document states what Forum does, what it guarantees, and how to run it safely.
 - **Children start isolated.** The executable is resolved to an absolute path (a bare
   name is looked up on `PATH` only, the working folder is never searched by name, and
   `NoDefaultCurrentDirectoryInExePath=1` is set on Windows). A `PATH` entry that
-  resolves inside the working folder, directly or through a junction or symlink, is
-  skipped and removed from the child's `PATH`, except the Python environment forum
-  itself runs from; the check
-  stands down when the working folder is a filesystem root or holds the home folder. A
-  drive-relative name such as `C:claude` is refused. The child runs in a new private empty
-  folder, and its environment is an allowlist (the platform base plus the variables the
-  launch names in `FORUM_CHILD_ENV`, not the whole environment). A Python target gets
-  `-P`. A known agent CLI (claude, codex, gemini, opencode) is started with its
-  isolation profile; an unproven profile is refused unless `FORUM_ALLOW_EXEC_CLI` names
-  it. Both launch variables apply to every configured command: `--cmd`, the tier flags
-  and `--runtime-config`.
+  reaches the working folder (the folder forum runs in, or a folder named for the
+  child) is skipped for the lookup and removed from the child's `PATH`, whether it
+  names the folder directly, through a junction or symlink, through an alias the name
+  check misses (matched by device and file index: the `\\?\` prefix and the admin
+  share on Windows, a bind mount on Linux), or with quotes cmd.exe reads as the
+  folder. Each kept entry is handed to the child as its resolved real folder, so a
+  `PATH` link repointed between the check and the start can no longer redirect
+  forum's lookup or the child's own. A swap of the file itself, or of a folder inside
+  its real folder, between the check and the start still races; it needs write
+  access to a folder `PATH` already trusts. The exact folder of the running
+  interpreter and, on Windows, the exact Windows, System32 and SysWOW64 folders are
+  always kept, and a working folder that is one of them is not guarded, because
+  forum already runs code from there. A filesystem root or a folder that holds the
+  home folder narrows to that folder itself, so the tools installed below it stay
+  while the folder's own entry drops. On a filesystem that reports no file index,
+  every entry on the working folder's device is dropped. A drive-relative name such
+  as `C:claude` is refused. The child runs in a new private empty folder,
+  and its environment is an allowlist (the platform base plus the variables the launch
+  names in `FORUM_CHILD_ENV`, not the whole environment). A Python target gets `-P`. A
+  known agent CLI (claude, codex, gemini, opencode) is started with its isolation
+  profile; an unproven profile is refused unless `FORUM_ALLOW_EXEC_CLI` names it. Both
+  launch variables apply to every configured command: `--cmd`, the tier flags and
+  `--runtime-config`.
 - **Keys live in the environment, not in the code or the record.** `ApiExecutor` reads
   the API key from an environment variable (`ANTHROPIC_API_KEY` by default). The key is
   sent only in the request header; it is never written to the ledger and never logged.

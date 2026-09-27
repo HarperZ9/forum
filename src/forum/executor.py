@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from forum._vendor import safe_spawn
-from forum.spawn_guard import check_command_name, guarded_environ
 
 # Agent CLIs get an isolation profile. A profile safe_spawn has proven (claude and
 # codex, each checked against a recorded CLI version) is applied; an unproven one
@@ -72,10 +71,17 @@ class SubprocessExecutor:
     proven profile (claude, codex) reads the task on stdin instead, so
     ``SubprocessExecutor(["claude", "-p"])`` runs any task through npm's batch
     shim. The child starts through the vendored ``safe_spawn``: the executable is
-    resolved to an absolute path (a bare name is looked up on PATH only, the
-    working folder is never searched by name, and ``spawn_guard`` skips a PATH
-    entry inside the working folder, with the exceptions it lists), the child
-    runs in a new private empty folder, its environment is an allowlist (the
+    resolved to an absolute path (a bare name is looked up on PATH only, and a
+    bare name holding a colon such as ``C:claude`` is refused). The helper keeps
+    the working folder out of both the lookup and the child's PATH: a PATH entry
+    that reaches the folder forum runs in, or the folder named for the child,
+    written directly, through a junction or symlink, through an alias the name
+    check misses (matched by file identity), or with quotes cmd.exe reads as the
+    folder, is dropped, and each kept entry is handed on as its real folder so a
+    link repointed after the check cannot change what starts. The interpreter's
+    folder and, on Windows, the Windows, System32 and SysWOW64 folders stay, and a
+    working folder that is one of them is not guarded. The
+    child runs in a new private empty folder, its environment is an allowlist (the
     platform base plus ``allow_env`` and the profile's variables, never the whole
     environment), a ``.cmd`` or ``.bat`` target refuses an instruction holding
     cmd.exe metacharacters, and a Python target gets ``-P``. A known agent CLI
@@ -115,7 +121,9 @@ class SubprocessExecutor:
     async def run(self, assignment: Assignment) -> Result:
         args, task_input = self._args_and_input(assignment.instruction)
         try:
-            check_command_name(self._command[0])
+            # safe_spawn resolves the executable, refuses a drive-relative name, and keeps
+            # the working folder out of the lookup and the child's PATH. cwd is None, so the
+            # child runs in a new private empty folder and the guarded folder is forum's own.
             proc = await asyncio.to_thread(
                 safe_spawn.run,
                 self._command[0],
@@ -126,7 +134,6 @@ class SubprocessExecutor:
                 timeout=self._timeout,
                 allow_env=self._allow_env,
                 grants=self._grants,
-                environ=guarded_environ(),
             )
         except safe_spawn.SpawnRefused as exc:
             # A refusal is a witnessed failure, not a crash: the child never

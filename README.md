@@ -10,7 +10,7 @@ Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `doc
 [![downloads](https://img.shields.io/pypi/dm/forum-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/forum-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none](https://img.shields.io/badge/deps-none-success?style=flat-square&labelColor=14041b)
-![version: 1.15.0](https://img.shields.io/badge/version-1.15.0-26dfe8?style=flat-square&labelColor=14041b)
+![version: 1.15.1](https://img.shields.io/badge/version-1.15.1-26dfe8?style=flat-square&labelColor=14041b)
 
 forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
 
@@ -18,7 +18,7 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 
 ## Current status
 
-`forum-engine 1.15.0` is the current source version. Routing, bounded
+`forum-engine 1.15.1` is the current source version. Routing, bounded
 multi-agent runs, context budgets and preflight, replayable ledgers, durable
 approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
 surfaces are present; a run result remains distinct from an external effect or
@@ -185,7 +185,7 @@ The daemon exposes route, plan, submit, humanize, prose contracts, gates, run ro
 
 ## Status
 
-The latest release is `forum-engine 1.15.0` (gate integrity, executor isolation through a vendored spawn helper, daemon Origin/Host/content-type checks and a default auth token, over the 1.14 observability, auth, route-preflight skill packaging, context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and readable briefs, runtime inspection, approvals with durable deadlines, proof and domain routes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). CI runs the full test suite and ruff on every push.
+The latest release is `forum-engine 1.15.1` (the vendored spawn helper closes a working-folder alias the name check missed, a PATH link repointed between the check and the start, and a quoted PATH entry a child reads as the working folder, over the 1.15.0 gate integrity, executor isolation, daemon Origin/Host/content-type checks and a default auth token, and the 1.14 observability, auth, route-preflight skill packaging, context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and readable briefs, runtime inspection, approvals with durable deadlines, proof and domain routes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). CI runs the full test suite and ruff on every push.
 
 ## Docs
 

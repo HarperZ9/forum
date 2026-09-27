@@ -131,30 +131,75 @@ def test_a_drive_relative_name_is_refused_when_path_is_on_another_drive(world, m
     assert result.output.startswith("error:")
 
 
-# Where the guard stands down, so a common setup keeps working.
+# What the guard keeps, so a common setup still works. The guard lives in the vendored
+# helper now (forum no longer carries its own copy); these pin the guarantees forum
+# relies on through the shipped bytes.
 
-def test_the_python_environment_forum_runs_from_stays_on_path(tmp_path, monkeypatch):
-    # An activated project venv: forum already runs code from it.
+def test_the_interpreters_own_folder_stays_on_the_childs_path(monkeypatch):
+    # An activated project venv, or a Windows service in System32: forum already runs
+    # code from the interpreter's folder, so a lookup there is not a new reach.
     import sys
 
-    from forum.spawn_guard import guarded_environ
+    from forum._vendor import safe_spawn
+
+    folder = os.path.dirname(sys.executable)
+    parent = os.path.dirname(folder)
+    home = os.path.normcase(os.path.expanduser("~"))
+    if os.path.dirname(parent) == parent or home.startswith(os.path.normcase(parent)):
+        pytest.skip("the interpreter's parent folder is a root or holds home here")
+    monkeypatch.chdir(parent)
+    monkeypatch.setenv("PATH", folder)
+    assert safe_spawn.child_env()["PATH"] == folder
+
+
+def test_the_python_environment_forum_runs_from_stays_on_path(tmp_path, monkeypatch):
+    # An activated project venv inside the working folder: the interpreter's own folder
+    # stays, while a sibling folder in the same project drops.
+    import sys
+
+    from forum._vendor import safe_spawn
 
     project = tmp_path / "project"
     venv_bin = project / ".venv" / ("Scripts" if WINDOWS else "bin")
     tools = project / "tools"
     venv_bin.mkdir(parents=True)
     tools.mkdir()
-    monkeypatch.setattr(sys, "prefix", str(project / ".venv"))
-    monkeypatch.setattr(sys, "exec_prefix", str(project / ".venv"))
-    env = guarded_environ({"PATH": os.pathsep.join([str(venv_bin), str(tools)])}, cwd=str(project))
-    assert env["PATH"].split(os.pathsep) == [str(venv_bin)]
+    monkeypatch.setattr(sys, "executable", str(venv_bin / ("python.exe" if WINDOWS else "python")))
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(venv_bin), str(tools)]))
+    kept = safe_spawn.child_env()["PATH"].split(os.pathsep)
+    assert [os.path.normcase(os.path.realpath(p)) for p in kept] == [
+        os.path.normcase(os.path.realpath(venv_bin))]
 
 
-def test_the_guard_stands_down_in_a_filesystem_root_or_the_home_folder(tmp_path):
-    from forum.spawn_guard import guarded_environ
+def test_a_caller_in_the_filesystem_root_keeps_the_tools_below_it(tmp_path, monkeypatch):
+    # A service started in "/" or in a drive root: the root's own entry drops, and the
+    # tools installed below it stay.
+    from forum._vendor import safe_spawn
 
-    root = os.path.abspath(os.sep)
-    home = os.path.expanduser("~")
-    entries = os.pathsep.join([os.path.join(root, "usr", "bin"), os.path.join(home, ".local", "bin")])
-    assert guarded_environ({"PATH": entries}, cwd=root)["PATH"] == entries
-    assert guarded_environ({"PATH": entries}, cwd=home)["PATH"] == entries
+    root = os.path.splitdrive(str(tmp_path))[0] + os.sep if WINDOWS else os.sep
+    bin_below = tmp_path / "bin"
+    bin_below.mkdir()
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("PATH", os.pathsep.join([root, str(bin_below)]))
+    kept = [os.path.normcase(os.path.realpath(p))
+            for p in safe_spawn.child_env()["PATH"].split(os.pathsep)]
+    assert os.path.normcase(os.path.realpath(bin_below)) in kept
+    assert os.path.normcase(os.path.realpath(root)) not in kept
+
+
+def test_a_root_or_home_caller_keeps_the_tools_below_it(tmp_path, monkeypatch):
+    # A caller in "/" or "~" narrows to that folder itself, so the entries below it
+    # (npm's global folder, ~/.local/bin) stay: only the folder's own entry drops.
+    from forum._vendor import safe_spawn
+
+    home = tmp_path / "home"
+    bin_below = home / ".local" / "bin"
+    bin_below.mkdir(parents=True)
+    for var in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(var, str(home))
+    monkeypatch.chdir(home)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(home), str(bin_below)]))
+    kept = safe_spawn.child_env()["PATH"].split(os.pathsep)
+    assert os.path.normcase(str(bin_below)) in [os.path.normcase(p) for p in kept]
+    assert os.path.normcase(str(home)) not in [os.path.normcase(p) for p in kept]
