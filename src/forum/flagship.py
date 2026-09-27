@@ -75,9 +75,9 @@ def status_payload() -> dict:
 
 def doctor_payload() -> dict:
     """Real readiness checks, run without a model: the roster loads, and a fresh
-    ledger appends and deep-verifies. WP2 extends this to PASS/WARN/FAIL with
-    executor, key-presence and state-directory checks; this release removes the
-    hardcoded MATCH placeholders and the private-line route probe.
+    ledger appends and deep-verifies. It does not yet grade results as
+    PASS/WARN/FAIL or check executors, key presence or the state directory. It
+    replaced hardcoded MATCH placeholders and a route probe for unpublished work.
     """
     checks: list[dict[str, Any]] = [_roster_check(), _ledger_check()]
     status = "MATCH" if all(check["status"] == "MATCH" for check in checks) else "DRIFT"

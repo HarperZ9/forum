@@ -1,16 +1,85 @@
-"""Public surfaces carry no private-line names, local paths, or the stale claims
-the audit flagged.
+"""Public surfaces carry no private-line names, internal plan labels, local paths,
+or the stale claims the readiness review flagged.
 
-WP1 public-register cleanup: the shipped package and README are the public face.
+The shipped package, the README and the other public documents are the public
+face: a reader who finds a label there has no way to look it up.
 """
+import re
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_NAMES = ("sofer", "orca", "behavior-transform", "behavior transform")
 
+# Internal plan labels a public reader cannot resolve: work-package and queue
+# numbers, and the file names of internal review documents.
+INTERNAL_LABELS = {
+    "queue label Q0": re.compile(r"\bQ0\b"),
+    "queue label Q19": re.compile(r"\bQ19\b"),
+    "work-package label WP<n>": re.compile(r"\bWP\d+"),
+    "review file name audit-*": re.compile(
+        r"\baudit-[\w-]+\.(?:md|txt|json|html|pdf)\b|\baudit-forum\b", re.IGNORECASE
+    ),
+}
+PUBLIC_DOCS = ("README.md", "CHANGELOG.md", "SECURITY.md", "RUNNING.md")
+# The vendored helper must stay byte-identical to its pinned hash
+# (tests/test_vendored.py), so it is checked there and exempt here.
+VENDORED = ROOT / "src" / "forum" / "_vendor"
+TEXT_SUFFIXES = {".py", ".toml", ".md", ".yaml", ".yml", ".json", ".txt", ".sha256"}
+
 
 def _src_files():
     return list((ROOT / "src").rglob("*.py")) + list((ROOT / "src").rglob("*.toml"))
+
+
+def _public_text_files():
+    shipped = [
+        path for path in (ROOT / "src").rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in TEXT_SUFFIXES
+        and "__pycache__" not in path.parts
+        and VENDORED not in path.parents
+    ]
+    return shipped + [ROOT / name for name in PUBLIC_DOCS]
+
+
+def test_the_label_scan_covers_the_shipped_code_and_the_public_docs():
+    files = _public_text_files()
+    rel = {path.relative_to(ROOT).as_posix() for path in files}
+    assert "src/forum/executor.py" in rel
+    assert "src/forum/flagship.py" in rel
+    assert set(PUBLIC_DOCS) <= rel
+    assert not any(name.startswith("src/forum/_vendor/") for name in rel)
+
+
+def test_the_label_patterns_catch_the_forms_they_deny_and_spare_plain_words():
+    # A scan that matches nothing proves nothing, so each pattern must catch the
+    # forms that shipped before this check existed, and pass ordinary prose.
+    caught = {
+        "queue label Q0": ["from the Q0 PROBES.md", "its Q0 isolation profile"],
+        "queue label Q19": ["deferred to Q19", "(Q19)"],
+        "work-package label WP<n>": ["WP2 extends this", "WP1 public-register", "(WP10)"],
+        "review file name audit-*": ["(`audit-forum.md`, section 5)", "see audit-forum"],
+    }
+    spared = ["an auditable verdict", "the audit trail", "Q01 results", "WPA2 Wi-Fi", "Q0x"]
+    for label, samples in caught.items():
+        for sample in samples:
+            assert INTERNAL_LABELS[label].search(sample), f"{label} misses {sample!r}"
+        for sample in spared:
+            assert not INTERNAL_LABELS[label].search(sample), f"{label} flags {sample!r}"
+
+
+@pytest.mark.parametrize("label", sorted(INTERNAL_LABELS))
+def test_public_files_carry_no_internal_plan_labels(label):
+    pattern = INTERNAL_LABELS[label]
+    hits = []
+    for path in _public_text_files():
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for number, line in enumerate(text.splitlines(), start=1):
+            if pattern.search(line):
+                hits.append(f"{path.relative_to(ROOT).as_posix()}:{number}")
+    assert hits == [], f"{label} appears in public files: {hits}"
 
 
 def test_src_ships_no_private_line_names():

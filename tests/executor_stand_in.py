@@ -1,6 +1,6 @@
 """Stand-ins named like an agent CLI, for the executor isolation tests.
 
-Adapted from the Q0 / relay CLI-tier fixtures. A stand-in records what it
+Adapted from the spawn helper's and relay's CLI-tier fixtures. A stand-in records what it
 received (argv, working folder and its listing, stdin, environment) and prints a
 line. It also does what ``claude`` does with a project settings file it is
 allowed to read: it runs the file's SessionStart hook, which writes a marker. No

@@ -51,8 +51,9 @@ claim. See the advisory for affected versions (1.14.0 and earlier).
   looked up on `PATH` only, never the working folder), the child runs in a new
   private empty folder, its environment is an allowlist rather than the whole
   environment, a `.cmd` or `.bat` target refuses cmd.exe metacharacters in the
-  instruction, and a Python target gets `-P`. A known agent CLI gets its Q0
-  isolation profile; an unproven profile is refused unless
+  instruction, and a Python target gets `-P`. A known agent CLI gets the
+  isolation profile proven for it (claude and codex, each checked against a
+  recorded CLI version); an unproven profile is refused unless
   `FORUM_ALLOW_EXEC_CLI` names it. `FORUM_CHILD_ENV` adds named variables to the
   allowlist; both apply to `--cmd`, the tier flags and a `--runtime-config`
   command alike. The route-preflight helper runs `python -P -m forum` so a planted

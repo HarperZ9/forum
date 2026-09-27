@@ -10,10 +10,11 @@ from typing import Protocol
 from forum._vendor import safe_spawn
 from forum.spawn_guard import check_command_name, guarded_environ
 
-# Agent CLIs get an isolation profile. A profile safe_spawn has proven (claude,
-# codex, from the Q0 PROBES.md) is applied; an unproven one (gemini, opencode) is
-# refused unless a launch grant names it. A plain model command (ollama, a python
-# adapter, a local server CLI) is not an agent CLI and takes no profile, but still
+# Agent CLIs get an isolation profile. A profile safe_spawn has proven (claude and
+# codex, each checked against a recorded CLI version) is applied; an unproven one
+# (gemini, opencode) is refused unless a launch grant names it. A plain model
+# command (ollama, a python adapter, a local server CLI) is not an agent CLI and
+# takes no profile, but still
 # runs isolated: an absolute executable, a private empty folder, an environment
 # allowlist, and cmd.exe metacharacters refused for a .cmd or .bat target.
 _AGENT_CLIS = ("claude", "codex", "gemini", "opencode")
@@ -71,8 +72,9 @@ class SubprocessExecutor:
     proven profile (claude, codex) reads the task on stdin instead, so
     ``SubprocessExecutor(["claude", "-p"])`` runs any task through npm's batch
     shim. The child starts through the vendored ``safe_spawn``: the executable is
-    resolved to an absolute path (a bare name is looked up on PATH only, never the
-    working folder, and a PATH entry inside the working folder is skipped), the child
+    resolved to an absolute path (a bare name is looked up on PATH only, the
+    working folder is never searched by name, and ``spawn_guard`` skips a PATH
+    entry inside the working folder, with the exceptions it lists), the child
     runs in a new private empty folder, its environment is an allowlist (the
     platform base plus ``allow_env`` and the profile's variables, never the whole
     environment), a ``.cmd`` or ``.bat`` target refuses an instruction holding

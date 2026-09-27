@@ -2,7 +2,7 @@
 
 The version lives in several files (pyproject, the package, the README badge and
 status lines, the flagship status envelope). This guard fails when any one drifts,
-so a release cannot ship a half-bumped tree. It is the WP1 version-sites drift test.
+so a release cannot ship a half-bumped tree.
 """
 import re
 import tomllib
