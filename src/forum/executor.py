@@ -1,8 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import ntpath
+import subprocess
 from dataclasses import dataclass
 from typing import Protocol
+
+from forum._vendor import safe_spawn
+
+# Agent CLIs get an isolation profile. A profile safe_spawn has proven (claude,
+# codex, from the Q0 PROBES.md) is applied; an unproven one (gemini, opencode) is
+# refused unless a launch grant names it. A plain model command (ollama, a python
+# adapter, a local server CLI) is not an agent CLI and takes no profile, but still
+# runs isolated: an absolute executable, a private empty folder, an environment
+# allowlist, and cmd.exe metacharacters refused for a .cmd or .bat target.
+_AGENT_CLIS = ("claude", "codex", "gemini", "opencode")
+
+
+def _agent_profile(target: str) -> str | None:
+    """The isolation profile name for a target that is a known agent CLI, else None."""
+    base = ntpath.splitext(ntpath.basename(str(target)))[0].lower()  # splits on / and \
+    return base if base in _AGENT_CLIS else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,33 +54,62 @@ class EchoExecutor:
 
 
 class SubprocessExecutor:
-    """Run an external command per task and capture its output.
+    """Run an external command per task and capture its output, isolated.
 
     The task instruction is appended to ``command`` as a final argument, so
     ``SubprocessExecutor(["python", "-c", "..."])`` or a model CLI such as
-    ``SubprocessExecutor(["claude", "-p"])`` both work. Process IO lives here, at
-    the edge; the core stays pure.
+    ``SubprocessExecutor(["claude", "-p"])`` both work. The child starts through
+    the vendored ``safe_spawn``: the executable is resolved to an absolute path
+    (a bare name is looked up on PATH only, never the working folder), the child
+    runs in a new private empty folder, its environment is an allowlist (the
+    platform base plus ``allow_env`` and the profile's variables, never the whole
+    environment), a ``.cmd`` or ``.bat`` target refuses an instruction holding
+    cmd.exe metacharacters, and a Python target gets ``-P``. A known agent CLI
+    (claude, codex, gemini, opencode) gets its isolation ``profile``; an unproven
+    profile is refused unless ``grants`` names it. Process IO lives here, at the
+    edge; the core stays pure.
     """
 
-    def __init__(self, command: list[str], *, timeout: float = 60.0) -> None:
+    def __init__(
+        self,
+        command: list[str],
+        *,
+        timeout: float = 60.0,
+        profile: str | None = None,
+        override_var: str | None = None,
+        allow_env: tuple[str, ...] = (),
+        grants: tuple[str, ...] = (),
+    ) -> None:
         self._command = list(command)
         self._timeout = timeout
+        # An explicit profile wins; otherwise detect a known agent CLI by name.
+        self._profile = profile if profile is not None else _agent_profile(self._command[0])
+        self._override_var = override_var
+        self._allow_env = tuple(allow_env)
+        self._grants = tuple(grants)
 
     async def run(self, assignment: Assignment) -> Result:
-        proc = await asyncio.create_subprocess_exec(
-            *self._command,
-            assignment.instruction,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        args = [*self._command[1:], assignment.instruction]
         try:
-            out, err = await asyncio.wait_for(proc.communicate(), self._timeout)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            proc = await asyncio.to_thread(
+                safe_spawn.run,
+                self._command[0],
+                args,
+                profile=self._profile,
+                override_var=self._override_var,
+                timeout=self._timeout,
+                allow_env=self._allow_env,
+                grants=self._grants,
+            )
+        except safe_spawn.SpawnRefused as exc:
+            # A refusal is a witnessed failure, not a crash: the child never
+            # started. exc.code is a stable slug; the message names no resolved
+            # path, argument or value.
+            return Result(assignment.task_id, assignment.agent, f"error: {exc.code}: {exc}", ok=False)
+        except subprocess.TimeoutExpired:
             return Result(assignment.task_id, assignment.agent, "error: timeout", ok=False)
         ok = proc.returncode == 0
-        text = (out if ok else (err or out)).decode("utf-8", "replace").strip()
+        text = (proc.stdout if ok else (proc.stderr or proc.stdout) or "").strip()
         return Result(assignment.task_id, assignment.agent, text, ok=ok)
 
 

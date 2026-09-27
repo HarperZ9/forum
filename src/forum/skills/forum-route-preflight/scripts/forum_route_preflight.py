@@ -162,7 +162,10 @@ def _run_json(
     source_src: str | None,
     privacy: ReceiptPrivacy,
 ) -> dict[str, Any]:
-    command = [sys.executable, "-m", "forum", *args]
+    # -P (PYTHONSAFEPATH) keeps the working folder off sys.path, so a forum.py or
+    # forum/ planted beside the helper cannot shadow the real package. A source
+    # checkout is still reached through PYTHONPATH (set in _env), which -P honors.
+    command = [sys.executable, "-P", "-m", "forum", *args]
     try:
         proc = subprocess.run(
             command,
