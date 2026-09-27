@@ -13,37 +13,11 @@ from forum.flagship import cmd_demo, cmd_doctor, cmd_status
 DEFAULT_LEDGER = "forum-ledger"
 
 
-def _child_env_allow() -> tuple[str, ...]:
-    """Variable names FORUM_CHILD_ENV adds to every command child's allowlist.
-
-    Launch-only: read once from the environment, never from a tool argument, so a
-    model that controls arguments cannot widen the child's environment.
-    """
-    import os
-
-    raw = os.environ.get("FORUM_CHILD_ENV", "")
-    return tuple(name.strip() for name in raw.replace(",", " ").split() if name.strip())
-
-
-def _exec_cli_grants() -> tuple[str, ...]:
-    """Agent CLIs whose isolation profile is unproven that the launch enables.
-
-    Launch-only (FORUM_ALLOW_EXEC_CLI); lowercased to match safe_spawn profile names.
-    """
-    import os
-
-    raw = os.environ.get("FORUM_ALLOW_EXEC_CLI", "")
-    return tuple(name.strip().lower() for name in raw.replace(",", " ").split() if name.strip())
-
-
 def _command_executor(cmd: str):
-    from forum.executor import SubprocessExecutor
+    """A command executor with the launch grants (FORUM_CHILD_ENV, FORUM_ALLOW_EXEC_CLI)."""
+    from forum.executor import command_executor
 
-    return SubprocessExecutor(
-        split_command(cmd),
-        allow_env=_child_env_allow(),
-        grants=_exec_cli_grants(),
-    )
+    return command_executor(split_command(cmd))
 
 
 def _chat_executor(model: str, base_url: str, api_key_env: str | None = None):

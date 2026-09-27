@@ -7,7 +7,7 @@ from typing import Any
 
 from forum.chat_executor import ChatExecutor
 from forum.command_split import split_command
-from forum.executor import Executor, SubprocessExecutor
+from forum.executor import Executor, command_executor
 from forum.roster import VALID_TIERS
 
 
@@ -82,7 +82,8 @@ def _executor_from_spec(
         command = split_command(cmd)
         if not command:
             raise ValueError(f"{label}.cmd must include a command")
-        return SubprocessExecutor(command)
+        # the same launch grants as --cmd: FORUM_CHILD_ENV and FORUM_ALLOW_EXEC_CLI
+        return command_executor(command)
     return None
 
 
