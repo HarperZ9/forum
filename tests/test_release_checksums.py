@@ -6,9 +6,8 @@ The checksums workflow checks the same property across runners.
 """
 import hashlib
 import importlib
-from pathlib import Path
 import re
-import sys
+from pathlib import Path
 
 import pytest
 
