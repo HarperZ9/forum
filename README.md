@@ -18,7 +18,7 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 
 ## Current status
 
-`forum-engine 1.16.0` is published on [PyPI](https://pypi.org/project/forum-engine/1.16.0/)
+`forum-engine 1.16.0` is the current source version, published on [PyPI](https://pypi.org/project/forum-engine/1.16.0/)
 and [GitHub Releases](https://github.com/HarperZ9/forum/releases/tag/v1.16.0). Routing, bounded
 multi-agent runs, context budgets and preflight, replayable ledgers, durable
 approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
