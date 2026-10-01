@@ -384,12 +384,14 @@ def _hints(title: str, *, read_only: bool = True, destructive: bool = False,
 
 # MCP tool annotations. A hint describes the tool to the client and grants
 # nothing; the gate-decision launch grant still decides which tools exist.
-# submit runs the configured executor, which may call a model endpoint.
+# submit runs the configured executor, which may call a model endpoint. plan
+# also asks that executor for the task list, so it reaches the same endpoint
+# and its answer can differ between calls; it changes no local state.
 _RUNS = _hints("Plan and run a request", read_only=False, idempotent=False, open_world=True)
 TOOL_ANNOTATIONS = {
     "submit": _RUNS,
     "route": _hints("Route a request"),
-    "plan": _hints("Plan a request without running it"),
+    "plan": _hints("Plan a request without running it", idempotent=False, open_world=True),
     "status": _hints("Ledger status"),
     "verify": _hints("Verify the ledger chain"),
     "ledger_get": _hints("Read one ledger entry"),

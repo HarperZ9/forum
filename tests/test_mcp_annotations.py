@@ -37,4 +37,8 @@ def test_hints_match_tool_effects(tmp_path):
         assert by_name[name]["readOnlyHint"] is True, name
     assert by_name["forum.submit"]["readOnlyHint"] is False
     assert by_name["forum.submit"]["openWorldHint"] is True
+    # plan asks the configured executor (a model endpoint) for the task list.
+    assert by_name["plan"]["readOnlyHint"] is True
+    assert by_name["plan"]["openWorldHint"] is True
+    assert by_name["plan"]["idempotentHint"] is False
     assert by_name["gate_reject"]["destructiveHint"] is True
