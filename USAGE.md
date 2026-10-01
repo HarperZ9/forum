@@ -133,10 +133,42 @@ so the benchmark also shows the content-addressed trade-off: the chain can still
 verify when only fingerprints remain, while deep payload rehashing scales with the
 payload bodies that are still present.
 
+## Clarify
+
+```bash
+forum clarify "As an AI language model, it is important to note that we utilize the cache."
+forum clarify "Prior to release 2.1, utilize the report." --engine articulate
+```
+
+`clarify` rewrites stiff model or agent prose without adding facts. It is a
+deterministic transform: no model call and no network connection.
+
+- With Articulate installed (`pip install articulate-writing`, or its `articulate`
+  command on PATH), Forum's fixed rules propose the rewrite, Articulate's
+  deterministic fix runs on it, and Articulate's meaning guard compares the result with
+  the original. A paragraph whose numbers, code, links or other protected spans
+  changed keeps its original wording. The result carries `"engine": "articulate"`
+  and an `articulate` block with the route (`python` or `cli`), gate before and
+  after, refusals, remaining rule ids and Articulate's editor receipt.
+- Without Articulate, only the fixed rules run and the result carries
+  `"engine": "forum-builtin"`. In `auto` mode the reason Articulate was skipped is
+  in `articulate_unavailable`.
+- `--engine auto|articulate|forum-builtin` (or `FORUM_CLARIFY_ENGINE`) picks the
+  engine. `articulate` fails with exit code 2 when Articulate is unavailable instead
+  of falling back. `FORUM_ARTICULATE_CLI` may hold the full path of the
+  `articulate` command; Forum starts it through its spawn helper in a private
+  folder with a stripped environment and `ARTICULATE_LOCAL_ONLY=1`.
+
+The same call is `POST /clarify` over HTTP and `forum.prose.clarify` over MCP. The
+old names (`forum humanize`, `POST /humanize`, `forum.prose.humanize`) still work
+for one release. They return the same result with the old schema id
+`forum.prose-humanization/v1` and a `deprecation` notice, and they are removed in
+the release after the one that adds clarify.
+
 ## Expert Delivery Profiles
 
 ```bash
-forum humanize "Prior to launch, utilize the module test output." --profile engineer
+forum clarify "Prior to launch, utilize the module test output." --profile engineer
 forum submit "ship the api" --cmd "ollama run llama3" --delivery-profile engineer --json
 ```
 

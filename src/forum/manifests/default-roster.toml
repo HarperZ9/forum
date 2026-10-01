@@ -193,8 +193,8 @@ executor = "cli"
 [[agent]]
 name = "prose-humanization"
 category = "support"
-domain = "Humanizing model and agent prose while preserving the underlying facts"
-keywords = ["humanize", "prose", "tone", "clarity", "copy"]
+domain = "Clarifying model and agent prose while preserving the underlying facts"
+keywords = ["clarify", "humanize", "prose", "tone", "clarity", "copy"]
 model_tier = "cheap"
 executor = "cli"
 

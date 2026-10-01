@@ -11,7 +11,7 @@ or model-agnostic host integration.
 - Keep CLI, HTTP, MCP, and Python package surfaces aligned.
 - Preserve ledger joins between request, route, execution, validation, and
   final answer.
-- Keep humanization features evidence-preserving: improve readability without
+- Keep the clarify feature evidence-preserving: improve readability without
   dropping claims, caveats, or receipts.
 - Keep README, `USAGE.md`, `CHANGELOG.md`, and examples current when workflows
   change.

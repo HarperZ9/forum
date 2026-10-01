@@ -95,7 +95,7 @@ forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
 forum mcp --cmd "ollama run llama3"
 ```
 
-`forum --help` lists the full surface: `status`, `doctor`, `demo`, `humanize`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `import-trace`, `grade`, `export-gradable`, `mine`, `bench`, and `bench-deep-verify`. The last four are the flight-recorder and gradable-export commands: `import-trace` ingests an external run, `grade` and `export-gradable` score and export a gradable record, and `mine` extracts examples from the ledger. They are CLI-only; the MCP server does not expose them. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
+`forum --help` lists the full surface: `status`, `doctor`, `demo`, `clarify`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `import-trace`, `grade`, `export-gradable`, `mine`, `bench`, and `bench-deep-verify`. The last four are the flight-recorder and gradable-export commands: `import-trace` ingests an external run, `grade` and `export-gradable` score and export a gradable record, and `mine` extracts examples from the ledger. They are CLI-only; the MCP server does not expose them. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
 
 ### Codex route-preflight skill asset
 
@@ -182,7 +182,7 @@ forum bench-deep-verify --entries 1000,10000 --payload-bytes 256,4096 --storage 
 
 ## HTTP and MCP surfaces
 
-The daemon exposes route, plan, submit, humanize, prose contracts, gates, run rooms, capsules, runtime inspection, context preflight, and ledger verify/replay over HTTP (`/route`, `/plan`, `/submit`, `/gates`, `/gate/approve`, `/room`, `/capsule`, `/runtime`, `/context/preflight`, `/prose/contract`, `/verify`, and more). MCP mirrors the same tools: `forum.submit`, `forum.route`, `forum.plan`, `forum.status`, `forum.doctor`, `forum.verify`, `forum.prose.humanize`, `forum.prose.contract`, `forum.ledger.summary`, `forum.ledger.capsule`, `forum.ledger.get`, `forum.run.room`, `forum.runtime.inspect`, `forum.context.preflight`, and `forum.gate.list` / `approve` / `edit` / `reject`.
+The daemon exposes route, plan, submit, clarify, prose contracts, gates, run rooms, capsules, runtime inspection, context preflight, and ledger verify/replay over HTTP (`/route`, `/plan`, `/submit`, `/gates`, `/gate/approve`, `/room`, `/capsule`, `/runtime`, `/context/preflight`, `/clarify`, `/prose/contract`, `/verify`, and more). MCP mirrors the same tools: `forum.submit`, `forum.route`, `forum.plan`, `forum.status`, `forum.doctor`, `forum.verify`, `forum.prose.clarify`, `forum.prose.contract`, `forum.ledger.summary`, `forum.ledger.capsule`, `forum.ledger.get`, `forum.run.room`, `forum.runtime.inspect`, `forum.context.preflight`, and `forum.gate.list` / `approve` / `edit` / `reject`.
 
 ## Status
 

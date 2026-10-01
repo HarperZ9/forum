@@ -42,6 +42,7 @@ _KNOWN_PATHS = {
     "/route",
     "/plan",
     "/submit",
+    "/clarify",
     "/humanize",
     "/prose/contract",
     "/gates",
@@ -245,6 +246,8 @@ class HttpSurface(HttpReadMixin, HttpActionMixin):
             return await self._submit(body)
         if method == "POST" and path == "/context/preflight":
             return self._context_preflight(body)
+        if method == "POST" and path == "/clarify":
+            return self._clarify(body)
         if method == "POST" and path == "/humanize":
             return self._humanize(body)
         if method == "POST" and path == "/prose/contract":

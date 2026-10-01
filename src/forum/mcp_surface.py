@@ -58,13 +58,14 @@ def _context_preflight_body(arguments: dict) -> bytes:
     return _body(body)
 
 
-def _humanize_body(arguments: dict) -> bytes:
+def _clarify_body(arguments: dict) -> bytes:
     body = {
         "text": arguments.get("text", ""),
         "audience": arguments.get("audience", "operator"),
     }
-    if "profile" in arguments:
-        body["profile"] = arguments["profile"]
+    for key in ("profile", "engine"):
+        if key in arguments:
+            body[key] = arguments[key]
     return _body(body)
 
 
@@ -93,7 +94,8 @@ _TOOL_ROUTES = {
     "submit": lambda a: ("POST", "/submit", _submit_body(a)),
     "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
     "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
-    "humanize": lambda a: ("POST", "/humanize", _humanize_body(a)),
+    "clarify": lambda a: ("POST", "/clarify", _clarify_body(a)),
+    "humanize": lambda a: ("POST", "/humanize", _clarify_body(a)),  # deprecated alias
     "prose_contract": lambda a: ("POST", "/prose/contract", _prose_contract_body(a)),
     "status": lambda a: ("GET", "/status", b""),
     "verify": lambda a: ("GET", "/verify", b""),
@@ -112,7 +114,8 @@ _TOOL_ALIASES = {
     "forum.submit": "submit",
     "forum.route": "route",
     "forum.plan": "plan",
-    "forum.prose.humanize": "humanize",
+    "forum.prose.clarify": "clarify",
+    "forum.prose.humanize": "humanize",  # deprecated alias of forum.prose.clarify
     "forum.prose.contract": "prose_contract",
     "forum.status": "flagship_status",
     "forum.doctor": "flagship_doctor",
@@ -190,6 +193,25 @@ _CONTEXT_PREFLIGHT_PROPERTIES = {
     **_CONTEXT_BUDGET_PROPERTIES,
 }
 
+_CLARIFY_INPUT = {
+    "type": "object",
+    "properties": {
+        "text": {"type": "string", "description": "agent or model prose to clarify"},
+        "audience": {"type": "string", "description": "target reader label; defaults to operator"},
+        "profile": {
+            "type": "string",
+            "description": "delivery profile: operator, engineer, researcher, executive",
+        },
+        "engine": {
+            "type": "string",
+            "enum": ["auto", "articulate", "forum-builtin"],
+            "description": "auto (default) uses Articulate when installed, else the built-in rules",
+        },
+    },
+    "required": ["text"],
+}
+
+
 _TOOL_SPECS = [
     {
         "name": "submit",
@@ -257,20 +279,21 @@ _TOOL_SPECS = [
     },
 
     {
+        "name": "forum.prose.clarify",
+        "description": (
+            "Turn stiff model or agent prose into clearer operator-facing wording without adding "
+            "facts. Hands off to Articulate's deterministic fix and meaning guard when Articulate "
+            "is installed; no model or network call either way."
+        ),
+        "inputSchema": _CLARIFY_INPUT,
+    },
+    {
         "name": "forum.prose.humanize",
-        "description": "Turn stiff model or agent prose into clearer operator-facing wording without adding facts.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "text": {"type": "string", "description": "agent or model prose to clarify"},
-                "audience": {"type": "string", "description": "target reader label; defaults to operator"},
-                "profile": {
-                    "type": "string",
-                    "description": "delivery profile: operator, engineer, researcher, executive",
-                },
-            },
-            "required": ["text"],
-        },
+        "description": (
+            "Deprecated alias of forum.prose.clarify, removed in the release after the one that "
+            "adds clarify. Returns the same result with a deprecation notice."
+        ),
+        "inputSchema": _CLARIFY_INPUT,
     },
     {
         "name": "forum.prose.contract",
@@ -397,7 +420,8 @@ TOOL_ANNOTATIONS = {
     "ledger_get": _hints("Read one ledger entry"),
     "forum.submit": _RUNS,
     "forum.route": _hints("Route a request"),
-    "forum.prose.humanize": _hints("Rewrite prose in plain language"),
+    "forum.prose.clarify": _hints("Clarify prose without adding facts"),
+    "forum.prose.humanize": _hints("Clarify prose (deprecated alias)"),
     "forum.prose.contract": _hints("Communication contract for a route"),
     "forum.status": _hints("Forum status"),
     "forum.doctor": _hints("Forum readiness check"),

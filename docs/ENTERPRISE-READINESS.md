@@ -9,7 +9,7 @@ This guide aligns the flagship with Project Telos context envelopes and action r
 - Route requests into capability lanes without model calls when deterministic routing is enough.
 - Route bounded self-improving daemon, model-foundry, eval-promotion, and large-context brain work into an explicit `model-foundry` lane instead of generic strategy escalation.
 - Record requests, plans, tasks, results, context injections, verifications, delivery checks, and budget stops in a replayable ledger.
-- Humanize agent prose without adding facts, preserving the difference between readability and evidence.
+- Clarify agent prose without adding facts, preserving the difference between readability and evidence. When Articulate is installed, its meaning guard and editor receipt check the rewrite.
 
 ## Host Commands
 
@@ -24,7 +24,7 @@ This guide aligns the flagship with Project Telos context envelopes and action r
 
 - Context envelopes should join to the route, plan, task, and context-injection ledger entries that shaped the run.
 - Large workspaces should enter Forum as bounded task-specific context from Index, not as whole-repo prompt dumps.
-- Humanized prose is an output transform; it must not become new evidence unless Gather or Crucible witnesses it separately.
+- Clarified prose is an output transform; it must not become new evidence unless Gather or Crucible witnesses it separately.
 
 ## Action Receipt Contribution
 
