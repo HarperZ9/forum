@@ -124,6 +124,17 @@ def add_node(data, runtime, config, value):
         'members': NODE_HASHES})
 
 
+def write_sums(target, paths):
+    """Write sha256sum lines for paths to target with LF endings on every OS.
+
+    Path.write_text turns each newline into CRLF on Windows. GNU sha256sum 8.32
+    and Perl shasum then read the file name with a trailing carriage return and
+    fail to open it, so the bytes are written directly.
+    """
+    lines = ''.join(f'{hashlib.sha256(Path(p).read_bytes()).hexdigest()}  {Path(p).name}\n' for p in paths)
+    Path(target).write_bytes(lines.encode('utf-8'))
+
+
 def build(root, out, *, mode='dev', tag=None, runtime=None):
     root, out = Path(root).resolve(), Path(out).resolve()
     if out == root or out.is_relative_to(root):
@@ -151,7 +162,7 @@ def build(root, out, *, mode='dev', tag=None, runtime=None):
                 info.create_system = 3
                 info.external_attr = 0o100644 << 16
                 archive.writestr(info, content)
-    sums.write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in targets), encoding='utf8')
+    write_sums(sums, targets)
     return targets
 
 

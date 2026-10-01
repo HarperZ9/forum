@@ -133,7 +133,10 @@ jobs:
           name: native-client
           path: client-plugins/
       - name: Verify client package checksums
-        run: (cd client-plugins && sha256sum -c *.sha256)
+        run: |
+          # A CR byte passes coreutils 9 but fails sha256sum 8.32 and shasum.
+          if grep -l $'\r' client-plugins/*.sha256; then echo 'checksum file has CR bytes'; exit 1; fi
+          (cd client-plugins && sha256sum -c *.sha256)
       - name: Verify the files match the checksums
         run: (cd dist && sha256sum -c ../release/SHA256SUMS.txt)
       - name: Check PyPI serves exactly the files SHA256SUMS.txt names

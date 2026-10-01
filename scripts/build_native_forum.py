@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import zipfile
-from build_client_plugin import ROOT, git, js, payload, qualify, read, version
+from build_client_plugin import ROOT, git, js, payload, qualify, read, version, write_sums
 from check_native_forum import check
 
 
@@ -59,7 +59,7 @@ def build(out, mode, tag):
             for name,content in sorted(data.items()):
                 info=zipfile.ZipInfo(name,date_time=(1980,1,1,0,0,0));info.create_system=3;info.external_attr=0o100644<<16
                 archive.writestr(info,content)
-    (out/(prefix+'.sha256')).write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in targets))
+    write_sums(out/(prefix+'.sha256'),targets)
     return targets
 
 
