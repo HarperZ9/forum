@@ -169,14 +169,21 @@ def _make_context_budget(args):
 
 
 
-def _cmd_humanize(args) -> int:
-    from forum.humanize import humanize_text
+def _cmd_clarify(args) -> int:
+    from forum.clarify import clarify_text
 
     try:
-        print(json.dumps(humanize_text(args.text, audience=args.audience, profile=args.profile)))
+        payload = clarify_text(args.text, audience=args.audience, profile=args.profile,
+                               engine=args.engine)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    if args.command == "humanize":
+        from forum.humanize import DEPRECATION, deprecated
+
+        payload = deprecated(payload)
+        print(f"forum humanize is deprecated: {DEPRECATION['message']}", file=sys.stderr)
+    print(json.dumps(payload))
     return 0
 
 def _cmd_import_trace(args) -> int:
@@ -817,15 +824,25 @@ def build_parser() -> argparse.ArgumentParser:
     demo.set_defaults(func=cmd_demo)
 
 
-    humanize = sub.add_parser("humanize", help="clarify model or agent prose without adding facts")
-    humanize.add_argument("text")
-    humanize.add_argument("--audience", default="operator")
-    humanize.add_argument(
-        "--profile",
-        default=None,
-        help="delivery profile to assess: operator, engineer, researcher, executive",
-    )
-    humanize.set_defaults(func=_cmd_humanize)
+    for name, prose_help in (
+        ("clarify", "clarify model or agent prose without adding facts"),
+        ("humanize", "deprecated alias of clarify; removed in the release after the one that adds clarify"),
+    ):
+        prose_cmd = sub.add_parser(name, help=prose_help)
+        prose_cmd.add_argument("text")
+        prose_cmd.add_argument("--audience", default="operator")
+        prose_cmd.add_argument(
+            "--profile",
+            default=None,
+            help="delivery profile to assess: operator, engineer, researcher, executive",
+        )
+        prose_cmd.add_argument(
+            "--engine",
+            default=None,
+            help="auto (default: Articulate when installed, else built-in rules), "
+                 "articulate, or forum-builtin; FORUM_CLARIFY_ENGINE sets the default",
+        )
+        prose_cmd.set_defaults(func=_cmd_clarify)
 
     route = sub.add_parser("route", help="route a request to a capability lane (no model needed)")
     route.add_argument("text")

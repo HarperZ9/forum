@@ -1,3 +1,4 @@
+"""The deprecated humanize alias keeps its old results for one release."""
 import json
 
 from forum.cli import main
@@ -14,6 +15,8 @@ def test_humanize_text_removes_model_preamble_and_simplifies_phrasing():
     assert "removed model preamble" in payload["edits"]
     assert "simplified phrasing" in payload["edits"]
     assert payload["not_verified"] == ["facts were not independently checked"]
+    assert payload["deprecation"]["replacement"] == "clarify"
+    assert payload["engine"] == "forum-builtin"
 
 
 def test_humanize_cli_outputs_json(capsys):

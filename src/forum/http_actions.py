@@ -171,7 +171,12 @@ class HttpActionMixin:
         })
 
     def _humanize(self, body: bytes) -> Response:
-        from forum.humanize import humanize_text
+        """Deprecated alias of /clarify, removed in the release after the one that adds it."""
+        return self._clarify(body, alias=True)
+
+    def _clarify(self, body: bytes, alias: bool = False) -> Response:
+        from forum.clarify import clarify_text
+        from forum.humanize import deprecated
 
         data, err = self._read_json(body)
         if err:
@@ -185,8 +190,12 @@ class HttpActionMixin:
         profile = data.get("profile")
         if profile is not None and (not isinstance(profile, str) or not profile):
             return error(400, "field 'profile' must be a non-empty string when provided")
+        engine = data.get("engine")
+        if engine is not None and (not isinstance(engine, str) or not engine):
+            return error(400, "field 'engine' must be a non-empty string when provided")
         try:
-            return json_response(humanize_text(text, audience=audience, profile=profile))
+            payload = clarify_text(text, audience=audience, profile=profile, engine=engine)
+            return json_response(deprecated(payload) if alias else payload)
         except ValueError as exc:
             return error(400, str(exc))
 

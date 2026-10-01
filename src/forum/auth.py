@@ -218,7 +218,8 @@ _ENDPOINT_SCOPES: dict[tuple[str, str], str] = {
     ("POST", "/plan"): SCOPE_PLAN,
     ("POST", "/submit"): SCOPE_SUBMIT,
     ("POST", "/context/preflight"): SCOPE_READ,
-    ("POST", "/humanize"): SCOPE_READ,
+    ("POST", "/clarify"): SCOPE_READ,
+    ("POST", "/humanize"): SCOPE_READ,  # deprecated alias of /clarify
     ("POST", "/prose/contract"): SCOPE_READ,
 }
 

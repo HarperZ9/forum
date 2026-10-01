@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `clarify` replaces `humanize`: `forum clarify`, `POST /clarify`, MCP
+  `forum.prose.clarify`, module `forum.clarify` with `clarify_text`, schema
+  `forum.prose-clarification/v1`. The MCP tool keeps the read-only, idempotent,
+  closed-world annotations.
+- Articulate handoff. When the `articulate` package (PyPI `articulate-writing`)
+  imports, or its `articulate` command resolves through the spawn helper, Forum's
+  fixed rules propose the rewrite, Articulate's deterministic fix runs on it, and
+  Articulate's meaning guard checks it against the original and issues its editor
+  receipt. The result says `"engine": "articulate"`; without Articulate it says
+  `"engine": "forum-builtin"`. Neither path calls a model or the network.
+  `--engine`, the HTTP/MCP `engine` field and `FORUM_CLARIFY_ENGINE` choose the
+  engine; `FORUM_ARTICULATE_CLI` may name the command's full path.
+
+### Deprecated
+
+- `forum humanize`, `POST /humanize`, MCP `forum.prose.humanize` and
+  `forum.humanize.humanize_text` are aliases of clarify for one release. They return
+  the same result with the old schema id `forum.prose-humanization/v1` and a
+  `deprecation` notice. Removal is due in the release after the one that ships
+  clarify.
+
 ## 1.16.0 (2026-09-30)
 
 - Add Windows x64 MCPB and ZIP packages with a bundled runtime, scoped skills and qualified local stdio workflows.
