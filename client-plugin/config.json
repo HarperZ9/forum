@@ -1,6 +1,6 @@
 {
   "name": "forum-routing",
-  "description": "Preview routes, context and execution readiness locally.",
+  "description": "Preview how a request would be routed and whether it is ready to run, before it runs.",
   "version_file": "pyproject.toml",
   "roots": [
     "src/forum"

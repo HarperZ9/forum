@@ -90,6 +90,7 @@ def payload(root, config, value):
     data['mcp.json'] = js(mcp)
     data['.mcp.json'] = js(json.loads(js(mcp).decode().replace('${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}')))
     data['README.md'] = read(root, 'client-plugin/README.md')
+    data['PRIVACY.md'] = read(root, 'client-plugin/PRIVACY.md')
     return data
 
 

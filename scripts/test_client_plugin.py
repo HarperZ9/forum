@@ -29,6 +29,7 @@ class ClientPackage(unittest.TestCase):
                 for name, digest in receipt['payload_sha256'].items():
                     self.assertEqual(builder.hashlib.sha256(z.read(name)).hexdigest(), digest)
                 self.assertIn('skills/', '\n'.join(z.namelist()))
+                self.assertIn('PRIVACY.md', z.namelist())
                 self.assertNotIn('C:/dev', z.read('mcp.json').decode())
                 self.assertNotIn('.env', z.namelist())
 

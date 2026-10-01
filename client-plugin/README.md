@@ -1,5 +1,15 @@
 # Forum local client package
 
+Forum previews how a request would be routed, what context it needs and whether it is ready to run, before anything runs.
+
+## Try it
+
+- Which Forum lane would handle: summarize last week's incident reports?
+- Estimate the context pressure of this request before I run it.
+- Show the communication contract for a request to draft release notes.
+
+## Details
+
 The source ZIP includes the tool source and one scoped skill. It requires an
 installed Python 3.11+; this advanced source package is not self-contained.
 Extract it to a persistent folder. Claude Code can load that plugin folder;
