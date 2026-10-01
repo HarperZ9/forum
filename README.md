@@ -18,7 +18,8 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 
 ## Current status
 
-`forum-engine 1.16.0` is the current source version, prepared as an unpublished release candidate. Routing, bounded
+`forum-engine 1.16.0` is the current source version, published on [PyPI](https://pypi.org/project/forum-engine/1.16.0/)
+and [GitHub Releases](https://github.com/HarperZ9/forum/releases/tag/v1.16.0). Routing, bounded
 multi-agent runs, context budgets and preflight, replayable ledgers, durable
 approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
 surfaces are present; a run result remains distinct from an external effect or
@@ -185,7 +186,10 @@ The daemon exposes route, plan, submit, humanize, prose contracts, gates, run ro
 
 ## Status
 
-The latest release is `forum-engine 1.15.1` (the vendored spawn helper closes a working-folder alias the name check missed, a PATH link repointed between the check and the start, and a quoted PATH entry a child reads as the working folder, over the 1.15.0 gate integrity, executor isolation, daemon Origin/Host/content-type checks and a default auth token, and the 1.14 observability, auth, route-preflight skill packaging, context budgets and preflight, context capsules, expert delivery profiles, route frames and communication contracts, run rooms and readable briefs, runtime inspection, approvals with durable deadlines, proof and domain routes, and campaign orchestration), recorded in [CHANGELOG.md](CHANGELOG.md). CI runs the full test suite and ruff on every push.
+The latest release is `forum-engine 1.16.0`. It adds self-contained Windows client
+packages and a default preflight-only MCP surface, while retaining the earlier
+spawn-helper and gate-integrity fixes. See [CHANGELOG.md](CHANGELOG.md) for the
+release history. CI runs the full test suite and ruff on every push.
 
 ## Docs
 
@@ -230,12 +234,13 @@ The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywh
 
 **[Zentropy Labs](https://github.com/ZentropyLabs-ai)** Ã‚Â· order out of entropy. An independent lab building evidence-first tools that leave a re-checkable artifact behind. Built by Zain Dana Harper in Seattle. The full workbench is at [Project Telos](https://harperz9.github.io).
 
-The current release candidate is `forum-engine 1.16.0`.
+The current published release is `forum-engine 1.16.0`.
 
 ## Local client packages
 
-The 1.16.0 source candidate includes native Windows client packages. Publication
-and marketplace acceptance remain separate release gates.
+The [1.16.0 release](https://github.com/HarperZ9/forum/releases/tag/v1.16.0)
+includes native Windows ZIP and MCPB client packages. Marketplace acceptance is
+not established by publication of these archives.
 
 ### Installation
 
