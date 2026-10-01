@@ -412,8 +412,9 @@ TOOL_ANNOTATIONS = {
                           idempotent=False),
 }
 for _spec in _TOOL_SPECS:
-    _spec["title"] = TOOL_ANNOTATIONS[_spec["name"]]["title"]
-    _spec["annotations"] = dict(TOOL_ANNOTATIONS[_spec["name"]])
+    _notes = TOOL_ANNOTATIONS[str(_spec["name"])]
+    _spec["title"] = _notes["title"]
+    _spec["annotations"] = dict(_notes)
 
 
 class McpSurface:
