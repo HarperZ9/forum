@@ -232,7 +232,7 @@ The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywh
 
 ---
 
-**[Zentropy Labs](https://github.com/ZentropyLabs-ai)** Ã‚Â· order out of entropy. An independent lab building evidence-first tools that leave a re-checkable artifact behind. Built by Zain Dana Harper in Seattle. The full workbench is at [Project Telos](https://harperz9.github.io).
+Built by **[Zain Dana Harper](https://harperz9.github.io)** in Seattle: evidence-first tools that leave a re-checkable artifact behind. The full workbench is at [Project Telos](https://harperz9.github.io).
 
 The current published release is `forum-engine 1.16.0`.
 
