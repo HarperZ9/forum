@@ -171,3 +171,10 @@ python -m public_surface_sweeper . --workspace --json
 Forum should expose route ids, ledger sequence, payload hashes, model identity,
 validation verdicts, and receipt references. Do not require raw private prompts,
 credentials, full tool payloads, or private evidence for interop.
+
+## Local client packages
+
+See [the client package guide](client-plugin/README.md) for scoped skills, portable MCP configuration and same-release archives.
+
+The current source candidate targets 1.16.0. Registry install examples above
+continue to name the published baseline until release qualification finishes.

@@ -47,8 +47,9 @@ def test_the_workflow_grants_nothing_by_default():
 
 def test_each_job_holds_only_the_permission_it_needs():
     jobs = _jobs(_text())
-    assert set(jobs) == {"build", "publish", "github-release"}
+    assert set(jobs) == {"build", "publish", "github-release", "native-client"}
     assert _permissions(jobs["build"]) == {"contents": "read"}
+    assert _permissions(jobs["native-client"]) == {"contents": "read"}
     assert _permissions(jobs["publish"]) == {"id-token": "write"}
     assert _permissions(jobs["github-release"]) == {"contents": "write"}
 

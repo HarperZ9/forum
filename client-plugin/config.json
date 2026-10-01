@@ -1,0 +1,16 @@
+{
+  "name": "forum-routing",
+  "description": "Preview routes, context and execution readiness locally.",
+  "version_file": "pyproject.toml",
+  "roots": [
+    "src/forum"
+  ],
+  "files": [
+    "LICENSE"
+  ],
+  "entry": "server/serve.py",
+  "runtime": "python3",
+  "skill_source": "src/forum/skills/forum-route-preflight",
+  "skill": "forum-route-preflight",
+  "tool": "forum"
+}
