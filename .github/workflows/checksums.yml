@@ -1,0 +1,77 @@
+name: checksums
+
+# Release checksum files must pass a plain `sha256sum -c` on Linux, whichever
+# runner wrote them. Path.write_text on Windows writes CRLF. GNU coreutils 9.x
+# (ubuntu-latest) tolerates a trailing CR, but coreutils 8.32 and Perl shasum
+# read it as part of the file name and fail. A green `sha256sum -c` on
+# ubuntu-latest alone would therefore accept the defect, so the verify job
+# refuses any CR byte first, and a control proves that refusal fires.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  write:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: write SHA256SUMS with the release code
+        shell: bash
+        run: |
+          mkdir sums
+          printf 'alpha\n' > sums/alpha.zip
+          printf 'beta\r\n' > sums/beta.mcpb
+          python -c "import sys; sys.path.insert(0, 'scripts'); from build_client_plugin import write_sums; write_sums(sys.argv[1], sys.argv[2:])" sums/SHA256SUMS sums/alpha.zip sums/beta.mcpb
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sums-${{ matrix.os }}
+          path: sums/
+          if-no-files-found: error
+
+  verify:
+    needs: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: sums-*
+          path: sums
+      - name: every SHA256SUMS is LF only and passes sha256sum -c
+        shell: bash
+        run: |
+          set -euo pipefail
+          check() {
+            if grep -q $'\r' "$1/SHA256SUMS"; then
+              echo "$1/SHA256SUMS contains CR bytes"
+              return 1
+            fi
+            (cd "$1" && sha256sum --check --strict SHA256SUMS)
+          }
+          found=0
+          for dir in sums/sums-*; do
+            check "$dir"
+            found=$((found + 1))
+          done
+          test "$found" -eq 2
+          # Control: the same file with CRLF endings must be refused.
+          cp -r sums/sums-ubuntu-latest control
+          sed -i 's/$/\r/' control/SHA256SUMS
+          if check control; then
+            echo "control with CRLF endings was accepted"
+            exit 1
+          fi
+          echo "control refused as expected"
