@@ -375,6 +375,50 @@ _TOOL_SPECS = [
 ]
 
 
+
+def _hints(title: str, *, read_only: bool = True, destructive: bool = False,
+           idempotent: bool = True, open_world: bool = False) -> dict:
+    return {"title": title, "readOnlyHint": read_only, "destructiveHint": destructive,
+            "idempotentHint": idempotent, "openWorldHint": open_world}
+
+
+# MCP tool annotations. A hint describes the tool to the client and grants
+# nothing; the gate-decision launch grant still decides which tools exist.
+# submit runs the configured executor, which may call a model endpoint. plan
+# also asks that executor for the task list, so it reaches the same endpoint
+# and its answer can differ between calls; it changes no local state.
+_RUNS = _hints("Plan and run a request", read_only=False, idempotent=False, open_world=True)
+TOOL_ANNOTATIONS = {
+    "submit": _RUNS,
+    "route": _hints("Route a request"),
+    "plan": _hints("Plan a request without running it", idempotent=False, open_world=True),
+    "status": _hints("Ledger status"),
+    "verify": _hints("Verify the ledger chain"),
+    "ledger_get": _hints("Read one ledger entry"),
+    "forum.submit": _RUNS,
+    "forum.route": _hints("Route a request"),
+    "forum.prose.humanize": _hints("Rewrite prose in plain language"),
+    "forum.prose.contract": _hints("Communication contract for a route"),
+    "forum.status": _hints("Forum status"),
+    "forum.doctor": _hints("Forum readiness check"),
+    "forum.ledger.summary": _hints("Summarize the ledger"),
+    "forum.ledger.capsule": _hints("Compact the ledger into a capsule"),
+    "forum.run.room": _hints("Latest run snapshot"),
+    "forum.runtime.inspect": _hints("Inspect the executor policy"),
+    "forum.context.preflight": _hints("Estimate context pressure"),
+    "gate_list": _hints("List paused approval gates"),
+    "gate_approve": _hints("Approve a paused gate", read_only=False, idempotent=False),
+    "gate_edit": _hints("Edit and approve a paused gate", read_only=False, destructive=True,
+                        idempotent=False),
+    "gate_reject": _hints("Reject a paused gate", read_only=False, destructive=True,
+                          idempotent=False),
+}
+for _spec in _TOOL_SPECS:
+    _notes = TOOL_ANNOTATIONS[str(_spec["name"])]
+    _spec["title"] = _notes["title"]
+    _spec["annotations"] = dict(_notes)
+
+
 class McpSurface:
     """An MCP (JSON-RPC 2.0) adapter over the same HttpSurface logic.
 
