@@ -1,0 +1,504 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import sys
+from typing import Any
+
+from forum import __version__
+from forum.engine import Orchestrator
+from forum.http_surface import HttpSurface
+from forum.mcp_errors import GATE_WRITE_TOOLS, gate_decision_error, gate_grant_required
+
+MCP_PROTOCOL_VERSION = "2024-11-05"
+
+
+def _ok(mid: Any, result: dict) -> dict:
+    return {"jsonrpc": "2.0", "id": mid, "result": result}
+
+
+def _err(mid: Any, code: int, message: str) -> dict:
+    return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": message}}
+
+
+def _body(obj: dict) -> bytes:
+    return json.dumps(obj).encode("utf-8")
+
+
+def _submit_body(arguments: dict) -> bytes:
+    body = {"request": arguments.get("request", "")}
+    for key in (
+        "context_token_budget",
+        "request_context_token_budget",
+        "task_context_token_budget",
+        "upstream_token_budget",
+    ):
+        if key in arguments:
+            body[key] = arguments[key]
+    if "delivery_profile" in arguments:
+        body["delivery_profile"] = arguments["delivery_profile"]
+    if "checkpoint_each_wave" in arguments:
+        body["checkpoint_each_wave"] = arguments["checkpoint_each_wave"]
+    return _body(body)
+
+
+def _context_preflight_body(arguments: dict) -> bytes:
+    body = {"request": arguments.get("request", "")}
+    for key in (
+        "context_token_budget",
+        "request_context_token_budget",
+        "task_context_token_budget",
+        "upstream_token_budget",
+        "use_capsule_context",
+        "max_items",
+        "max_text_chars",
+    ):
+        if key in arguments:
+            body[key] = arguments[key]
+    return _body(body)
+
+
+def _humanize_body(arguments: dict) -> bytes:
+    body = {
+        "text": arguments.get("text", ""),
+        "audience": arguments.get("audience", "operator"),
+    }
+    if "profile" in arguments:
+        body["profile"] = arguments["profile"]
+    return _body(body)
+
+
+def _prose_contract_body(arguments: dict) -> bytes:
+    body = {"text": arguments.get("text", "")}
+    if "profile" in arguments:
+        body["profile"] = arguments["profile"]
+    return _body(body)
+
+
+def _gate_resolve_body(arguments: dict) -> bytes:
+    body: dict = {
+        "run_seq": arguments.get("run_seq"),
+        "wave": arguments.get("wave"),
+        "approver": arguments.get("approver", ""),
+    }
+    for key in ("note", "reason", "edits"):
+        if key in arguments:
+            body[key] = arguments[key]
+    return _body(body)
+
+
+# Tool name -> (arguments) -> (http_method, path, body). Each tool is served by
+# the shared HttpSurface, so the MCP and HTTP surfaces cannot drift.
+_TOOL_ROUTES = {
+    "submit": lambda a: ("POST", "/submit", _submit_body(a)),
+    "route": lambda a: ("POST", "/route", _body({"text": a.get("text", "")})),
+    "plan": lambda a: ("POST", "/plan", _body({"request": a.get("request", "")})),
+    "humanize": lambda a: ("POST", "/humanize", _humanize_body(a)),
+    "prose_contract": lambda a: ("POST", "/prose/contract", _prose_contract_body(a)),
+    "status": lambda a: ("GET", "/status", b""),
+    "verify": lambda a: ("GET", "/verify", b""),
+    "ledger_get": lambda a: ("GET", f"/ledger/{a.get('seq')}", b""),
+    "ledger_capsule": lambda a: ("GET", "/capsule", b""),
+    "run_room": lambda a: ("GET", "/room", b""),
+    "runtime_inspect": lambda a: ("GET", "/runtime", b""),
+    "context_preflight": lambda a: ("POST", "/context/preflight", _context_preflight_body(a)),
+    "gate_list": lambda a: ("GET", "/gates", b""),
+    "gate_approve": lambda a: ("POST", "/gate/approve", _gate_resolve_body(a)),
+    "gate_edit": lambda a: ("POST", "/gate/edit", _gate_resolve_body(a)),
+    "gate_reject": lambda a: ("POST", "/gate/reject", _gate_resolve_body(a)),
+}
+
+_TOOL_ALIASES = {
+    "forum.submit": "submit",
+    "forum.route": "route",
+    "forum.plan": "plan",
+    "forum.prose.humanize": "humanize",
+    "forum.prose.contract": "prose_contract",
+    "forum.status": "flagship_status",
+    "forum.doctor": "flagship_doctor",
+    "forum.verify": "verify",
+    "forum.ledger.get": "ledger_get",
+    "forum.ledger.summary": "ledger_summary",
+    "forum.ledger.capsule": "ledger_capsule",
+    "forum.run.room": "run_room",
+    "forum.runtime.inspect": "runtime_inspect",
+    "forum.context.preflight": "context_preflight",
+    "forum.gate.list": "gate_list",
+    "forum.gate.approve": "gate_approve",
+    "forum.gate.edit": "gate_edit",
+    "forum.gate.reject": "gate_reject",
+}
+
+_GATE_WRITE_NOTE = (
+    " Writes a witnessed decision to the ledger. Refused with NOT_FOUND when no gate"
+    " is pending for run_seq and wave. Listed only when the server was launched with"
+    " --allow-gate-decisions."
+)
+
+_GATE_DECISION_PROPERTIES = {
+    "run_seq": {"type": "integer", "description": "the plan (run) seq the gate belongs to"},
+    "wave": {"type": "integer", "description": "the gated wave index"},
+    "approver": {"type": "string", "description": "who resolved the gate (witnessed)"},
+}
+
+_CONTEXT_BUDGET_PROPERTIES = {
+    "context_token_budget": {
+        "type": "integer",
+        "description": "run-wide approximate context token budget",
+    },
+    "request_context_token_budget": {
+        "type": "integer",
+        "description": "request-level context token budget",
+    },
+    "task_context_token_budget": {
+        "type": "integer",
+        "description": "per-task context token budget",
+    },
+    "upstream_token_budget": {
+        "type": "integer",
+        "description": "per-upstream injection token budget",
+    },
+}
+
+_SUBMIT_PROPERTIES = {
+    "request": {"type": "string", "description": "the request to fulfil"},
+    "delivery_profile": {
+        "type": "string",
+        "description": "delivery profile: operator, engineer, researcher, executive",
+    },
+    "checkpoint_each_wave": {
+        "type": "boolean",
+        "description": "witness a checkpoint after each execution wave",
+    },
+    **_CONTEXT_BUDGET_PROPERTIES,
+}
+
+_CONTEXT_PREFLIGHT_PROPERTIES = {
+    "request": {"type": "string", "description": "the request to estimate"},
+    "use_capsule_context": {
+        "type": "boolean",
+        "description": "include the current ledger capsule in the preflight calculation",
+    },
+    "max_items": {
+        "type": "integer",
+        "description": "maximum capsule task/result items to inspect",
+    },
+    "max_text_chars": {
+        "type": "integer",
+        "description": "maximum text characters retained per capsule field",
+    },
+    **_CONTEXT_BUDGET_PROPERTIES,
+}
+
+_TOOL_SPECS = [
+    {
+        "name": "submit",
+        "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
+        "inputSchema": {
+            "type": "object",
+            "properties": _SUBMIT_PROPERTIES,
+            "required": ["request"],
+        },
+    },
+    {
+        "name": "route",
+        "description": "Score a request against the roster and return the decided lane (or escalation).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"text": {"type": "string", "description": "the request text to route"}},
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "plan",
+        "description": "Turn a plain request into a task plan without running it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"request": {"type": "string", "description": "the request to plan"}},
+            "required": ["request"],
+        },
+    },
+    {
+        "name": "status",
+        "description": "Return the ledger entry count and current checkpoint.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "verify",
+        "description": "Verify the ledger chain and payload bodies.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "ledger_get",
+        "description": "Fetch one ledger entry by its sequence number.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"seq": {"type": "integer", "description": "the entry sequence number"}},
+            "required": ["seq"],
+        },
+    },
+    {
+        "name": "forum.submit",
+        "description": "Plan a plain request, run it, and return a witnessed answer with the ledger checkpoint.",
+        "inputSchema": {
+            "type": "object",
+            "properties": _SUBMIT_PROPERTIES,
+            "required": ["request"],
+        },
+    },
+    {
+        "name": "forum.route",
+        "description": "Score a request against the roster and return the decided lane or escalation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"text": {"type": "string", "description": "the request text to route"}},
+            "required": ["text"],
+        },
+    },
+
+    {
+        "name": "forum.prose.humanize",
+        "description": "Turn stiff model or agent prose into clearer operator-facing wording without adding facts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "agent or model prose to clarify"},
+                "audience": {"type": "string", "description": "target reader label; defaults to operator"},
+                "profile": {
+                    "type": "string",
+                    "description": "delivery profile: operator, engineer, researcher, executive",
+                },
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "forum.prose.contract",
+        "description": "Return the deterministic communication contract for a request route.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "request text to route into a communication contract"},
+                "profile": {
+                    "type": "string",
+                    "description": "optional delivery profile override: operator, engineer, researcher, executive",
+                },
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "forum.status",
+        "description": "Return Forum's Project Telos operator-spine status as a flagship action envelope.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.doctor",
+        "description": "Check Forum's Project Telos operator-spine readiness as a flagship action envelope.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.ledger.summary",
+        "description": "Summarize the witnessed causal ledger into counts, verification, and payload weight.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.ledger.capsule",
+        "description": "Compact the witnessed ledger into a deterministic context capsule.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.run.room",
+        "description": "Project the latest witnessed run into an operator run-room snapshot.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.runtime.inspect",
+        "description": "Inspect the active Forum executor policy without running a model.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "forum.context.preflight",
+        "description": "Estimate request and optional capsule context pressure before submit.",
+        "inputSchema": {
+            "type": "object",
+            "properties": _CONTEXT_PREFLIGHT_PROPERTIES,
+            "required": ["request"],
+        },
+    },
+    {
+        "name": "gate_list",
+        "description": "List pending human-in-the-loop approval gates (waves paused for review).",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "gate_approve",
+        "description": "Approve a paused gate so its wave runs when the plan is resumed." + _GATE_WRITE_NOTE,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_GATE_DECISION_PROPERTIES,
+                "note": {"type": "string", "description": "optional approval note"},
+            },
+            "required": ["run_seq", "wave", "approver"],
+        },
+    },
+    {
+        "name": "gate_edit",
+        "description": "Approve a paused gate and rewrite its tasks' instructions before the wave runs."
+        + _GATE_WRITE_NOTE,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_GATE_DECISION_PROPERTIES,
+                "edits": {
+                    "type": "object",
+                    "description": "map of task id -> replacement instruction",
+                },
+                "note": {"type": "string", "description": "optional edit note"},
+            },
+            "required": ["run_seq", "wave", "approver", "edits"],
+        },
+    },
+    {
+        "name": "gate_reject",
+        "description": "Reject a paused gate so its wave never runs." + _GATE_WRITE_NOTE,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_GATE_DECISION_PROPERTIES,
+                "reason": {"type": "string", "description": "why the wave was rejected"},
+            },
+            "required": ["run_seq", "wave", "approver"],
+        },
+    },
+]
+
+
+class McpSurface:
+    """An MCP (JSON-RPC 2.0) adapter over the same HttpSurface logic.
+
+    The lone optional edge. Each tool maps to an HTTP method and path and is
+    served by the shared HttpSurface, so the MCP and HTTP surfaces never drift.
+    No stdio lives in handle(); serve_stdio() wires real streams around it, and
+    process_line() is the testable seam between a raw line and a response line.
+
+    ``allow_gate_decisions`` is the launch grant for the gate decision tools
+    (gate_approve, gate_edit, gate_reject and their forum.gate.* aliases). Without
+    it they are absent from tools/list and a call returns GRANT_REQUIRED before
+    anything is written, so a connected model cannot approve its own gates.
+    The grant is off by default everywhere: serve_stdio(), `forum mcp` and a
+    Python embedder that builds the surface itself all start without it unless
+    the person who launches the server passes --allow-gate-decisions (or
+    ``allow_gate_decisions=True``). A failed gate decision returns the closed error
+    shape of forum.mcp_errors.
+    """
+
+    def __init__(self, orchestrator: Orchestrator, *, allow_gate_decisions: bool = False) -> None:
+        self._orchestrator = orchestrator
+        self._surface = HttpSurface(orchestrator)
+        self._allow_gate_decisions = allow_gate_decisions
+        self._tools = [
+            spec for spec in _TOOL_SPECS
+            if allow_gate_decisions or spec["name"] not in GATE_WRITE_TOOLS
+        ]
+
+    async def handle(self, message: dict) -> dict | None:
+        mid = message.get("id")
+        if "id" not in message:
+            return None  # a JSON-RPC notification: nothing to run, no response
+        method = message.get("method")
+        if method is None:
+            return _err(mid, -32600, "invalid request: method is required")
+        if method == "initialize":
+            return _ok(mid, {
+                "protocolVersion": MCP_PROTOCOL_VERSION,
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "forum", "version": __version__},
+            })
+        if method == "tools/list":
+            return _ok(mid, {"tools": self._tools})
+        if method == "tools/call":
+            return await self._call_tool(mid, message.get("params") or {})
+        if method == "ping":
+            return _ok(mid, {})
+        return _err(mid, -32601, f"method not found: {method}")
+
+    async def _call_tool(self, mid: Any, params: dict) -> dict:
+        name = params.get("name")
+        canonical = _TOOL_ALIASES.get(name, name) if isinstance(name, str) else None
+        if canonical in GATE_WRITE_TOOLS and not self._allow_gate_decisions:
+            return _ok(mid, gate_grant_required())
+        if canonical in {"flagship_status", "flagship_doctor"}:
+            from forum.flagship import doctor_payload, status_payload
+
+            payload = status_payload() if canonical == "flagship_status" else doctor_payload()
+            return _ok(mid, {
+                "content": [{"type": "text", "text": json.dumps(payload)}],
+                "isError": False,
+            })
+        if canonical == "ledger_summary":
+            from forum.report import summarize
+
+            return _ok(mid, {
+                "content": [{"type": "text", "text": json.dumps(summarize(self._orchestrator.ledger))}],
+                "isError": False,
+            })
+        route = _TOOL_ROUTES.get(canonical) if isinstance(canonical, str) else None
+        if route is None:
+            return _err(mid, -32602, f"unknown tool: {name!r}")
+        http_method, path, body = route(params.get("arguments") or {})
+        response = await self._surface.dispatch(http_method, path, body)
+        if canonical in GATE_WRITE_TOOLS and response.status >= 400:
+            return _ok(mid, gate_decision_error(response.status, response.body))
+        return _ok(mid, {
+            "content": [{"type": "text", "text": response.body.decode("utf-8")}],
+            "isError": response.status >= 400,
+        })
+
+    async def process_line(self, line: str) -> str | None:
+        """Parse one JSON-RPC line, handle it, and serialize the response.
+
+        Returns None for a blank line or a notification (nothing to send back).
+        """
+        line = line.strip()
+        if not line:
+            return None
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            return json.dumps(_err(None, -32700, "parse error"))
+        response = await self.handle(message)
+        return None if response is None else json.dumps(response)
+
+
+async def serve_stdio(
+    orchestrator: Orchestrator | None = None,
+    ledger_dir: str = "forum-ledger",
+    *,
+    allow_gate_decisions: bool = False,
+) -> None:
+    """Serve MCP over stdio: one JSON-RPC message per line, in and out.
+
+    Builds a durable-ledger Orchestrator by default. Reads stdin in a thread so
+    the event loop is not blocked and the transport stays cross-platform. The
+    gate decision tools are off unless ``allow_gate_decisions`` is True, which
+    `forum mcp --allow-gate-decisions` sets.
+    """
+    if orchestrator is None:
+        from forum.daemon import build_orchestrator
+
+        orchestrator = build_orchestrator(ledger_dir)
+    surface = McpSurface(orchestrator, allow_gate_decisions=allow_gate_decisions)
+    while True:
+        line = await asyncio.to_thread(sys.stdin.readline)
+        if not line:
+            break  # EOF
+        out = await surface.process_line(line)
+        if out is not None:
+            sys.stdout.write(out + "\n")
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    asyncio.run(serve_stdio())

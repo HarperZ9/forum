@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "forum": {
+      "args": [
+        "-I",
+        "-S",
+        "-B",
+        "${CLAUDE_PLUGIN_ROOT}/server/serve.py"
+      ],
+      "command": "python3",
+      "type": "stdio"
+    }
+  }
+}

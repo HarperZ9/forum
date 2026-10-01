@@ -1,0 +1,275 @@
+from __future__ import annotations
+
+import hashlib
+import time
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+from forum.hashing import canonical_hash
+
+GENESIS = "0" * 64
+_SEP = "\x1f"
+_MAX_APPEND_RETRIES = 64
+
+
+class SeqCollision(Exception):
+    """Two writers raced for the same ledger seq; the loser must re-read head.
+
+    Raised by a storage backend whose seq is a unique key (SqliteStorage) when a
+    concurrent process has already claimed the seq this append computed. The
+    Ledger catches it and retries against the advanced head. Single-process
+    backends never produce it.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class LedgerEntry:
+    seq: int
+    ts: float
+    actor: str
+    kind: str
+    causal_parent: int | None
+    payload_hash: str
+    prev_hash: str
+    entry_hash: str
+
+
+def compute_entry_hash(
+    seq: int,
+    ts: float,
+    actor: str,
+    kind: str,
+    causal_parent: int | None,
+    payload_hash: str,
+    prev_hash: str,
+) -> str:
+    parts = [
+        str(seq),
+        f"{ts:.6f}",
+        actor,
+        kind,
+        "" if causal_parent is None else str(causal_parent),
+        payload_hash,
+        prev_hash,
+    ]
+    return hashlib.sha256(_SEP.join(parts).encode("utf-8")).hexdigest()
+
+
+def _leaf_hash(h: str) -> str:
+    return hashlib.sha256(b"\x00" + h.encode("utf-8")).hexdigest()
+
+
+def _node_hash(left: str, right: str) -> str:
+    return hashlib.sha256(b"\x01" + left.encode("utf-8") + right.encode("utf-8")).hexdigest()
+
+
+def merkle_root(hashes: list[str]) -> str:
+    """Domain-separated binary Merkle root (RFC 6962 style). Empty -> GENESIS.
+
+    Leaves are tagged 0x00, internal nodes 0x01, and a lone odd node is
+    promoted up unchanged (never duplicated), so two different leaf sets such
+    as [a,b,c] and [a,b,c,c] cannot collide (CVE-2012-2459). Order-sensitive.
+    """
+    if not hashes:
+        return GENESIS
+    level = [_leaf_hash(h) for h in hashes]
+    while len(level) > 1:
+        nxt: list[str] = []
+        for i in range(0, len(level), 2):
+            if i + 1 < len(level):
+                nxt.append(_node_hash(level[i], level[i + 1]))
+            else:
+                nxt.append(level[i])  # promote lone node unchanged
+        level = nxt
+    return level[0]
+
+
+class Storage(Protocol):
+    def append(self, entry: LedgerEntry) -> None: ...
+    def all(self) -> list[LedgerEntry]:
+        """Return a fresh list of all entries in seq order; the caller may mutate it."""
+        ...
+    def head(self) -> LedgerEntry | None: ...
+    def get(self, seq: int) -> LedgerEntry: ...
+    def count(self) -> int: ...
+    def put_payload(self, payload_hash: str, body: Any) -> None: ...
+    def get_payload(self, payload_hash: str) -> Any: ...
+    def sync(self) -> None:
+        """Force any buffered writes to durable storage (a no-op for in-memory)."""
+        ...
+
+
+class InMemoryStorage:
+    def __init__(self) -> None:
+        self._entries: list[LedgerEntry] = []
+        self._payloads: dict[str, Any] = {}
+
+    def append(self, entry: LedgerEntry) -> None:
+        self._entries.append(entry)
+
+    def all(self) -> list[LedgerEntry]:
+        return list(self._entries)
+
+    def head(self) -> LedgerEntry | None:
+        return self._entries[-1] if self._entries else None
+
+    def get(self, seq: int) -> LedgerEntry:
+        if seq < 0 or seq >= len(self._entries):
+            raise KeyError(seq)
+        entry = self._entries[seq]
+        if entry.seq != seq:
+            raise KeyError(seq)
+        return entry
+
+    def count(self) -> int:
+        return len(self._entries)
+
+    def put_payload(self, payload_hash: str, body: Any) -> None:
+        self._payloads.setdefault(payload_hash, body)
+
+    def get_payload(self, payload_hash: str) -> Any:
+        return self._payloads[payload_hash]
+
+    def sync(self) -> None:
+        """No-op: in-memory storage has nothing to flush to disk."""
+        return None
+
+
+class Ledger:
+    def __init__(self, storage: Storage, clock=time.time) -> None:
+        self._s = storage
+        self._clock = clock
+
+    @property
+    def clock(self):
+        """The time source used to stamp entries (injectable for tests).
+
+        Deadline evaluation (gate expiry) reads this so it advances on the same
+        clock that stamps ``LedgerEntry.ts``, keeping a witnessed gate_pending's
+        recorded deadline and the expiry check on one consistent time base.
+        """
+        return self._clock
+
+    def append(
+        self,
+        *,
+        actor: str,
+        kind: str,
+        payload: Any,
+        causal_parent: int | None = None,
+    ) -> LedgerEntry:
+        # INVARIANT: append must stay await-free. Concurrent async callers (for
+        # example dispatch_plan's TaskGroup) rely on this method being atomic
+        # under cooperative scheduling; an await between reading head() and the
+        # append would corrupt seq/prev_hash linkage. Do not introduce awaits here.
+        #
+        # Across PROCESSES sharing one storage (SqliteStorage, WAL mode), two
+        # workers can read the same head and race for the same seq. The storage's
+        # unique seq rejects the loser with SeqCollision; we re-read the advanced
+        # head and retry. Single-process backends never collide, so this loop runs
+        # exactly once and their behavior is unchanged. put_payload is content-keyed
+        # and idempotent, so re-running it on a retry is a no-op.
+        for _ in range(_MAX_APPEND_RETRIES):
+            head = self._s.head()
+            seq = 0 if head is None else head.seq + 1
+            prev = GENESIS if head is None else head.entry_hash
+            payload_hash = canonical_hash(payload)
+            self._s.put_payload(payload_hash, payload)
+            ts = float(self._clock())
+            entry_hash = compute_entry_hash(
+                seq, ts, actor, kind, causal_parent, payload_hash, prev
+            )
+            entry = LedgerEntry(
+                seq, ts, actor, kind, causal_parent, payload_hash, prev, entry_hash
+            )
+            try:
+                self._s.append(entry)
+            except SeqCollision:
+                continue
+            return entry
+        raise SeqCollision(
+            f"append lost the seq race {_MAX_APPEND_RETRIES} times under contention"
+        )
+
+    def verify(self, *, deep: bool = False) -> bool:
+        prev = GENESIS
+        for i, e in enumerate(self._s.all()):
+            if e.seq != i or e.prev_hash != prev:
+                return False
+            recomputed = compute_entry_hash(
+                e.seq, e.ts, e.actor, e.kind, e.causal_parent, e.payload_hash, e.prev_hash
+            )
+            if recomputed != e.entry_hash:
+                return False
+            prev = e.entry_hash
+        if deep and not self.verify_payloads():
+            return False
+        return True
+
+    def verify_payloads(self) -> bool:
+        """Verify each stored payload body still hashes to its content key.
+
+        Absent payloads (redacted / hash-only storage) are permitted and
+        skipped, preserving the documented hash-only mode.
+        """
+        for e in self._s.all():
+            try:
+                body = self._s.get_payload(e.payload_hash)
+            except KeyError:
+                continue
+            if canonical_hash(body) != e.payload_hash:
+                return False
+        return True
+
+    def get(self, seq: int) -> LedgerEntry:
+        """Return the entry at seq, or raise KeyError if absent."""
+        return self._s.get(seq)
+
+    def get_payload(self, payload_hash: str) -> Any:
+        """Return the stored body for a payload hash, or raise KeyError if absent."""
+        return self._s.get_payload(payload_hash)
+
+    def count(self) -> int:
+        """Number of entries in the ledger."""
+        return self._s.count()
+
+    def sync(self) -> None:
+        """Force buffered appends to durable storage.
+
+        A no-op unless the storage batches fsync (FileStorage with
+        fsync_each=False), where it makes the log durable to disk on demand.
+        """
+        self._s.sync()
+
+    def replay(self, until: int | None = None) -> list[LedgerEntry]:
+        entries = self._s.all()
+        if until is None:
+            return entries
+        return [e for e in entries if e.seq <= until]
+
+    def query(
+        self, *, kind: str | None = None, actor: str | None = None
+    ) -> list[LedgerEntry]:
+        out = self._s.all()
+        if kind is not None:
+            out = [e for e in out if e.kind == kind]
+        if actor is not None:
+            out = [e for e in out if e.actor == actor]
+        return out
+
+    def causal_chain(self, seq: int) -> list[LedgerEntry]:
+        chain: list[LedgerEntry] = []
+        seen: set[int] = set()
+        cursor: int | None = seq
+        while cursor is not None:
+            if cursor in seen:
+                raise ValueError(f"causal cycle detected at seq {cursor}")
+            seen.add(cursor)
+            entry = self._s.get(cursor)
+            chain.append(entry)
+            cursor = entry.causal_parent
+        chain.reverse()
+        return chain
+
+    def checkpoint(self) -> str:
+        return merkle_root([e.entry_hash for e in self._s.all()])

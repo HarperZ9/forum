@@ -1,0 +1,9 @@
+{
+  "author": {
+    "name": "Zain Dana Harper"
+  },
+  "description": "Preview routes, context and execution readiness locally.",
+  "name": "forum-routing",
+  "repository": "https://github.com/HarperZ9/forum",
+  "version": "1.16.0"
+}

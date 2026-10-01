@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "forum": {
+      "args": [
+        "-I",
+        "-S",
+        "-B",
+        "${PLUGIN_ROOT}/server/serve.py"
+      ],
+      "command": "python3",
+      "type": "stdio"
+    }
+  }
+}

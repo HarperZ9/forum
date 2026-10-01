@@ -1,0 +1,14 @@
+{
+  "description": "Preview routes, context and execution readiness locally.",
+  "name": "forum-routing",
+  "owner": {
+    "name": "Zain Dana Harper"
+  },
+  "plugins": [
+    {
+      "description": "Preview routes, context and execution readiness locally.",
+      "name": "forum-routing",
+      "source": "./"
+    }
+  ]
+}
