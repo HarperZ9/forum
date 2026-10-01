@@ -61,7 +61,8 @@ def status_payload() -> dict:
                 "forum.ledger.summary",
             ],
             "current_status": (
-                "1.15.1 spawn helper closes a working-folder alias, a repointed PATH "
+                "1.16.0 native client preflight packaging with no executor or gate grants; "
+                "the 1.15.1 spawn helper closes a working-folder alias, a repointed PATH "
                 "link and a quoted PATH entry, over 1.15.0 gate-integrity, executor "
                 "isolation, daemon Origin/Host/content-type checks and a default auth "
                 "token, and the 1.14 observability, auth, context budgets, capsules, "

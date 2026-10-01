@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.16.0 (2026-09-30)
+
+- Add Windows x64 MCPB and ZIP packages with a bundled runtime, scoped skills and qualified local stdio workflows.
+- Require clean exact-tag source, versions ending in .0, payload hashes and matching same-release artifacts; refuse changed release reruns.
+- Restrict the default client surface to six preflight tools with no executor, disk ledger, submit or gate grants.
 
 ## 1.15.1 (2026-09-27)
 

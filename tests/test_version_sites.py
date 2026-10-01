@@ -31,7 +31,7 @@ def test_readme_current_source_version_matches_the_package():
 
 
 def test_readme_status_line_matches_the_package():
-    assert f"The latest release is `forum-engine {__version__}`" in _readme()
+    assert f"The current release candidate is `forum-engine {__version__}`" in _readme()
 
 
 def test_flagship_status_current_status_is_prefixed_with_the_version():
