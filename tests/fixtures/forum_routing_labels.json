@@ -1,0 +1,846 @@
+{
+  "schema": "forum.routing-labels/1",
+  "author": "independent labeller, lane descriptions only",
+  "items": [
+    {
+      "id": "r001",
+      "text": "Add dark mode tokens to the design system and wire them into the Button and Card components.",
+      "gold": "frontend",
+      "alt": null
+    },
+    {
+      "id": "r002",
+      "text": "Bake lightmaps for the interior and place reflection probes in each room.",
+      "gold": "scene-environment",
+      "alt": null
+    },
+    {
+      "id": "r003",
+      "text": "Add clustered forward lighting to the render graph.",
+      "gold": "render-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r004",
+      "text": "the LLVM backend emits wrong code for 128-bit shifts on aarch64",
+      "gold": "compiler-systems",
+      "alt": "native-cpp"
+    },
+    {
+      "id": "r005",
+      "text": "We need a Python client library for our billing API with pagination helpers.",
+      "gold": "sdk-platform",
+      "alt": "python-apps"
+    },
+    {
+      "id": "r006",
+      "text": "Hook the flagship tools together so a run in one shows up in the shared provenance ledger.",
+      "gold": "project-telos",
+      "alt": null
+    },
+    {
+      "id": "r007",
+      "text": "Add a canary deploy step to the GitLab pipeline before full rollout.",
+      "gold": "ci-cd",
+      "alt": "sre-ops"
+    },
+    {
+      "id": "r008",
+      "text": "Port the particle simulation from CPU to a compute shader.",
+      "gold": "gpu-compute",
+      "alt": "shader-effects"
+    },
+    {
+      "id": "r009",
+      "text": "Review this PR for race conditions and missing error handling.",
+      "gold": "code-review",
+      "alt": null
+    },
+    {
+      "id": "r010",
+      "text": "Write the MCP call that creates a GitHub issue from this bug report.",
+      "gold": "function-routing",
+      "alt": null
+    },
+    {
+      "id": "r011",
+      "text": "Look up the current pricing for the top three managed Postgres providers.",
+      "gold": "web-intel",
+      "alt": "deep-research"
+    },
+    {
+      "id": "r012",
+      "text": "Hyperparameter sweep with Optuna for the XGBoost fraud model.",
+      "gold": "data-ml",
+      "alt": null
+    },
+    {
+      "id": "r013",
+      "text": "Decide which model handles each step of the cross-tool workflow and log the routing choice.",
+      "gold": "project-telos",
+      "alt": "function-routing"
+    },
+    {
+      "id": "r014",
+      "text": "Write a getting-started guide for our CLI with install steps and a first example.",
+      "gold": "technical-writing",
+      "alt": null
+    },
+    {
+      "id": "r015",
+      "text": "Add retry with exponential backoff to the Go SDK's HTTP transport.",
+      "gold": "sdk-platform",
+      "alt": null
+    },
+    {
+      "id": "r016",
+      "text": "Implement GGX specular with Smith height-correlated visibility in our BRDF.",
+      "gold": "materials-pbr",
+      "alt": null
+    },
+    {
+      "id": "r017",
+      "text": "App gets rejected by App Store review for a missing privacy manifest, what do we add?",
+      "gold": "mobile",
+      "alt": null
+    },
+    {
+      "id": "r018",
+      "text": "Tree-sitter grammar for our templating language so editors can highlight it.",
+      "gold": "compiler-systems",
+      "alt": null
+    },
+    {
+      "id": "r019",
+      "text": "Make a CRT scanline and chromatic aberration post effect for the retro mode.",
+      "gold": "shader-effects",
+      "alt": null
+    },
+    {
+      "id": "r020",
+      "text": "tone down the corporate jargon in this AI-drafted email, facts stay the same",
+      "gold": "prose-humanization",
+      "alt": null
+    },
+    {
+      "id": "r021",
+      "text": "Add a POST /orders endpoint to our Express service that validates the payload and writes to Postgres.",
+      "gold": "backend",
+      "alt": null
+    },
+    {
+      "id": "r022",
+      "text": "Convert our styled-components to Tailwind classes across the settings page.",
+      "gold": "frontend",
+      "alt": null
+    },
+    {
+      "id": "r023",
+      "text": "Add clearcoat and sheen layers to the PBR material model.",
+      "gold": "materials-pbr",
+      "alt": null
+    },
+    {
+      "id": "r024",
+      "text": "Fine-tune a BERT classifier on our support tickets and report F1 per class.",
+      "gold": "data-ml",
+      "alt": null
+    },
+    {
+      "id": "r025",
+      "text": "SwiftUI list stutters when scrolling images, fix it.",
+      "gold": "mobile",
+      "alt": null
+    },
+    {
+      "id": "r026",
+      "text": "Energy conservation is off for rough dielectrics, add a multiscattering compensation term.",
+      "gold": "materials-pbr",
+      "alt": null
+    },
+    {
+      "id": "r027",
+      "text": "Condense these three design docs into one page highlighting where they disagree.",
+      "gold": "synthesis",
+      "alt": null
+    },
+    {
+      "id": "r028",
+      "text": "Research how five different companies handle feature flag governance and synthesize the patterns.",
+      "gold": "deep-research",
+      "alt": null
+    },
+    {
+      "id": "r029",
+      "text": "Explain how a hash map handles collisions like I'm a first-year student.",
+      "gold": "teaching",
+      "alt": null
+    },
+    {
+      "id": "r030",
+      "text": "Build a React date-range picker component with keyboard navigation.",
+      "gold": "frontend",
+      "alt": null
+    },
+    {
+      "id": "r031",
+      "text": "Dig into the history of the left-pad incident and what changed in npm policy afterward.",
+      "gold": "deep-research",
+      "alt": "web-intel"
+    },
+    {
+      "id": "r032",
+      "text": "Write a screen-space ambient occlusion pass in HLSL.",
+      "gold": "shader-effects",
+      "alt": null
+    },
+    {
+      "id": "r033",
+      "text": "Screen-space reflections are leaking at the screen edges, how do I fade them?",
+      "gold": "shader-effects",
+      "alt": null
+    },
+    {
+      "id": "r034",
+      "text": "Write a Python script that renames all the photos in a folder by EXIF date.",
+      "gold": "python-apps",
+      "alt": null
+    },
+    {
+      "id": "r035",
+      "text": "Profile with Nsight why our Triton kernel only hits 30% occupancy.",
+      "gold": "gpu-compute",
+      "alt": null
+    },
+    {
+      "id": "r036",
+      "text": "Turn this chain of tool outputs into a short plain-English explanation for the user, keep the error codes.",
+      "gold": "prose-humanization",
+      "alt": null
+    },
+    {
+      "id": "r037",
+      "text": "Set up automatic semantic versioning and release tagging on merge to main.",
+      "gold": "ci-cd",
+      "alt": null
+    },
+    {
+      "id": "r038",
+      "text": "Write migration notes for upgrading from v2 to v3.",
+      "gold": "technical-writing",
+      "alt": null
+    },
+    {
+      "id": "r039",
+      "text": "Dedupe and merge the overlapping onboarding pages in our Confluence space.",
+      "gold": "knowledge-mgmt",
+      "alt": null
+    },
+    {
+      "id": "r040",
+      "text": "Build an Airflow DAG that pulls from Salesforce nightly and loads into Snowflake.",
+      "gold": "data-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r041",
+      "text": "Automate pulling yesterday's Jira tickets into a CSV every morning.",
+      "gold": "python-apps",
+      "alt": "data-pipeline"
+    },
+    {
+      "id": "r042",
+      "text": "Our agent calls the search tool when it should call the calendar tool, improve the tool selection.",
+      "gold": "function-routing",
+      "alt": null
+    },
+    {
+      "id": "r043",
+      "text": "The model's answer is stiff and full of hedging, clean it up without changing the facts.",
+      "gold": "prose-humanization",
+      "alt": null
+    },
+    {
+      "id": "r044",
+      "text": "Build an evaluation harness comparing three embedding models on our retrieval set.",
+      "gold": "data-ml",
+      "alt": "model-foundry"
+    },
+    {
+      "id": "r045",
+      "text": "Spark job reading Parquet from S3 is OOMing on the join, help.",
+      "gold": "data-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r046",
+      "text": "GitHub Actions workflow that runs tests on PRs and caches node_modules.",
+      "gold": "ci-cd",
+      "alt": null
+    },
+    {
+      "id": "r047",
+      "text": "Our C++ ring buffer has a data race under TSan, need a lock-free fix.",
+      "gold": "native-cpp",
+      "alt": null
+    },
+    {
+      "id": "r048",
+      "text": "Kotlin: persist the onboarding state with DataStore instead of SharedPreferences.",
+      "gold": "mobile",
+      "alt": null
+    },
+    {
+      "id": "r049",
+      "text": "Design the REST API and service layer for a multi-tenant invoicing app.",
+      "gold": "backend",
+      "alt": null
+    },
+    {
+      "id": "r050",
+      "text": "Implement offline sync for the Flutter field-inspection app.",
+      "gold": "mobile",
+      "alt": null
+    },
+    {
+      "id": "r051",
+      "text": "Is this caching approach in the PR safe? I'm worried about stale reads.",
+      "gold": "code-review",
+      "alt": "backend"
+    },
+    {
+      "id": "r052",
+      "text": "Wire the browser evidence capture into the Telos provenance workflow so every page action gets a receipt.",
+      "gold": "project-telos",
+      "alt": null
+    },
+    {
+      "id": "r053",
+      "text": "Make the navbar collapse into a hamburger menu under 768px.",
+      "gold": "frontend",
+      "alt": null
+    },
+    {
+      "id": "r054",
+      "text": "check if anyone's posted about the outage on status pages or forums in the last hour",
+      "gold": "web-intel",
+      "alt": null
+    },
+    {
+      "id": "r055",
+      "text": "Add a bloom post-process with a dual-filter downsample chain.",
+      "gold": "shader-effects",
+      "alt": null
+    },
+    {
+      "id": "r056",
+      "text": "Why does my async code run in this order? Walk me through the event loop.",
+      "gold": "teaching",
+      "alt": null
+    },
+    {
+      "id": "r057",
+      "text": "Write a runbook and alert for when p99 latency on the API exceeds 800ms.",
+      "gold": "sre-ops",
+      "alt": null
+    },
+    {
+      "id": "r058",
+      "text": "Implement a deferred rendering path with a G-buffer in our Vulkan renderer.",
+      "gold": "render-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r059",
+      "text": "Survey the literature on speculative decoding and compare the main approaches with their reported speedups.",
+      "gold": "deep-research",
+      "alt": null
+    },
+    {
+      "id": "r060",
+      "text": "Explain what a monad is without using category theory.",
+      "gold": "teaching",
+      "alt": null
+    },
+    {
+      "id": "r061",
+      "text": "build a CLI dev toolkit that scaffolds plugins for our platform",
+      "gold": "sdk-platform",
+      "alt": null
+    },
+    {
+      "id": "r062",
+      "text": "Write CloudFormation for an SQS queue feeding a Lambda with a dead-letter queue.",
+      "gold": "cloud-infra",
+      "alt": null
+    },
+    {
+      "id": "r063",
+      "text": "Port the frame graph from OpenGL to D3D12 with proper resource barriers.",
+      "gold": "render-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r064",
+      "text": "Switch session storage from in-memory to Redis in the Spring Boot app.",
+      "gold": "backend",
+      "alt": null
+    },
+    {
+      "id": "r065",
+      "text": "Teach me Rust lifetimes with small examples I can try.",
+      "gold": "teaching",
+      "alt": null
+    },
+    {
+      "id": "r066",
+      "text": "Summarize the last month of incident reports into recurring themes.",
+      "gold": "synthesis",
+      "alt": "sre-ops"
+    },
+    {
+      "id": "r067",
+      "text": "build matrix for python 3.10 through 3.13 on linux and windows",
+      "gold": "ci-cd",
+      "alt": null
+    },
+    {
+      "id": "r068",
+      "text": "Click CLI that wraps our internal deploy commands with nicer prompts.",
+      "gold": "python-apps",
+      "alt": null
+    },
+    {
+      "id": "r069",
+      "text": "Organize my Obsidian vault into folders by project with consistent tags.",
+      "gold": "knowledge-mgmt",
+      "alt": null
+    },
+    {
+      "id": "r070",
+      "text": "Capture a screenshot and DOM snapshot as evidence for the checkout flow and attach it to the run record.",
+      "gold": "project-telos",
+      "alt": null
+    },
+    {
+      "id": "r071",
+      "text": "Add provenance stamps to artifacts produced across the integrated toolchain.",
+      "gold": "project-telos",
+      "alt": null
+    },
+    {
+      "id": "r072",
+      "text": "Implement a GPU radix sort in Metal compute.",
+      "gold": "gpu-compute",
+      "alt": null
+    },
+    {
+      "id": "r073",
+      "text": "Procedurally scatter rocks and grass across the terrain with density by slope.",
+      "gold": "scene-environment",
+      "alt": null
+    },
+    {
+      "id": "r074",
+      "text": "Turn these meeting notes into atomic Zettelkasten notes with backlinks.",
+      "gold": "knowledge-mgmt",
+      "alt": null
+    },
+    {
+      "id": "r075",
+      "text": "ETL job to dedupe customer records from three CRMs into one table.",
+      "gold": "data-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r076",
+      "text": "Set up a feature store for the churn model using Feast.",
+      "gold": "data-ml",
+      "alt": null
+    },
+    {
+      "id": "r077",
+      "text": "What does the evidence say about pair programming and defect rates? Pull from several studies.",
+      "gold": "deep-research",
+      "alt": null
+    },
+    {
+      "id": "r078",
+      "text": "Replace the raw pointers in the asset cache with unique_ptr and fix the leaks.",
+      "gold": "native-cpp",
+      "alt": null
+    },
+    {
+      "id": "r079",
+      "text": "Rewrite the README so someone new can run the project in five minutes.",
+      "gold": "technical-writing",
+      "alt": null
+    },
+    {
+      "id": "r080",
+      "text": "Draft the postmortem for yesterday's DNS outage.",
+      "gold": "sre-ops",
+      "alt": "technical-writing"
+    },
+    {
+      "id": "r081",
+      "text": "Rewrite this agent's status update so it reads like a person wrote it, but keep every number.",
+      "gold": "prose-humanization",
+      "alt": null
+    },
+    {
+      "id": "r082",
+      "text": "Our Jenkins pipeline takes 40 minutes, parallelize the test stages.",
+      "gold": "ci-cd",
+      "alt": null
+    },
+    {
+      "id": "r083",
+      "text": "Load the whole repo into the large-context brain and keep it warm between sessions.",
+      "gold": "model-foundry",
+      "alt": null
+    },
+    {
+      "id": "r084",
+      "text": "Optimize our matrix multiply kernel to use shared memory tiling.",
+      "gold": "gpu-compute",
+      "alt": null
+    },
+    {
+      "id": "r085",
+      "text": "Search the web for any public reports of this CVE being exploited.",
+      "gold": "web-intel",
+      "alt": null
+    },
+    {
+      "id": "r086",
+      "text": "Can you quiz me on SQL joins until I get them right?",
+      "gold": "teaching",
+      "alt": null
+    },
+    {
+      "id": "r087",
+      "text": "Implement cascaded shadow maps with stable cascades for the open-world sun.",
+      "gold": "render-pipeline",
+      "alt": "scene-environment"
+    },
+    {
+      "id": "r088",
+      "text": "Map natural-language commands to our 40 internal functions with a fallback when nothing fits.",
+      "gold": "function-routing",
+      "alt": null
+    },
+    {
+      "id": "r089",
+      "text": "Define SLOs and error budgets for the checkout service.",
+      "gold": "sre-ops",
+      "alt": null
+    },
+    {
+      "id": "r090",
+      "text": "Set up a sunset HDRI and matching directional light for the courtyard scene.",
+      "gold": "scene-environment",
+      "alt": null
+    },
+    {
+      "id": "r091",
+      "text": "Provision an EKS cluster with managed node groups using Pulumi.",
+      "gold": "cloud-infra",
+      "alt": null
+    },
+    {
+      "id": "r092",
+      "text": "Can you look over my diff and tell me if the naming makes sense",
+      "gold": "code-review",
+      "alt": null
+    },
+    {
+      "id": "r093",
+      "text": "Generate a typed TypeScript client from our OpenAPI spec and publish it to npm.",
+      "gold": "sdk-platform",
+      "alt": null
+    },
+    {
+      "id": "r094",
+      "text": "Build a small Tkinter app for tracking time against projects.",
+      "gold": "python-apps",
+      "alt": null
+    },
+    {
+      "id": "r095",
+      "text": "Bound the foundry's training budget to 4 GPU hours per candidate model.",
+      "gold": "model-foundry",
+      "alt": null
+    },
+    {
+      "id": "r096",
+      "text": "Add push notifications to our React Native app for both iOS and Android.",
+      "gold": "mobile",
+      "alt": null
+    },
+    {
+      "id": "r097",
+      "text": "Triangles have cracks along shared edges in the software rasterizer, probably a fill rule issue.",
+      "gold": "render-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r098",
+      "text": "Terraform module for a VPC with private subnets and NAT gateways in us-east-1.",
+      "gold": "cloud-infra",
+      "alt": null
+    },
+    {
+      "id": "r099",
+      "text": "Stream Kafka click events into BigQuery with schema validation.",
+      "gold": "data-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r100",
+      "text": "Set up the eval gate so a fine-tuned checkpoint only gets promoted if it beats the baseline on the held-out suite.",
+      "gold": "model-foundry",
+      "alt": null
+    },
+    {
+      "id": "r101",
+      "text": "Find dead code and duplicated logic in the utils folder.",
+      "gold": "code-review",
+      "alt": null
+    },
+    {
+      "id": "r102",
+      "text": "Compare vector databases across cost, latency, and filtering support using multiple benchmarks.",
+      "gold": "deep-research",
+      "alt": "web-intel"
+    },
+    {
+      "id": "r103",
+      "text": "port this bash backup script to python with proper logging",
+      "gold": "python-apps",
+      "alt": null
+    },
+    {
+      "id": "r104",
+      "text": "My PyTorch training loss goes NaN after epoch 3, help debug.",
+      "gold": "data-ml",
+      "alt": null
+    },
+    {
+      "id": "r105",
+      "text": "Build a structured index of all our ADRs with status and owner.",
+      "gold": "knowledge-mgmt",
+      "alt": null
+    },
+    {
+      "id": "r106",
+      "text": "Move our S3 buckets to a separate account and set up cross-account IAM roles.",
+      "gold": "cloud-infra",
+      "alt": null
+    },
+    {
+      "id": "r107",
+      "text": "Tutorial: building a plugin from scratch, aimed at intermediate users.",
+      "gold": "technical-writing",
+      "alt": "teaching"
+    },
+    {
+      "id": "r108",
+      "text": "need a cheap GCP setup for hosting a Postgres instance with automated backups",
+      "gold": "cloud-infra",
+      "alt": null
+    },
+    {
+      "id": "r109",
+      "text": "Set up Prometheus and Grafana dashboards for our Kubernetes workloads.",
+      "gold": "sre-ops",
+      "alt": "cloud-infra"
+    },
+    {
+      "id": "r110",
+      "text": "Speed up this hot loop with SIMD intrinsics; it's parsing binary packets.",
+      "gold": "native-cpp",
+      "alt": null
+    },
+    {
+      "id": "r111",
+      "text": "Implement go-to-definition in our language server.",
+      "gold": "compiler-systems",
+      "alt": null
+    },
+    {
+      "id": "r112",
+      "text": "GLSL shader for a dissolve effect driven by a noise texture.",
+      "gold": "shader-effects",
+      "alt": null
+    },
+    {
+      "id": "r113",
+      "text": "Break 'book a meeting and email the notes' into an ordered list of tool calls.",
+      "gold": "function-routing",
+      "alt": null
+    },
+    {
+      "id": "r114",
+      "text": "Our metals look like plastic, check the roughness/metallic workflow in the material.",
+      "gold": "materials-pbr",
+      "alt": null
+    },
+    {
+      "id": "r115",
+      "text": "CMake build fails linking against Boost on Windows with MSVC 2022.",
+      "gold": "native-cpp",
+      "alt": null
+    },
+    {
+      "id": "r116",
+      "text": "tl;dr of this RFC please",
+      "gold": "synthesis",
+      "alt": null
+    },
+    {
+      "id": "r117",
+      "text": "Combine the feedback from five user interviews into key findings.",
+      "gold": "synthesis",
+      "alt": "deep-research"
+    },
+    {
+      "id": "r118",
+      "text": "Write a CUDA kernel for a parallel prefix sum over 100M floats.",
+      "gold": "gpu-compute",
+      "alt": null
+    },
+    {
+      "id": "r119",
+      "text": "time-of-day system that animates sky color and sun angle",
+      "gold": "scene-environment",
+      "alt": null
+    },
+    {
+      "id": "r120",
+      "text": "Pick which MCP tool should handle 'find flights under $300' and fill in its arguments.",
+      "gold": "function-routing",
+      "alt": null
+    },
+    {
+      "id": "r121",
+      "text": "Add constant folding to the IR optimization pass.",
+      "gold": "compiler-systems",
+      "alt": null
+    },
+    {
+      "id": "r122",
+      "text": "Summarize this 40-message Slack thread into decisions and open questions.",
+      "gold": "synthesis",
+      "alt": null
+    },
+    {
+      "id": "r123",
+      "text": "Make these LLM-generated release notes less robotic.",
+      "gold": "prose-humanization",
+      "alt": "technical-writing"
+    },
+    {
+      "id": "r124",
+      "text": "Our API reference is missing error codes, document all of them on the docs site.",
+      "gold": "technical-writing",
+      "alt": null
+    },
+    {
+      "id": "r125",
+      "text": "Write a recursive descent parser for our config DSL with good error recovery.",
+      "gold": "compiler-systems",
+      "alt": null
+    },
+    {
+      "id": "r126",
+      "text": "Our dbt models double-count orders after the late-arriving data fix.",
+      "gold": "data-pipeline",
+      "alt": null
+    },
+    {
+      "id": "r127",
+      "text": "Gather what's publicly known about this domain: registration date, hosting, and linked sites.",
+      "gold": "web-intel",
+      "alt": null
+    },
+    {
+      "id": "r128",
+      "text": "The self-improving daemon keeps proposing the same patch, add a novelty check before it retries.",
+      "gold": "model-foundry",
+      "alt": null
+    },
+    {
+      "id": "r129",
+      "text": "Find out whether the maintainers of this abandoned package announced a successor project anywhere.",
+      "gold": "web-intel",
+      "alt": null
+    },
+    {
+      "id": "r130",
+      "text": "Implement rate limiting per API key in the FastAPI gateway.",
+      "gold": "backend",
+      "alt": "python-apps"
+    },
+    {
+      "id": "r131",
+      "text": "Deprecate the v1 auth methods in the Java SDK without breaking existing callers.",
+      "gold": "sdk-platform",
+      "alt": null
+    },
+    {
+      "id": "r132",
+      "text": "Add volumetric fog and god rays to the forest level.",
+      "gold": "scene-environment",
+      "alt": "shader-effects"
+    },
+    {
+      "id": "r133",
+      "text": "Promote last night's distilled model if the regression evals pass.",
+      "gold": "model-foundry",
+      "alt": "data-ml"
+    },
+    {
+      "id": "r134",
+      "text": "Write a custom allocator for small objects in the game engine core.",
+      "gold": "native-cpp",
+      "alt": null
+    },
+    {
+      "id": "r135",
+      "text": "Convert these spec-gloss textures to metal-rough for the glTF export.",
+      "gold": "materials-pbr",
+      "alt": null
+    },
+    {
+      "id": "r136",
+      "text": "Set up a template for decision records in our Notion wiki.",
+      "gold": "knowledge-mgmt",
+      "alt": null
+    },
+    {
+      "id": "r137",
+      "text": "Pager went off at 3am for disk full on the log nodes, help me find what's eating space.",
+      "gold": "sre-ops",
+      "alt": null
+    },
+    {
+      "id": "r138",
+      "text": "Refactor the 600-line OrderService into smaller classes without changing behavior.",
+      "gold": "code-review",
+      "alt": null
+    },
+    {
+      "id": "r139",
+      "text": "our Django app keeps timing out on the checkout view when the payment webhook is slow, can you make that async",
+      "gold": "backend",
+      "alt": null
+    },
+    {
+      "id": "r140",
+      "text": "the modal overlay doesn't cover the sticky header in Safari, fix the z-index mess",
+      "gold": "frontend",
+      "alt": null
+    }
+  ]
+}
