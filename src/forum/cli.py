@@ -259,9 +259,9 @@ def _cmd_mine(args) -> int:
 
 
 def _cmd_route(args) -> int:
+    from forum.decision_routing import DecisionRouter
     from forum.roster import load_default
     from forum.route_frame import derive_route_frame, frame_payload
-    from forum.decision_routing import DecisionRouter
     from forum.routing import LexicalRouter
 
     roster = load_default()

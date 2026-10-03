@@ -86,8 +86,11 @@ def test_calibration_reaches_the_requested_abstain_share():
     router = DecisionRouter()
     t10 = calibrate_threshold(router, items, ROSTER, abstain_share=0.10)
     t50 = calibrate_threshold(router, items, ROSTER, abstain_share=0.50)
-    abst = lambda t: sum(DecisionRouter(threshold=t).score(i["text"], ROSTER).decided is None
-                         for i in items)
+
+    def abst(t: float) -> int:
+        return sum(DecisionRouter(threshold=t).score(i["text"], ROSTER).decided is None
+                   for i in items)
+
     assert abst(t10) >= 1 and abst(t50) >= 5
     assert t50 >= t10
 
