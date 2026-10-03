@@ -61,7 +61,9 @@ def status_payload() -> dict:
                 "forum.ledger.summary",
             ],
             "current_status": (
-                "1.16.0 native client preflight packaging with no executor or gate grants; "
+                "1.17.0 opt-in decision routing with lane probabilities and abstention, and clarify "
+                "with an optional Articulate handoff; 1.16.0 native client preflight packaging "
+                "with no executor or gate grants; "
                 "the 1.15.1 spawn helper closes a working-folder alias, a repointed PATH "
                 "link and a quoted PATH entry, over 1.15.0 gate-integrity, executor "
                 "isolation, daemon Origin/Host/content-type checks and a default auth "

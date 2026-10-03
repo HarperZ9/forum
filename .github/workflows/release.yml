@@ -79,7 +79,7 @@ jobs:
           (cd dist && sha256sum *.whl *.tar.gz > ../release/SHA256SUMS.txt)
           cat release/SHA256SUMS.txt
           version="${GITHUB_REF_NAME#v}"
-          awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on {print}' CHANGELOG.md > release/notes.md
+          awk -v v="$version" '$0 ~ "^## "v"([ ,]|$)" {on=1; next} on && /^## / {exit} on {print}' CHANGELOG.md > release/notes.md
           test -s release/notes.md || echo "See CHANGELOG.md for ${GITHUB_REF_NAME}." > release/notes.md
       - uses: actions/upload-artifact@v7
         with:
