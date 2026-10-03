@@ -21,7 +21,8 @@ SEED = 20261003
 
 
 def split(items: list[dict], seed: int = SEED) -> tuple[list[dict], list[dict]]:
-    dev, test = [], []
+    dev: list[dict] = []
+    test: list[dict] = []
     for item in items:
         digest = hashlib.sha256(f"{seed}:{item['id']}".encode()).digest()
         (dev if digest[0] % 2 == 0 else test).append(item)
