@@ -10,7 +10,7 @@ Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `doc
 [![downloads](https://img.shields.io/pypi/dm/forum-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/forum-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none](https://img.shields.io/badge/deps-none-success?style=flat-square&labelColor=14041b)
-![version: 1.16.0](https://img.shields.io/badge/version-1.16.0-26dfe8?style=flat-square&labelColor=14041b)
+![version: 1.17.0](https://img.shields.io/badge/version-1.17.0-26dfe8?style=flat-square&labelColor=14041b)
 
 forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
 
@@ -18,8 +18,8 @@ forum is a zero-dependency orchestration engine for fleets of agents: it routes 
 
 ## Current status
 
-`forum-engine 1.16.0` is the current source version, published on [PyPI](https://pypi.org/project/forum-engine/1.16.0/)
-and [GitHub Releases](https://github.com/HarperZ9/forum/releases/tag/v1.16.0). Routing, bounded
+`forum-engine 1.17.0` is the current source version, published on [PyPI](https://pypi.org/project/forum-engine/1.17.0/)
+and [GitHub Releases](https://github.com/HarperZ9/forum/releases/tag/v1.17.0). Routing, bounded
 multi-agent runs, context budgets and preflight, replayable ledgers, durable
 approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
 surfaces are present; a run result remains distinct from an external effect or
@@ -186,9 +186,12 @@ The daemon exposes route, plan, submit, clarify, prose contracts, gates, run roo
 
 ## Status
 
-The latest release is `forum-engine 1.16.0`. It adds self-contained Windows client
-packages and a default preflight-only MCP surface, while retaining the earlier
-spawn-helper and gate-integrity fixes. See [CHANGELOG.md](CHANGELOG.md) for the
+The latest release is `forum-engine 1.17.0`. It adds opt-in decision routing
+(`forum route --router decision`), which scores every lane and abstains below a
+threshold. On a 74-request held-out set it raised top-1 accuracy from 0.46 to 0.58,
+and its 19% abstain rate misses the 15% bar set before the run. The release also
+renames `humanize` to `clarify` with an optional Articulate handoff, and keeps the
+1.16.0 Windows client packages and preflight-only MCP surface. See [CHANGELOG.md](CHANGELOG.md) for the
 release history. CI runs the full test suite and ruff on every push.
 
 ## Docs
@@ -234,11 +237,11 @@ The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywh
 
 Built by **[Zain Dana Harper](https://harperz9.github.io)** in Seattle: evidence-first tools that leave a re-checkable artifact behind. The full workbench is at [Project Telos](https://harperz9.github.io).
 
-The current published release is `forum-engine 1.16.0`.
+The current published release is `forum-engine 1.17.0`.
 
 ## Local client packages
 
-The [1.16.0 release](https://github.com/HarperZ9/forum/releases/tag/v1.16.0)
+The [1.17.0 release](https://github.com/HarperZ9/forum/releases/tag/v1.17.0)
 includes native Windows ZIP and MCPB client packages. Marketplace acceptance is
 not established by publication of these archives.
 

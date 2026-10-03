@@ -208,5 +208,5 @@ credentials, full tool payloads, or private evidence for interop.
 
 See [the client package guide](client-plugin/README.md) for scoped skills, portable MCP configuration and same-release archives.
 
-The current source candidate targets 1.16.0. Registry install examples above
-continue to name the published baseline until release qualification finishes.
+The current source version is 1.17.0, and its GitHub release carries the
+matching client packages.
