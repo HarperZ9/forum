@@ -261,15 +261,19 @@ def _cmd_mine(args) -> int:
 def _cmd_route(args) -> int:
     from forum.roster import load_default
     from forum.route_frame import derive_route_frame, frame_payload
+    from forum.decision_routing import DecisionRouter
     from forum.routing import LexicalRouter
 
     roster = load_default()
-    result = LexicalRouter().score(args.text, roster)
+    router = (DecisionRouter(threshold=args.threshold) if args.router == "decision"
+              else LexicalRouter())
+    result = router.score(args.text, roster)
     frame = derive_route_frame(args.text, result, roster)
     print(json.dumps({
         "decided": result.decided,
         "confidence": result.confidence,
         "needs_escalation": result.needs_escalation,
+        "router": args.router,
         "candidates": [{"agent": c.agent, "score": c.score} for c in result.candidates],
         "frame": frame_payload(frame),
     }, indent=2))
@@ -851,6 +855,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="accepted for operator-surface consistency; route already emits JSON",
     )
+    route.add_argument("--router", choices=("lexical", "decision"), default="lexical",
+                       help="decision: lane probabilities with an abstain outcome")
+    route.add_argument("--threshold", type=float, default=0.0,
+                       help="decision router: abstain under this top-lane probability")
     route.set_defaults(func=_cmd_route)
 
     ft = sub.add_parser(

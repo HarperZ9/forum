@@ -4,6 +4,13 @@
 
 ### Added
 
+- Opt-in decision routing: `forum route --router decision` and
+  `forum.decision_routing.DecisionRouter` score every lane, report lane
+  probabilities, and abstain when no lane matches or the top probability is under
+  `--threshold`. On a 74-request held-out set it raised top-1 accuracy from 0.46
+  to 0.58 and decided 81% of requests where the lexical router decided 1 of 74.
+  Its 19% abstain rate misses the pre-stated 15% bar. Details in
+  `docs/DECISION-ROUTING.md`.
 - `clarify` replaces `humanize`: `forum clarify`, `POST /clarify`, MCP
   `forum.prose.clarify`, module `forum.clarify` with `clarify_text`, schema
   `forum.prose-clarification/v1`. The MCP tool keeps the read-only, idempotent,
