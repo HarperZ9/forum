@@ -25,8 +25,8 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text(encoding="utf-8")
     for rel in [
-        "docs/brand/forum-mark.svg",
-        "docs/brand/forum-hero.png",
+        "docs/brand/mark-tile.svg",
+        "docs/art/social.png",
         ".github/assets/banner.png",
         "examples/forum-demo.html",
     ]:
@@ -35,12 +35,12 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     # repository settings rather than linked from prose. What the README shows
     # a reader is the generated header and the run-lifecycle diagram.
     for rel in [
-        "docs/art/forum-header.svg",
+        "docs/art/hero-dark.svg",
         "docs/art/run-lifecycle.svg",
         "examples/forum-demo.html",
     ]:
         assert rel in readme, rel
-    assert (root / "docs/brand/forum-hero.svg").exists()
+    assert (root / "docs/art/hero-light.svg").exists()
     assert "## Why it matters" in readme
     assert "## Install and quickstart" in readme
     demo = (root / "examples/forum-demo.html").read_text(encoding="utf-8")
