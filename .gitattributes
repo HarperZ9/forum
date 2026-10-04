@@ -10,3 +10,7 @@ src/forum/skills/forum-route-preflight/** -text
 
 # Vendored helpers are hash-pinned (VENDORED.sha256); keep their bytes exactly as copied.
 **/_vendor/safe_spawn.py -text
+
+# Digest manifests (*.sha256) are read by sha256sum -c. A CRLF checkout puts a
+# carriage return on every path, so the check fails on files nobody edited.
+*.sha256 -text
