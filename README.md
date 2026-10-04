@@ -1,16 +1,22 @@
-<p align="center"><img src="docs/art/forum-header.svg" alt="forum: route a request, run it in waves, keep a record you can re-check." width="100%"></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/art/hero-dark.svg">
+  <img src="docs/art/hero-light.svg" alt="forum: Route a request, run it in waves, keep a record you can re-check. Routes leave a bright core and branch through three arcs of agents, with a gate drawn across the second arc. A chain of small linked squares, the ledger, runs along the outer edge." width="100%">
+</picture>
 
-Brand assets: `.github/assets/banner.svg`, `docs/brand/forum-mark.svg`, and `docs/brand/forum-hero.png`.
+# forum
 
-**Agent fleets with routing, quality gates, prose contracts, and a replayable causal ledger.**
+Route a request, run it in waves, keep a record you can re-check.
 
-[![PyPI](https://img.shields.io/pypi/v/forum-engine?style=flat-square&labelColor=14041b&color=99f147)](https://pypi.org/project/forum-engine/)
-[![license](https://img.shields.io/badge/license-FSL--1.1--MIT-8f8095?style=flat-square&labelColor=14041b)](LICENSE)
+```bash
+pip install forum-engine
+```
+
+[![version: 1.17.0](https://img.shields.io/badge/version-1.17.0-e6e1d6?style=flat-square&labelColor=1a1712)](https://pypi.org/project/forum-engine/)
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
-[![downloads](https://img.shields.io/pypi/dm/forum-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/forum-engine/)
-![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
-![deps: none](https://img.shields.io/badge/deps-none-success?style=flat-square&labelColor=14041b)
-![version: 1.17.0](https://img.shields.io/badge/version-1.17.0-26dfe8?style=flat-square&labelColor=14041b)
+[![license](https://img.shields.io/badge/license-FSL--1.1--MIT-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
+![python 3.11+](https://img.shields.io/badge/python-3.11%2B-e6e1d6?style=flat-square&labelColor=1a1712)
+
+Brand assets: `docs/art/` (hero, social preview) and `docs/brand/` (mark, lockups).
 
 forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
 
