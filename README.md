@@ -64,6 +64,12 @@ only with `--allow-gate-decisions`.
 - **Run rooms and capsules.** `forum ledger room --brief` projects the latest run into a readable brief with state, risk, and deterministic next actions. `forum ledger capsule` compacts a run into a reusable context brief for the next one.
 - **Zero dependencies.** Pure standard library at runtime. Python 3.11+.
 
+## See it work, step by step
+
+The [animated explainer](https://harperz9.github.io/repo-explainers/forum.html)
+walks through the bundled demo: four requests routed with no model, a four-task graph planned into waves, witnessed execution with causal links, ledger verification and a tampered payload body that only the deep verify catches. Every value on it is output from this repository. Its
+source is [docs/explainer/index.html](docs/explainer/index.html).
+
 ## Install and quickstart
 
 ```bash
