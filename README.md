@@ -70,6 +70,44 @@ The [animated explainer](https://harperz9.github.io/repo-explainers/forum.html)
 walks through the bundled demo: four requests routed with no model, a four-task graph planned into waves, witnessed execution with causal links, ledger verification and a tampered payload body that only the deep verify catches. Every value on it is output from this repository. Its
 source is [docs/explainer/index.html](docs/explainer/index.html).
 
+## Watch
+
+[![Re-derive it. Don't take it on trust.: a narrated film, 2 min 5 s](https://harperz9.github.io/media/explainers/rederive/poster.jpg)](https://harperz9.github.io/explainers.html#rederive-h)
+
+**[Re-derive it. Don't take it on trust.](https://harperz9.github.io/explainers.html#rederive-h)** (2 min 5 s, narrated, captioned). Forum's ledger can be replayed and verified after the run, the practice this film describes. The film page carries the transcript, the sources and recall questions.
+
+Video walkthrough: coming with the next release.
+
+## Walkthrough
+
+Install it, run it once, then use the main feature. Each command below is real, and so is its output.
+
+1. **Install.** Install from PyPI. Python 3.11 or newer; routing needs no model.
+
+   ```text
+   $ pip install forum-engine
+   ```
+
+2. **First run: route a request.** Forum scores a request against its team profiles and names the one that should take it.
+
+   ```text
+   $ forum route "build the auth endpoint and the database schema"
+     "decided": "backend",
+     "confidence": 0.6,
+   ```
+
+3. **Run it on a model.** Submit the request with any command that runs a model. Forum plans it into waves, runs them, and records every step in a ledger.
+
+   ```text
+   $ forum submit "ship a login API" --cmd "ollama run llama3"
+   ```
+
+4. **Verify the ledger.** Check the recorded ledger afterwards.
+
+   ```text
+   $ forum ledger verify
+   ```
+
 ## Install and quickstart
 
 ```bash
