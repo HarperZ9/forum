@@ -216,8 +216,8 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
     <ol class="steps">
       <li class="step" tabindex="-1" data-scene="k0" data-state="s"><div class="card">
         <span class="num">01</span><h3>Route four requests</h3>
-        <p>The lexical router scores each request against the roster's lanes, with no model call. Schema and auth work goes to <code>backend</code>, a React component to <code>frontend</code>, a guide to <code>docs</code>.</p>
-        <p>"Summon a unicorn" matches nothing. It scores 0.00 and the router escalates: it needs an LLM classifier, and it says so and makes no guess.</p>
+        <p>The lexical router scores each request against the roster's lanes in plain code. Schema and auth work goes to <code>backend</code>, a React component to <code>frontend</code>, a guide to <code>docs</code>.</p>
+        <p>"Summon a unicorn" scores 0.00 on every lane, so the router escalates and reports <code>needs_escalation: true</code> for an LLM classifier to decide.</p>
         <p class="src">Source: <a href="https://github.com/HarperZ9/forum/blob/abafb38b0c59415c997e5df57aa85a10d5bb8929/examples/demo.py">examples/demo.py</a>; <a href="https://github.com/HarperZ9/forum/blob/abafb38b0c59415c997e5df57aa85a10d5bb8929/src/forum/routing.py">src/forum/routing.py</a></p>
       </div></li>
       <li class="step" tabindex="-1" data-scene="k1" data-state="s"><div class="card">
@@ -245,7 +245,7 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
       </div></li>
       <li class="step" tabindex="-1" data-scene="k5" data-state="s"><div class="card">
         <span class="num">06</span><h3>Change one stored body</h3>
-        <p>The demo replaces the stored body of entry 2 with <code>{"task": "TAMPERED"}</code>. The chain still links, because entries hold the body's hash and none of them changed. The deep verify re-hashes the body, finds it no longer matches, and fails.</p>
+        <p>The demo replaces the stored body of entry 2 with <code>{"task": "TAMPERED"}</code>. The chain still links, because the entries hold the body's hash and those entries are untouched. The deep verify re-hashes the body, finds a different hash, and fails.</p>
         <p>That is why the two checks are separate: one proves the order of events, the other proves the content.</p>
         <p class="src">Source: <a href="https://github.com/HarperZ9/forum/blob/abafb38b0c59415c997e5df57aa85a10d5bb8929/examples/demo.py">examples/demo.py</a>; <a href="https://github.com/HarperZ9/forum/blob/abafb38b0c59415c997e5df57aa85a10d5bb8929/src/forum/ledger.py">src/forum/ledger.py</a>, <code>verify_payloads</code></p>
       </div></li>
@@ -257,7 +257,7 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
   <h2 id="walkthrough">Walkthrough</h2>
   <p class="measure">Install it, run it once, then use the main feature. Each command below is real, and so is its output.</p>
   <ol class="walkthrough">
-    <li><h3>Install</h3><p>Install from PyPI. Python 3.11 or newer; routing needs no model.</p>
+    <li><h3>Install</h3><p>Install from PyPI. Python 3.11 or newer; routing runs offline on keywords.</p>
 <pre class="cmd"><code>$ pip install forum-engine</code></pre></li>
     <li><h3>First run: route a request</h3><p>Forum scores a request against its team profiles and names the one that should take it.</p>
 <pre class="cmd"><code>$ forum route "build the auth endpoint and the database schema"
@@ -272,13 +272,13 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
 </section>
 
 <section class="block wrap" aria-labelledby="limits">
-  <h2 id="limits">What it does not do</h2>
+  <h2 id="limits">Limits</h2>
   <ul class="limits">
-    <li>The lexical router decides from words. A request that matches no lane is escalated, and a request worded unusually can land in the wrong lane.</li>
+    <li>The lexical router decides from words. A request with zero score is escalated, and a request worded unusually can land in the wrong lane.</li>
     <li>A run result is distinct from an external effect. A ledger that verifies says the record is intact. Whether the work was right needs its own check.</li>
-    <li>The chain check alone cannot see a changed payload body. Use the deep verify for content.</li>
-    <li>Approval gates and resume run through the Python API. The CLI, the daemon and the MCP server list and resolve gates but do not yet open a gated run.</li>
-    <li><code>forum serve</code> needs a bearer token by default. Turning it off is meant for loopback only.</li>
+    <li>The chain check covers the entries. Use the deep verify, <code>verify(deep=True)</code>, to check payload bodies.</li>
+    <li>Approval gates and resume run through the Python API. The CLI, the daemon and the MCP server list and resolve gates; opening a gated run is a Python API call.</li>
+    <li><code>forum serve</code> needs a bearer token by default. Turn it off on loopback alone.</li>
   </ul>
   <p class="src">Source: README.md at abafb38, "Current status" and "Inspect and serve"; src/forum/ledger.py</p>
 </section>
@@ -287,8 +287,8 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
   <h2 id="recall">Check what stuck</h2>
   <p class="measure">Answer each one in your head before you open it.</p>
   <details><summary>What does the router do with "summon a unicorn"?</summary><p>It scores 0.00 against every lane and escalates, saying it needs an LLM classifier.</p></details>
-  <details><summary>Why do T3 and T4 run in the same wave?</summary><p>Both wait only on T2, and the policy allows two tasks per wave.</p></details>
-  <details><summary>After a stored body is changed, why does verify() still return True?</summary><p>The chain links entries through hashes the entries hold. The body is stored separately, so only the deep verify, which re-hashes bodies, sees the change.</p></details>
+  <details><summary>Why do T3 and T4 run in the same wave?</summary><p>T2 is the one dependency of each, and the policy allows two tasks per wave.</p></details>
+  <details><summary>After a stored body is changed, why does verify() still return True?</summary><p>The chain links entries through hashes the entries hold. The body is stored separately, and the deep verify, which re-hashes bodies, is the check that sees the change.</p></details>
   <details><summary>How do you trace a result back to its request?</summary><p>Follow the causal parents: result to task to plan to request.</p></details>
 </section>
 </main>
