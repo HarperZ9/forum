@@ -5,7 +5,7 @@
 
 # forum
 
-Route a request, run it in waves, keep a record you can re-check.
+Hand a request to a team of AI agents, run their tasks in order, and keep a record of every step that you can check later.
 
 ```bash
 pip install forum-engine
@@ -16,26 +16,123 @@ pip install forum-engine
 [![license](https://img.shields.io/badge/license-FSL--1.1--MIT-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
 ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-e6e1d6?style=flat-square&labelColor=1a1712)
 
-Brand assets: `docs/art/` (hero, social preview) and `docs/brand/` (mark, lockups).
+Forum is a Python command-line tool and library for multi-agent runs. You give it a plain request. It picks the kind of agent that fits, asks a model to split the request into tasks with dependencies, and runs tasks that do not depend on each other side by side. A model then judges each result, and forum combines the accepted results into one answer. A task that fails its check can move up to a stronger model.
 
-forum is a zero-dependency orchestration engine for fleets of agents: it routes a plain request to the right lane, plans a dependency graph into parallel waves, and runs it across model-agnostic executors (any command, any OpenAI-compatible server, the Anthropic API). Runs carry bounded budgets, witnessed model-tier escalation, expert delivery profiles that keep answers on contract, and checkpoints that let a crashed run resume where it stopped. An always-on daemon exposes the same engine over HTTP and MCP, driven by a single `forum` command. Every run writes a replayable causal ledger you can re-check.
+You choose the models. Any command that reads a prompt and prints a reply works, such as `ollama run llama3` or an agent CLI like `claude -p`. Forum also talks to any OpenAI-compatible chat server and to the Anthropic API, and it can send cheap and hard tasks to different models.
+
+Each step lands in a ledger on disk where every entry carries a hash of the one before it. You can list the ledger, replay it to an earlier point, and follow the chain of steps that led to an answer. `forum ledger verify` reports an edited, dropped or reordered entry. A passing check covers the record only. The run brief has its own line for checks on the answer.
+
+Forum suits developers who run agent pipelines on their own machine or server and want to see afterwards which model did each task and why one was retried. The runtime uses only the Python standard library.
+
+The PyPI package is `forum-engine`. The name `forum` on PyPI belongs to an unrelated project. `forum-engine 1.17.0` is the current source version, published on [PyPI](https://pypi.org/project/forum-engine/1.17.0/) and [GitHub Releases](https://github.com/HarperZ9/forum/releases/tag/v1.17.0).
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
 
-## Current status
+## Install and quickstart
 
-`forum-engine 1.17.0` is the current source version, published on [PyPI](https://pypi.org/project/forum-engine/1.17.0/)
-and [GitHub Releases](https://github.com/HarperZ9/forum/releases/tag/v1.17.0). Routing, bounded
-multi-agent runs, context budgets and preflight, replayable ledgers, durable
-approvals, campaign orchestration, runtime inspection, daemon HTTP, and MCP
-surfaces are present; a run result remains distinct from an external effect or
-outcome.
+The commands below were run in a fresh virtual environment with `forum-engine` 1.17.0 from PyPI. Python 3.11 or newer is required.
 
-Approval gates and resume run through the Python API. The CLI, the daemon and the
-MCP server list and resolve gates, but none of them opens a gated or resumable
-run yet.
+**1. Route a request.** No model and no network needed.
+
+```console
+$ pip install forum-engine
+$ forum route "build the auth endpoint and the database schema"
+{
+  "decided": "backend",
+  "confidence": 0.6,
+  "needs_escalation": false,
+  "router": "lexical",
+  ...
+}
+```
+
+**2. Run a whole request without a model.** `--cmd` takes any command. Forum adds each prompt as the last argument and reads the reply from standard output. To watch the pipeline with no model installed, save this stand-in as `stub_model.py`. It answers the planning and judging prompts with fixed JSON and echoes everything else:
+
+```python
+import json, sys
+prompt = sys.argv[-1]
+if prompt.startswith("You are a planner"):
+    print(json.dumps({"tasks": [
+        {"id": "T1", "agent": "backend", "instruction": "design the login endpoint", "depends_on": []},
+        {"id": "T2", "agent": "backend", "instruction": "write tests for it", "depends_on": ["T1"]},
+    ]}))
+elif prompt.startswith("Judge whether"):
+    print(json.dumps({"ok": True, "score": 1.0, "reason": "stub accepts"}))
+else:
+    print("stub answer for: " + prompt.splitlines()[0][:70])
+```
+
+Pass the script by its full path. Forum starts each command in a new empty folder, so a relative path will not resolve.
+
+```console
+$ forum submit "ship a login API" --cmd "python /full/path/to/stub_model.py"
+checkpoint: 3d21435fb668d311...
+stub answer for: Combine the task results into one clear answer to the request.
+$ forum ledger show --limit 20
+    0  client       request    parent=None
+    1  router       route_frame parent=0
+    2  dispatch     plan       parent=0
+    3  dispatch     task       parent=2
+    4  backend      result     parent=3
+    5  dispatch     task       parent=2
+    6  backend      result     parent=5
+    7  validator    verdict    parent=4
+    8  validator    verdict    parent=6
+    9  synthesizer  result     parent=0
+   10  delivery     delivery_check parent=9
+   11  delivery-profile delivery_profile_check parent=9
+   12  intent       intent_check parent=9
+$ forum ledger verify
+{
+  "chain": true,
+  "deep": true
+}
+$ forum ledger room --brief
+...
+- Tasks: 2 total, 2 with results, 2 accepted
+- Answer: present
+- External verification: none ran (an intact ledger is not answer acceptance)
+```
+
+The ledger goes to `./forum-ledger`. Pass `--ledger <dir>` to put it elsewhere, or a path ending in `.db` for SQLite.
+
+**3. Watch it catch a tampered record.** From a clone, with no install and no model:
+
+```bash
+git clone https://github.com/HarperZ9/forum
+cd forum
+python examples/demo.py
+```
+
+The demo edits one stored result after the run. The quick chain check still passes. The deep check re-hashes every stored body and fails. The full output is under [A worked example](#a-worked-example-catch-a-tampered-record).
+
+**What a real run needs.** Swap the stub for a model:
+
+- a local model: install [Ollama](https://ollama.com), run `ollama pull llama3`, then pass `--cmd "ollama run llama3"`
+- an OpenAI-compatible server: `--chat-url http://localhost:11434/v1/chat/completions --model llama3`
+- the Anthropic API: `--api` with `ANTHROPIC_API_KEY` set; your provider bills these calls
+
+The quickstart above ran on the stub only. The model-backed paths were outside that run. When a model returns a plan that holds no JSON, `forum submit` stops with `submit failed: no JSON object in output` and exit code 1; small local models do this more often.
+
+## Limits
+
+- By default the model that runs a task also judges it. Forum records each verdict and which model gave it, and a model grading itself is still a weak check. For an independent check, plug a separate verifier into the `VerifierProvider` seam ([crucible](https://github.com/HarperZ9/crucible) is one).
+- Approval gates and resume run through the Python API. The CLI, the HTTP daemon and the MCP server can list and resolve gates, but none of them starts a gated or resumable run yet.
+- Routing is lexical by default: it scores your words against 28 built-in agent profiles. The opt-in `--router decision` mode can decline to route. On a 74-request held-out set it raised top-1 accuracy from 0.46 to 0.58 and abstained on 19% of requests.
+- `--max-model-calls` is enforced. `--max-seconds` is best-effort.
+
+## How it compares
+
+- **LangGraph, CrewAI, AutoGen.** These are the common Python frameworks for multi-agent apps. They have far larger ecosystems, built-in tool calling, and many integrations. Forum has no tool-calling loop of its own; each task is a prompt sent to a model, or to an agent CLI that brings its own tools. What forum adds is a stdlib-only runtime, routing that needs no model, and a ledger you can verify and replay offline.
+- **LangSmith, Langfuse, OpenTelemetry tracing.** These record what an agent did and give you dashboards and search. Forum's ledger has no hosted UI. `forum import-trace` reads a LangSmith, OpenTelemetry, AgentOps or generic JSON trace and turns it into a hash-chained record, so a trace from another framework can be checked for edits too.
+- **One agent CLI on its own.** If a single model call or one Claude Code or Codex session does the job, forum adds overhead. It pays off when a request splits into several tasks, when different tasks should go to different models, or when you need a record of the run afterwards.
 
 ## Inspect and serve
+
+```bash
+forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
+forum mcp --cmd "ollama run llama3"
+```
 
 Use `forum status --json` and `forum doctor --json` to inspect the local
 installation, then `forum serve` or `forum mcp` to expose the same routing,
@@ -48,26 +145,29 @@ first. Daemon clients now need the token, commands start in an empty folder with
 a short environment allowlist, and `forum mcp` offers the gate decision tools
 only with `--allow-gate-decisions`.
 
+`forum --help` lists the full surface: `status`, `doctor`, `demo`, `clarify`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `import-trace`, `grade`, `export-gradable`, `mine`, `bench`, and `bench-deep-verify`. `import-trace` folds an external trace into a checkable ledger, `grade` and `export-gradable` score and export a run record, and `mine` pulls examples from the ledger. Those four are CLI-only; the MCP server does not expose them. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
+
 ## Features
 
-- **One command, three model backends.** `forum submit "ship a login API" --cmd "ollama run llama3"` plans the request, runs it across agents, and returns one synthesized answer. Swap `--cmd` for `--chat-url` (any OpenAI-compatible server) or `--api` (Anthropic). A local CLI needs no account.
-- **Tiered executors.** Route task agents to cheap, capable, and frontier models by roster tier: `--cheap-cmd`, `--capable-cmd`, `--frontier-cmd`, or per-tier chat endpoints. Put the whole policy in a TOML file and load it with `--runtime-config`; `forum runtime inspect` explains the merged policy before anything runs.
-- **Crash-safe runs.** Runs checkpoint at wave boundaries, and the Python API resumes them from the durable ledger, reusing every task already witnessed as successful and re-running only the rest.
-- **Human-in-the-loop approvals.** Pause a run at a wave boundary until you approve, edit, or reject it: `forum gate list / approve / edit / reject`. Gates can carry durable deadlines with a witnessed auto-decision on expiry, so an unattended run never stalls silently. See [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md).
-- **Campaigns.** Declare a multi-project campaign as a JSON feature graph, then drive it to a fixed point: `forum campaign declare / status / next / run / ingest-status`. Cycles are caught up front; external project status can be ingested without execution.
-- **Bounded everything.** `RunBudget` caps a run by model calls and wall clock. `ContextBudget` admits, trims, or omits request context, per-task context, upstream injection, and synthesis inputs under approximate-token caps. `forum context preflight` estimates the pressure before you spend a model call.
-- **Codex route-preflight skill.** A standalone reviewed ZIP lets Codex hosts preview Forum route, context pressure, runtime readiness, and the prose contract before spending model calls. Future engine releases that include this source change also carry the same asset as package data. The helper is advisory only and never submits work.
-- **Delivery quality checks.** A deterministic concision floor flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. Expert delivery profiles (`operator`, `engineer`, `researcher`, `executive`) check the final answer against a local prose contract, selected from the route by default.
-- **Deterministic routing with a human contract.** `forum route` picks a route from a 28-route default roster without a model, and attaches a `forum.route-frame/v1` frame: domain, intent, posture, delivery profile, runtime tier, and an embedded communication contract that synthesis follows.
-- **Witnessed escalation.** Every result records the model that produced it; a failed task escalates up a ladder of stronger executors on an auditable verdict.
-- **Always-on surfaces.** One daemon (stdlib asyncio, no framework) serves the engine over HTTP; `forum mcp` exposes the same tools over MCP (stdio), a thin adapter over the HTTP surface so the two cannot drift.
-- **Run rooms and capsules.** `forum ledger room --brief` projects the latest run into a readable brief with state, risk, and deterministic next actions. `forum ledger capsule` compacts a run into a reusable context brief for the next one.
+- **One command, three model backends.** `forum submit "ship a login API" --cmd "ollama run llama3"` plans the request, runs it across agents, and returns one combined answer. Swap `--cmd` for `--chat-url` (any OpenAI-compatible server) or `--api` (Anthropic). A local CLI needs no account.
+- **Model tiers.** Send task agents to cheap, capable, and frontier models by tier: `--cheap-cmd`, `--capable-cmd`, `--frontier-cmd`, or per-tier chat endpoints. Put the whole policy in a TOML file and load it with `--runtime-config`; `forum runtime inspect` explains the merged policy before anything runs.
+- **Crash-safe runs.** Runs checkpoint at wave boundaries, and the Python API resumes them from the ledger on disk, reusing every task already recorded as successful and re-running only the rest.
+- **Human approvals.** Pause a run at a wave boundary until you approve, edit, or reject it: `forum gate list / approve / edit / reject`. Gates can carry deadlines with a recorded automatic decision on expiry, so an unattended run does not stall silently. See [docs/GATE-DEADLINES.md](docs/GATE-DEADLINES.md).
+- **Campaigns.** Declare a multi-project campaign as a JSON feature graph, then drive it until no work is left: `forum campaign declare / status / next / run / ingest-status`. Cycles are caught up front; external project status can be ingested without execution.
+- **Run and context budgets.** `RunBudget` caps a run by model calls and wall clock. `ContextBudget` admits, trims, or omits request context, per-task context, upstream injection, and synthesis inputs under approximate-token caps. `forum context preflight` estimates the pressure before you spend a model call.
+- **Codex route-preflight skill.** A standalone ZIP lets Codex hosts preview Forum route, context pressure, runtime readiness, and the prose contract before spending model calls. The helper only advises and never submits work. See [below](#codex-route-preflight-skill-asset).
+- **Answer checks.** A deterministic length check flags verbose answers; an opt-in reviser tightens them, accepted only if the shorter version still covers the request. Delivery profiles (`operator`, `engineer`, `researcher`, `executive`) check the final answer against a local style contract, picked from the route by default.
+- **Routing without a model.** `forum route` picks a route from a 28-route default roster without a model, and attaches a `forum.route-frame/v1` frame: domain, intent, posture, delivery profile, runtime tier, and the style contract the final answer follows.
+- **Escalation on record.** Every result records the model that produced it. A failed task moves up a ladder of stronger models, and the failing verdict that caused the move is in the ledger.
+- **Trace import.** `forum import-trace trace.json --format langsmith` (or `otel`, `agentops`, `generic`) turns another tool's trace into a hash-chained ledger and reports whether it verifies.
+- **HTTP and MCP.** One daemon (stdlib asyncio, no framework) serves the engine over HTTP; `forum mcp` exposes the same tools over MCP (stdio), a thin adapter over the HTTP surface so the two cannot drift.
+- **Run briefs and capsules.** `forum ledger room --brief` turns the latest run into a readable brief with state, risk, and next actions. `forum ledger capsule` compacts a run into a reusable context brief for the next one.
 - **Zero dependencies.** Pure standard library at runtime. Python 3.11+.
 
 ## See it work, step by step
 
 The [animated explainer](https://harperz9.github.io/repo-explainers/forum.html)
-walks through the bundled demo: four requests routed with no model, a four-task graph planned into waves, witnessed execution with causal links, ledger verification and a tampered payload body that only the deep verify catches. Every value on it is output from this repository. Its
+walks through the bundled demo: four requests routed with no model, a four-task graph planned into waves, execution with causal links, ledger verification and a tampered payload body that only the deep verify catches. Every value on it is output from this repository. Its
 source is [docs/explainer/index.html](docs/explainer/index.html).
 
 ## Watch
@@ -76,82 +176,11 @@ source is [docs/explainer/index.html](docs/explainer/index.html).
 
 **[Re-derive it. Don't take it on trust.](https://harperz9.github.io/explainers.html#rederive-h)** (2 min 5 s, narrated, captioned). Forum's ledger can be replayed and verified after the run, the practice this film describes. The film page carries the transcript, the sources and recall questions.
 
-## Walkthrough
+## Codex route-preflight skill asset
 
-Install it, run it once, then use the main feature. Each command below is real, and so is its output.
+The skill ships two ways. The GitHub release [`forum-route-preflight-v0.1.0`](https://github.com/HarperZ9/forum/releases/tag/forum-route-preflight-v0.1.0) carries `forum-route-preflight-skill-20260907-final.zip`, which you can download and extract without cloning this repository or installing the engine. The `forum-engine` package also carries the same files at `forum/skills/forum-route-preflight/`, with `forum/skills/forum-route-preflight.sha256` holding the hashes of the four reviewed files; the 1.17.0 wheel includes them. The standalone ZIP does not publish to PyPI and does not change the package version.
 
-1. **Install.** Install from PyPI. Python 3.11 or newer; routing needs no model.
-
-   ```text
-   $ pip install forum-engine
-   ```
-
-2. **First run: route a request.** Forum scores a request against its team profiles and names the one that should take it.
-
-   ```text
-   $ forum route "build the auth endpoint and the database schema"
-     "decided": "backend",
-     "confidence": 0.6,
-   ```
-
-3. **Run it on a model.** Submit the request with any command that runs a model. Forum plans it into waves, runs them, and records every step in a ledger.
-
-   ```text
-   $ forum submit "ship a login API" --cmd "ollama run llama3"
-   ```
-
-4. **Verify the ledger.** Check the recorded ledger afterwards.
-
-   ```text
-   $ forum ledger verify
-   ```
-
-## Install and quickstart
-
-```bash
-pip install forum-engine
-```
-
-Routing and the ledger commands need no model:
-
-```bash
-forum route "build the auth endpoint and the database schema"
-```
-
-```json
-{
-  "decided": "backend",
-  "confidence": 0.6,
-  "needs_escalation": false,
-  ...
-}
-```
-
-Answer a request with a local model (no account needed), then read the record:
-
-```bash
-forum submit "ship a login API" --cmd "ollama run llama3"
-forum ledger show --limit 20
-forum ledger verify
-forum ledger room --brief
-```
-
-Run the daemon or the MCP server over the same engine:
-
-```bash
-forum serve --chat-url http://localhost:11434/v1/chat/completions --model llama3
-forum mcp --cmd "ollama run llama3"
-```
-
-`forum --help` lists the full surface: `status`, `doctor`, `demo`, `clarify`, `route`, `submit`, `serve`, `mcp`, `context`, `runtime`, `ledger`, `gate`, `campaign`, `import-trace`, `grade`, `export-gradable`, `mine`, `bench`, and `bench-deep-verify`. The last four are the flight-recorder and gradable-export commands: `import-trace` ingests an external run, `grade` and `export-gradable` score and export a gradable record, and `mine` extracts examples from the ledger. They are CLI-only; the MCP server does not expose them. From a source checkout the same CLI is available as `python -m forum`. See [RUNNING.md](RUNNING.md) for real-model setups and [USAGE.md](USAGE.md) for the full command reference.
-
-### Codex route-preflight skill asset
-
-The standalone skill release path is a GitHub Release asset, not a `forum-engine` package release. The intended tag is `forum-route-preflight-v0.1.0`, with `forum-route-preflight-skill-20260907-final.zip` attached and the release marked `--latest=false`. That ZIP can be downloaded and extracted without cloning this repository or installing the engine source.
-
-Engine package assets are separate. The next normal `forum-engine` release that includes this source change will carry the same reviewed files at `forum/skills/forum-route-preflight/`, plus `forum/skills/forum-route-preflight.sha256` for the four reviewed file hashes. The standalone ZIP does not bump `pyproject.toml`, does not change `src/forum/__init__.py`, and does not publish to PyPI.
-
-The skill was validated against the `forum-engine==1.13.0` CLI/API shape. It previews route, context pressure, runtime readiness, and delivery-profile prose checks; it keeps `decision.safe_to_submit: false`, never calls `forum submit`, and never runs the configured model command. Failed subprocess diagnostics in its shareable receipt contain only exit code, byte counts, and SHA-256 digests of raw diagnostic bytes. Successful JSON is scrubbed for exact helper-supplied task text, paths, runtime commands, chat URLs, model names, API-key environment variable names, and the current values of those supplied API-key variables. It is not a universal secret detector for transformed or previously unknown values.
+The skill was validated against the `forum-engine==1.13.0` CLI/API shape. It previews route, context pressure, runtime readiness, and delivery-profile prose checks; it keeps `decision.safe_to_submit: false`, never calls `forum submit`, and never runs the configured model command. Failed subprocess diagnostics in its shareable report contain only exit code, byte counts, and SHA-256 digests of raw diagnostic bytes. Successful JSON is scrubbed for exact helper-supplied task text, paths, runtime commands, chat URLs, model names, API-key environment variable names, and the current values of those supplied API-key variables. It is not a universal secret detector for transformed or previously unknown values.
 
 See [USAGE.md](USAGE.md#codex-route-preflight-skill-asset) for download, extraction, and checksum commands.
 
@@ -230,9 +259,9 @@ forum bench-deep-verify --entries 1000,10000 --payload-bytes 256,4096 --storage 
 
 ## HTTP and MCP surfaces
 
-The daemon exposes route, plan, submit, clarify, prose contracts, gates, run rooms, capsules, runtime inspection, context preflight, and ledger verify/replay over HTTP (`/route`, `/plan`, `/submit`, `/gates`, `/gate/approve`, `/room`, `/capsule`, `/runtime`, `/context/preflight`, `/clarify`, `/prose/contract`, `/verify`, and more). MCP mirrors the same tools: `forum.submit`, `forum.route`, `forum.plan`, `forum.status`, `forum.doctor`, `forum.verify`, `forum.prose.clarify`, `forum.prose.contract`, `forum.ledger.summary`, `forum.ledger.capsule`, `forum.ledger.get`, `forum.run.room`, `forum.runtime.inspect`, `forum.context.preflight`, and `forum.gate.list` / `approve` / `edit` / `reject`.
+The daemon exposes route, plan, submit, clarify, prose contracts, gates, run rooms, capsules, runtime inspection, context preflight, and ledger verify/replay over HTTP (`/route`, `/plan`, `/submit`, `/gates`, `/gate/approve`, `/room`, `/capsule`, `/runtime`, `/context/preflight`, `/clarify`, `/prose/contract`, `/verify`, and more). MCP mirrors the same tools: `forum.submit`, `forum.route`, `forum.status`, `forum.doctor`, `forum.prose.clarify`, `forum.prose.contract`, `forum.ledger.summary`, `forum.ledger.capsule`, `forum.run.room`, `forum.runtime.inspect`, `forum.context.preflight`, plus `plan`, `verify`, `ledger_get` and `gate_list`. That is 19 tools in 1.17.0, counting the short aliases `route`, `status`, `submit` and the deprecated `forum.prose.humanize`. `gate_approve`, `gate_edit` and `gate_reject` appear only when the server starts with `--allow-gate-decisions`. Calls also accept the dotted names `forum.plan`, `forum.verify`, `forum.ledger.get` and `forum.gate.*`.
 
-## Status
+## Latest release
 
 The latest release is `forum-engine 1.17.0`. It adds opt-in decision routing
 (`forum route --router decision`), which scores every lane and abstains below a
@@ -256,7 +285,7 @@ Peer projects in Project Telos compose through clean seams: [index](https://gith
 
 ## Why it matters
 
-Most orchestrators give you output and a log you are asked to trust. forum writes every routing decision, task, result, and verdict into a hash-chained, content-addressed ledger you can verify, replay, and challenge, so a run is something you can prove, not just believe.
+Agent runs are hard to debug after the fact: a log tells you what was printed, and it can be edited without a trace. forum writes every routing decision, task, result, and verdict into a hash-chained, content-addressed ledger. You can verify it, replay it to any point, and follow the chain of steps behind an answer.
 
 ## License
 
