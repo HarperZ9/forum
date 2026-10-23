@@ -7,15 +7,15 @@ executors, validates each result, and synthesizes one answer. The whole run, eve
 routing decision, task, result, and verdict, lands in a replayable causal ledger.
 
 It runs three ways: as a Python library, as a `forum` command, and as an always-on
-daemon that serves the same engine over HTTP and MCP. The core is pure standard
-library, Python 3.11+, no third-party runtime dependencies.
+daemon that serves the same engine over HTTP and MCP. The core runs on the Python
+3.11+ standard library alone.
 
 ## Why it exists
 
-Most agent frameworks give you output and a log you are asked to trust. When a run
-drifts, overspends, or fails at 3 a.m., the log cannot prove what happened or resume
-what was lost. forum treats the record as the work: a hash-chained, content-addressed
-ledger that a later run can verify, replay, resume from, and challenge.
+When a run drifts, overspends, or fails at 3 a.m., you need to know what happened and
+pick up where it stopped. forum treats the record as the work: a hash-chained,
+content-addressed ledger that a later run can verify, replay, resume from, and
+challenge.
 
 ## Core concepts
 
@@ -28,12 +28,12 @@ history into one Merkle root. Backed by memory for tests, or a durable append-on
 JSONL `FileStorage` that survives restarts and crash-torn writes.
 
 **Routing and lanes.** A deterministic router reads a request and picks a lane from a
-roster (28 domain-neutral capability lanes ship in the box), escalating to a model
-classifier only when keywords genuinely cannot decide. Every route carries a
+roster (28 domain-neutral capability lanes ship in the box). When keywords leave the
+choice open, it escalates to a model classifier. Every route carries a
 deterministic `forum.route-frame/v1` contract: domain, intent, posture, delivery
 profile, selected runtime tier, and a communication contract that later shapes the
 final answer. A separate closed lane vocabulary gates what scopes a route may claim,
-and rejections are witnessed, never silently dropped.
+and each rejection is written to the ledger.
 
 **Plans and dispatch.** A task graph with typed edges (data edges feed witnessed
 upstream output into downstream tasks; order edges only sequence) is compiled into
@@ -42,11 +42,12 @@ parallel waves, with cycles and missing dependencies caught up front. Tasks can 
 boundaries and resume from the ledger, reusing every task already witnessed as
 successful.
 
-**Executors.** How work actually runs, model-agnostic: any command via
-`SubprocessExecutor` (a local model CLI needs no account), any OpenAI-compatible
-server via `ChatExecutor`, or the Anthropic API via `ApiExecutor`. A `TieredExecutor`
-routes task agents to cheap, capable, or frontier executors from roster policy. A
-failed task is witnessed, not fatal, and can escalate up a ladder of stronger models.
+**Executors.** How work runs, with any model: any command via `SubprocessExecutor`
+(a local model CLI works offline), any OpenAI-compatible server via `ChatExecutor`,
+or the Anthropic API via `ApiExecutor`. A `TieredExecutor` routes task agents to
+cheap, capable, or frontier executors from roster policy. A failed task is recorded
+in the ledger, the run continues, and the task can escalate up a ladder of stronger
+models.
 
 **Budgets.** A `RunBudget` caps a run by model calls and wall clock, witnessing where
 it stopped. A `ContextBudget` admits, trims, or omits request context, per-task
@@ -68,8 +69,8 @@ on resume, so nothing runs behind the operator's back. See
 **Campaigns.** A campaign declares multiple projects' features as a JSON dependency
 graph. `forum campaign run` dispatches the runnable features to a fixed point,
 `campaign status` reduces the ledger into current state, `campaign next` derives the
-next operator actions, and `campaign ingest-status` records external progress without
-executing anything.
+next operator actions, and `campaign ingest-status` records progress made elsewhere as
+a ledger entry.
 
 **Seams.** Two provider interfaces keep forum composable: a `ContextProvider` supplies
 organized context (fresh per task, capped, witnessed), and a `VerifierProvider` lets
@@ -84,13 +85,23 @@ Install it:
 pip install forum-engine
 ```
 
-See routing and the ledger with no model at all:
+See routing work offline, on keywords alone:
 
 ```bash
 forum route "build the auth endpoint and the database schema"
 ```
 
-It answers with a decided lane (`backend`), a confidence, and the route frame. Then
+```
+{
+  "decided": "backend",
+  "confidence": 0.6,
+  "needs_escalation": false,
+  "router": "lexical",
+  ...
+```
+
+It answers with a decided lane, a confidence, the candidates it weighed, and the
+route frame. Then
 clone the repo and run the demo, which plans and runs a small graph, tampers with a
 stored result, and shows the deep verify catching it:
 
