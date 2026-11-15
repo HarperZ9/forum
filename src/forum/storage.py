@@ -16,6 +16,26 @@ class StorageCorruption(ValueError):
     """A persisted log line is malformed in a way a crash cannot explain."""
 
 
+class StorageBusy(Exception):
+    """A storage lock could not be taken within the stated bound.
+
+    Raised by ``SqliteStorage`` when another connection holds the lock for
+    longer than ``lock_timeout`` seconds. Nothing was written by the call that
+    raised it, so the ledger is exactly as the other writers left it and the
+    caller may try again later.
+    """
+
+    def __init__(self, path: str, what: str, waited: float, attempts: int) -> None:
+        super().__init__(
+            f"{path}: could not take the {what} after {waited:.2f} s "
+            f"and {attempts} attempts; another connection holds it"
+        )
+        self.path = path
+        self.what = what
+        self.waited = waited
+        self.attempts = attempts
+
+
 def _entry_to_row(e: LedgerEntry) -> dict[str, Any]:
     return {
         "seq": e.seq,

@@ -1,11 +1,19 @@
 import dataclasses
+import os
+import pathlib
+import sqlite3
+import subprocess
+import sys
 import threading
+import time
 
 import pytest
 
+import forum
+from forum.hashing import canonical_hash
 from forum.ledger import InMemoryStorage, Ledger
 from forum.sqlite_storage import SqliteStorage
-from forum.storage import StorageCorruption
+from forum.storage import StorageBusy, StorageCorruption
 
 
 def _ledger(storage, n_ticks=50):
@@ -206,3 +214,234 @@ def test_sqlite_concurrent_append_keeps_chain_intact(tmp_path):
     assert led.count() == total  # every append landed, none lost
     assert [e.seq for e in led.replay()] == list(range(total))  # dense, no gaps/dups
     assert led.verify(deep=True) is True  # chain + payloads intact under the race
+
+
+# --- Lock contention -------------------------------------------------------
+# On 2026-11-15 a Windows CI runner failed the test above with
+# OperationalError('database is locked'). Cause: a writer in a loop takes the
+# write lock back within microseconds of releasing it, while the others slept
+# in SQLite's busy handler (up to 100 ms a nap), so one writer ran its whole
+# batch before the next got in. On a slow disk the last in line waited past the
+# 5 s busy timeout, and the storage passed the lock error to the caller.
+
+
+def _hold_write_lock(db: str, seconds: float) -> tuple[threading.Thread, threading.Event]:
+    """Hold the database's write lock from another connection for ``seconds``."""
+    held = threading.Event()
+
+    def _holder() -> None:
+        conn = sqlite3.connect(db, isolation_level=None)
+        conn.execute("BEGIN IMMEDIATE")
+        held.set()
+        time.sleep(seconds)
+        conn.execute("COMMIT")
+        conn.close()
+
+    thread = threading.Thread(target=_holder)
+    thread.start()
+    assert held.wait(timeout=10)
+    return thread, held
+
+
+def _assert_dense_and_verified(db: str, total: int) -> None:
+    led = Ledger(SqliteStorage(db))
+    assert led.count() == total
+    assert [e.seq for e in led.replay()] == list(range(total))
+    assert led.verify(deep=True) is True
+    led._s.close()
+
+
+def test_sqlite_convoy_of_writers_all_land_with_sqlite_wait_cut_short(tmp_path):
+    # Stress test for the lock convoy. SQLite's own wait is cut to 25 ms on
+    # each connection here, on purpose: the convoy needed a slow disk and 5 s
+    # to starve a writer on CI, and 25 ms shows the same starvation in under a
+    # second on any machine. The storage's own bound (lock_timeout) stays at
+    # its default, so every writer must still land every append.
+    db = str(tmp_path / "shared.db")
+    SqliteStorage(db).close()
+    workers, per = 8, 40
+    errors: list[BaseException] = []
+    start = threading.Barrier(workers)
+
+    def _writer(worker_id: int) -> None:
+        try:
+            store = SqliteStorage(db, fsync_each=True)
+            store._conn.execute("PRAGMA busy_timeout=25")
+            led = Ledger(store)
+            start.wait()
+            for i in range(per):
+                led.append(actor=f"w{worker_id}", kind="result",
+                           payload={"w": worker_id, "i": i})
+            store.close()
+        except BaseException as exc:  # noqa: BLE001 — surface to the assertion
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_writer, args=(w,)) for w in range(workers)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=90)
+
+    assert not errors, f"{len(errors)} of {workers} writers raised: {errors[0]!r}"
+    _assert_dense_and_verified(db, workers * per)
+
+
+_PROCESS_WRITER = """
+import sys
+from forum.ledger import Ledger
+from forum.sqlite_storage import SqliteStorage
+db, worker, per = sys.argv[1], sys.argv[2], int(sys.argv[3])
+led = Ledger(SqliteStorage(db))
+for i in range(per):
+    led.append(actor="p" + worker, kind="result", payload={"p": worker, "i": i})
+led._s.close()
+"""
+
+
+def test_sqlite_writer_processes_share_one_file(tmp_path):
+    # The deployment the storage is for: separate worker processes, one file.
+    db = str(tmp_path / "shared.db")
+    SqliteStorage(db).close()
+    workers, per = 4, 25
+    # The children import the same forum package as this test, from a working
+    # directory that holds no module of that name.
+    package_parent = str(pathlib.Path(forum.__file__).resolve().parent.parent)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [package_parent, *filter(None, [env.get("PYTHONPATH")])]
+    )
+    procs = [
+        subprocess.Popen(
+            [sys.executable, "-c", _PROCESS_WRITER, db, str(w), str(per)],
+            stderr=subprocess.PIPE, text=True, cwd=str(tmp_path), env=env,
+        )
+        for w in range(workers)
+    ]
+    failures = []
+    for proc in procs:
+        _, err = proc.communicate(timeout=120)
+        if proc.returncode != 0:
+            failures.append(err.strip().splitlines()[-1] if err.strip() else "no stderr")
+    assert not failures, f"writer processes failed: {failures}"
+    _assert_dense_and_verified(db, workers * per)
+
+
+def test_sqlite_writer_waits_for_a_held_lock_and_then_lands(tmp_path):
+    db = str(tmp_path / "shared.db")
+    store = SqliteStorage(db)
+    led = Ledger(store)
+    led.append(actor="a", kind="k", payload={"n": 0})
+    holder, _ = _hold_write_lock(db, 0.6)
+    began = time.monotonic()
+    entry = led.append(actor="a", kind="k", payload={"n": 1})
+    waited = time.monotonic() - began
+    holder.join(timeout=10)
+    assert entry.seq == 1
+    assert waited >= 0.3  # it waited for the holder instead of failing fast
+    store.close()
+    _assert_dense_and_verified(db, 2)
+
+
+def test_sqlite_writer_raises_storage_busy_at_its_bound_and_writes_nothing(tmp_path):
+    db = str(tmp_path / "shared.db")
+    store = SqliteStorage(db, lock_timeout=0.25)
+    led = Ledger(store)
+    led.append(actor="a", kind="k", payload={"n": 0})
+    holder, _ = _hold_write_lock(db, 1.5)
+    began = time.monotonic()
+    with pytest.raises(StorageBusy) as caught:
+        led.append(actor="a", kind="k", payload={"never": "written"})
+    waited = time.monotonic() - began
+    assert 0.25 <= waited < 1.4  # loud at the bound, not when the holder lets go
+    assert caught.value.path == db
+    assert caught.value.waited >= 0.25
+    assert caught.value.attempts > 1
+    assert "write lock" in str(caught.value)
+    holder.join(timeout=10)
+    # The refused append left no entry and no payload behind...
+    assert store.count() == 1
+    with pytest.raises(KeyError):
+        store.get_payload(canonical_hash({"never": "written"}))
+    # ...and the same writer carries on from the same head afterwards.
+    assert led.append(actor="a", kind="k", payload={"n": 1}).seq == 1
+    store.close()
+    _assert_dense_and_verified(db, 2)
+
+
+def test_sqlite_workers_opening_a_new_file_together_all_open(tmp_path):
+    # Before the fix a worker that lost the race to create the file got a lock
+    # error that __init__ reported as StorageCorruption("not a valid SQLite
+    # database"). Several rounds, because the race is narrow.
+    workers = 8
+    for round_no in range(5):
+        db = str(tmp_path / f"fresh-{round_no}.db")
+        errors: list[BaseException] = []
+        start = threading.Barrier(workers)
+
+        def _opener(db: str = db, errors: list[BaseException] = errors,
+                    start: threading.Barrier = start) -> None:
+            try:
+                start.wait()
+                store = SqliteStorage(db)
+                Ledger(store).append(actor="a", kind="k", payload={"x": 1})
+                store.close()
+            except BaseException as exc:  # noqa: BLE001 — surface to the assertion
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_opener) for _ in range(workers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=60)
+        assert not errors, f"round {round_no}: opener raised {errors[0]!r}"
+        _assert_dense_and_verified(db, workers)
+
+
+def test_sqlite_write_transaction_rolls_back_the_whole_unit_on_error(tmp_path):
+    store = _db(tmp_path)
+    with pytest.raises(RuntimeError), store.write_transaction():
+        store.put_payload("h-rolled-back", {"v": 1})
+        raise RuntimeError("fail between the payload and the entry")
+    with pytest.raises(KeyError):
+        store.get_payload("h-rolled-back")
+    # the lock was released: another connection can write straight away
+    other = SqliteStorage(str(tmp_path / "ledger.db"), lock_timeout=0.5)
+    other.put_payload("h-other", {"v": 2})
+    assert store.get_payload("h-other") == {"v": 2}
+
+
+def test_sqlite_batched_writer_holds_the_lock_until_sync(tmp_path):
+    db = str(tmp_path / "ledger.db")
+    batched = SqliteStorage(db, fsync_each=False)
+    Ledger(batched).append(actor="a", kind="k", payload={"n": 0})
+    second = SqliteStorage(db, lock_timeout=0.2)
+    with pytest.raises(StorageBusy):
+        Ledger(second).append(actor="b", kind="k", payload={"n": 1})
+    batched.sync()
+    assert Ledger(second).append(actor="b", kind="k", payload={"n": 1}).seq == 1
+    batched.close()
+    second.close()
+    _assert_dense_and_verified(db, 2)
+
+
+def test_sqlite_sync_returns_while_a_reader_blocks_the_checkpoint(tmp_path):
+    db = str(tmp_path / "ledger.db")
+    store = SqliteStorage(db, lock_timeout=0.2)
+    led = Ledger(store)
+    led.append(actor="a", kind="k", payload={"n": 0})
+    reader = sqlite3.connect(db, isolation_level=None)
+    reader.execute("BEGIN")
+    reader.execute("SELECT COUNT(*) FROM entries").fetchall()  # pins a snapshot
+    led.append(actor="a", kind="k", payload={"n": 1})
+    began = time.monotonic()
+    store.sync()  # cannot finish the checkpoint past the reader; must not hang
+    assert time.monotonic() - began < 5
+    reader.execute("COMMIT")
+    reader.close()
+    store.sync()
+    assert led.verify(deep=True) is True
+
+
+def test_sqlite_rejects_a_negative_lock_timeout(tmp_path):
+    with pytest.raises(ValueError, match="lock_timeout"):
+        SqliteStorage(str(tmp_path / "l.db"), lock_timeout=-1)
