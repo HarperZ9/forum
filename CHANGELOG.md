@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `SqliteStorage` under several writers. A writer in a loop took the write lock
+  back within microseconds of releasing it while the others slept in SQLite's
+  busy handler, so the last writer in line could wait past the 5 second busy
+  timeout and the caller got `sqlite3.OperationalError: database is locked`
+  (seen on a Windows CI runner on 2026-11-15; reproduced with six writers of
+  500 appends each). Every write now runs in a transaction that takes the write
+  lock first, `Ledger.append` reads the head, stores the payload and inserts
+  the entry inside one such transaction, and a writer that finds the lock held
+  asks again every few milliseconds. The chain stays dense and verifiable.
+- A writer that cannot take the lock within `lock_timeout` seconds (new
+  argument, default 30) raises the new `forum.storage.StorageBusy` and writes
+  nothing.
+- Two workers opening a new database file at the same moment: the loser's lock
+  error was reported as `StorageCorruption("not a valid SQLite database")`. It
+  now waits and opens.
+
+### Changed
+
+- An append to `SqliteStorage` is one transaction and one fsync in the default
+  mode; before, the payload and the entry were two.
+- In batched mode (`fsync_each=False`) a writer holds the write lock from its
+  first write until `sync()` or `close()`. A second writer waits for that sync
+  and raises `StorageBusy` at its bound.
+
 ## 1.17.0, 2026-10-03
 
 ### Added

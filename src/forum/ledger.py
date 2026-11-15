@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import time
 from dataclasses import dataclass
@@ -169,21 +170,30 @@ class Ledger:
         # head and retry. Single-process backends never collide, so this loop runs
         # exactly once and their behavior is unchanged. put_payload is content-keyed
         # and idempotent, so re-running it on a retry is a no-op.
+        #
+        # A storage that offers write_transaction() (SqliteStorage) takes its
+        # write lock before the head is read, so the head cannot move between
+        # the read and the insert and the whole append is one transaction. The
+        # seq key and the SeqCollision retry stay as the second guard. Waiting
+        # for that lock blocks; it never awaits.
+        scope = getattr(self._s, "write_transaction", contextlib.nullcontext)
         for _ in range(_MAX_APPEND_RETRIES):
-            head = self._s.head()
-            seq = 0 if head is None else head.seq + 1
-            prev = GENESIS if head is None else head.entry_hash
-            payload_hash = canonical_hash(payload)
-            self._s.put_payload(payload_hash, payload)
-            ts = float(self._clock())
-            entry_hash = compute_entry_hash(
-                seq, ts, actor, kind, causal_parent, payload_hash, prev
-            )
-            entry = LedgerEntry(
-                seq, ts, actor, kind, causal_parent, payload_hash, prev, entry_hash
-            )
             try:
-                self._s.append(entry)
+                with scope():
+                    head = self._s.head()
+                    seq = 0 if head is None else head.seq + 1
+                    prev = GENESIS if head is None else head.entry_hash
+                    payload_hash = canonical_hash(payload)
+                    self._s.put_payload(payload_hash, payload)
+                    ts = float(self._clock())
+                    entry_hash = compute_entry_hash(
+                        seq, ts, actor, kind, causal_parent, payload_hash, prev
+                    )
+                    entry = LedgerEntry(
+                        seq, ts, actor, kind, causal_parent, payload_hash, prev,
+                        entry_hash,
+                    )
+                    self._s.append(entry)
             except SeqCollision:
                 continue
             return entry
