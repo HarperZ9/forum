@@ -110,7 +110,8 @@ def test_readme_dropped_the_operator_surface_and_fair_source_badge():
     assert "## Operator surface" not in text
     assert "operator-spine" not in text
     assert "Forum%20Fair--Source" not in text  # the stale license badge
-    assert "FSL--1.1--MIT" in text
+    assert "FSL--1.1--MIT" not in text
+    assert "badge/license-MIT-" in text
 
 
 def test_readme_lists_the_flight_recorder_commands():
