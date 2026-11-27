@@ -32,6 +32,8 @@ The PyPI package is `forum-engine`. The name `forum` on PyPI belongs to an unrel
 
 The commands below were run in a fresh virtual environment with `forum-engine` 1.17.0 from PyPI. Python 3.11 or newer is required.
 
+mcp-name: io.github.harperz9/forum
+
 **1. Route a request.** No model and no network needed.
 
 ```console
