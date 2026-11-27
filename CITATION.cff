@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+type: software
+title: "forum"
+abstract: "Model-agnostic multi-agent orchestration with a hash-chained, content-addressed causal ledger you can replay and verify offline."
+version: "1.17.0"
+date-released: 2026-11-27
+authors:
+  - family-names: "Harper"
+    given-names: "Zain Dana"
+    orcid: "https://orcid.org/0009-0001-7175-5393"
+repository-code: "https://github.com/HarperZ9/forum"
+url: "https://harperz9.github.io"
+license: MIT
+license-url: "https://github.com/HarperZ9/forum/blob/main/LICENSE"
+keywords:
+  - agents
+  - orchestration
+  - ledger
+  - accountability
+  - multi-agent
+  - audit
+  - mcp
+  - zero-dependency
