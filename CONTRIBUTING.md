@@ -13,7 +13,8 @@ pytest
 ## Ground rules
 
 - **Zero runtime dependencies.** `pytest` is the only dev dependency. If a change
-  needs a third-party package at runtime, it belongs in an edge adapter, not the core.
+  needs a third-party package at runtime, place it in an edge adapter and keep the
+  core dependency-free.
 - **Small, focused modules.** One clear responsibility per file.
 - **Plain capability names.** Name things after what they do (`ledger`, `routing`),
   not metaphors or personas.

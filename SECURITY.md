@@ -49,7 +49,7 @@ document states what Forum does, what it guarantees, and how to run it safely.
   every entry on the working folder's device is dropped. A drive-relative name such
   as `C:claude` is refused. The child runs in a new private empty folder,
   and its environment is an allowlist (the platform base plus the variables the launch
-  names in `FORUM_CHILD_ENV`, not the whole environment). A Python target gets `-P`. A
+  names in `FORUM_CHILD_ENV`, omitting the rest of the parent environment). A Python target gets `-P`. A
   known agent CLI (claude, codex, gemini, opencode) is started with its isolation
   profile; an unproven profile is refused unless `FORUM_ALLOW_EXEC_CLI` names it. Both
   launch variables apply to every configured command: `--cmd`, the tier flags and
@@ -121,7 +121,7 @@ document states what Forum does, what it guarantees, and how to run it safely.
 
 ## Reporting a vulnerability
 
-Please report security issues privately rather than opening a public issue: open a
+Please report security issues privately and do not open a public issue: open a
 GitHub private security advisory at
 https://github.com/HarperZ9/forum/security/advisories/new (or reach the author via
 https://github.com/HarperZ9). We will acknowledge it and work a fix before any public
