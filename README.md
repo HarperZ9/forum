@@ -13,7 +13,7 @@ pip install forum-engine
 
 [![version: 1.17.0](https://img.shields.io/badge/version-1.17.0-e6e1d6?style=flat-square&labelColor=1a1712)](https://pypi.org/project/forum-engine/)
 [![CI](https://github.com/HarperZ9/forum/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/forum/actions/workflows/ci.yml)
-[![license](https://img.shields.io/badge/license-FSL--1.1--MIT-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
 ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-e6e1d6?style=flat-square&labelColor=1a1712)
 
 Forum is a Python command-line tool and library for multi-agent runs. You give it a plain request. It picks the kind of agent that fits, asks a model to split the request into tasks with dependencies, and runs tasks that do not depend on each other side by side. A model then judges each result, and forum combines the accepted results into one answer. A task that fails its check can move up to a stronger model.
@@ -203,7 +203,7 @@ an inference.
 The band at the bottom is the part worth reading twice. `forum ledger verify`
 reports two booleans, not one: the chain recomputes, and the stored bodies still
 hash to their keys. They can disagree. A body that was redacted down to its
-fingerprint is skipped by the deep pass rather than failed, which is what makes
+fingerprint is skipped by the deep pass without failing, which is what makes
 hash-only storage usable, and it is also the reason a green deep check is not a
 claim that every payload was examined. It is a claim about the ones that are
 still there.
@@ -211,7 +211,7 @@ still there.
 ## What a tight budget does to context
 
 `ContextBudget` caps how much text one run may carry, per source and in
-total. When a cap binds, something has to give. What a task actually ends
+total. When a cap binds, something has to give. What a task ends
 up seeing is the question this answers.
 
 <p align="center"><img src="docs/art/context-pressure.svg" alt="Seven things that can happen to one piece of context on its way to a task, and why each one lands that way. Text under its cap is kept whole, text over it is trimmed to the cap and measured again from what survived, and when two caps bind equally the reason names the total so a reader can tell the run is nearly out. Empty text is still recorded as a check. A character sitting on the cut is dropped rather than mangled, because the trim is measured in bytes. The marked row is the one where a piece is dropped whole, and even then the record keeps a row for it." width="100%"></p>
@@ -308,11 +308,11 @@ python examples/demo.py
 This tool is one lane of a family that holds a single belief steady across
 every surface: knowledge open to anyone who can attain the means; acceptance
 decided by external checks, never reputation; every result re-runnable;
-honest nulls first-class; ownership earned by comprehension; learning woven
+honest nulls on equal footing; ownership earned by comprehension; learning woven
 into the work. The full text lives in [CREDO.md](CREDO.md).
 The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywheel/blob/main/docs/essays/2026-07-13-the-unbundling.md).
 
----
+
 
 Built by **[Zain Dana Harper](https://harperz9.github.io)** in Seattle: evidence-first tools that leave a re-checkable artifact behind. The full workbench is at [Project Telos](https://harperz9.github.io).
 
